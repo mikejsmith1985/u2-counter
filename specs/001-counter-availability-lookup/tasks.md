@@ -50,15 +50,15 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T012 Implement `mvstore/src/mvstore/store.py` — file-backed records held in genuine AM/VM/SM format, keyed reads and writes
 - [X] T013 [P] Write failing tests for the query subset in `mvstore/tests/test_query.py` — `LIST`, `SELECT`, `SSELECT`, `COUNT`, including a `WITH` clause over a multivalued field
 - [X] T014 Implement `mvstore/src/mvstore/query.py` — the four read verbs and nothing else
-- [ ] T015 [P] Write failing tests for record validation in `mvstore/tests/test_validation.py` — a parallel field longer than field 1 is rejected; a short field is padded, never truncating the others
-- [ ] T016 Implement validation in `mvstore/src/mvstore/store.py` per the rules in `contracts/multivalue-files.md`
+- [X] T015 [P] Write failing tests for record validation in `mvstore/tests/test_validation.py` — a parallel field longer than field 1 is rejected; a short field is padded, never truncating the others
+- [X] T016 Implement validation in `mvstore/src/mvstore/store.py` per the rules in `contracts/multivalue-files.md`
 - [ ] T017 Implement `mvstore/src/mvstore/driver.py` — the uopy-compatible surface the MCP fork's driver seam expects
 
 ### Seed data
 
-- [ ] T018 [P] Write failing tests in `mvstore/tests/test_seed.py` asserting every condition in the seed obligations table of `contracts/multivalue-files.md`
-- [ ] T019 Implement `mvstore/src/mvstore/seed.py` — ~3,000 parts, 12 branches, 150 customers, 800 orders, satisfying every obligation
-- [ ] T020 Write `scripts/seed-demo-data.ps1`, which fails loudly if any seed obligation is unmet
+- [X] T018 [P] Write failing tests in `mvstore/tests/test_seed.py` asserting every condition in the seed obligations table of `contracts/multivalue-files.md`
+- [X] T019 Implement `mvstore/src/mvstore/seed.py` — ~3,000 parts, 12 branches, 150 customers, 800 orders, satisfying every obligation
+- [X] T020 Write `scripts/seed-demo-data.ps1`, which fails loudly if any seed obligation is unmet
 
 ### The MCP fork's driver seam
 

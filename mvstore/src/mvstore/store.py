@@ -9,6 +9,8 @@ that screen display something it never held.
 from __future__ import annotations
 
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 # The three MultiValue separators, in their hierarchy.
@@ -43,6 +45,35 @@ class MultiValueStore:
         # Writes are serialized because a partially written file would be
         # indistinguishable from a corrupted one on the next read.
         self._lock = threading.RLock()
+        # Files held in memory during a bulk write. Empty at every other time, so
+        # a single write still persists immediately.
+        self._pending: dict[str, dict[str, str]] = {}
+        self._is_bulk_writing = False
+
+    @contextmanager
+    def bulk_write(self) -> Iterator[None]:
+        """Hold writes in memory until the block ends, then persist once per file.
+
+        Each write otherwise rewrites its whole file, which makes writing n
+        records quadratic: seeding three thousand parts took minutes rather than
+        seconds. Reads inside the block see pending writes, because the seed
+        generator reads back what it has just written.
+
+        Whatever succeeded is persisted even if the block raises, so an
+        interrupted seed leaves readable data rather than an empty file.
+
+        Yields:
+            None
+        """
+        with self._lock:
+            self._is_bulk_writing = True
+            try:
+                yield
+            finally:
+                self._is_bulk_writing = False
+                for file_name, records in self._pending.items():
+                    self._save_now(file_name, records)
+                self._pending.clear()
 
     # -- paths ---------------------------------------------------------------
 
@@ -128,7 +159,13 @@ class MultiValueStore:
 
         A file that does not exist holds no records, which is not an error: it is
         simply a file nothing has been written to yet.
+
+        During a bulk write the in-memory copy is authoritative, so a caller
+        reading back what it has just written sees it.
         """
+        if file_name in self._pending:
+            return self._pending[file_name]
+
         path = self._path_for(file_name)
         if not path.exists():
             return {}
@@ -144,6 +181,13 @@ class MultiValueStore:
         return records
 
     def _save(self, file_name: str, records: dict[str, str]) -> None:
+        """Persist a file, or hold it in memory while a bulk write is open."""
+        if self._is_bulk_writing:
+            self._pending[file_name] = records
+            return
+        self._save_now(file_name, records)
+
+    def _save_now(self, file_name: str, records: dict[str, str]) -> None:
         """Write every record in a file, replacing what was there."""
         lines = [f"{key}\t{body}" for key, body in records.items()]
         self._path_for(file_name).write_text("\n".join(lines) + "\n", encoding=_ENCODING)

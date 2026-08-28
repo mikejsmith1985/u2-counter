@@ -130,6 +130,72 @@ class TestListingAndCounting:
         assert store.keys("PRODUCT") == []
 
 
+class TestBulkWriting:
+    """Writing many records must not rewrite the file once per record.
+
+    Every write persists the whole file, so writing n records one at a time is
+    quadratic. At three thousand parts that is minutes rather than seconds, which
+    makes seeding a chore and the test suite slow enough that people skip it.
+    """
+
+    def test_records_written_in_bulk_are_all_stored(self, store: MultiValueStore) -> None:
+        """Deferring the save must not lose anything."""
+        with store.bulk_write():
+            for index in range(50):
+                store.write("PRODUCT", f"P{index}", [f"part {index}"])
+
+        assert len(store.keys("PRODUCT")) == 50
+
+    def test_bulk_written_records_survive_a_new_instance(self, tmp_path) -> None:
+        """The deferred save actually reaches disk when the block ends."""
+        store = MultiValueStore(tmp_path)
+        with store.bulk_write():
+            store.write("PRODUCT", "P1", ["persisted"])
+
+        assert MultiValueStore(tmp_path).read("PRODUCT", "P1") == ["persisted"]
+
+    def test_a_failure_inside_the_block_still_persists_what_succeeded(self, tmp_path) -> None:
+        """An interrupted seed leaves readable data rather than an empty file."""
+        store = MultiValueStore(tmp_path)
+        with pytest.raises(ValueError), store.bulk_write():
+            store.write("PRODUCT", "P1", ["written"])
+            raise ValueError("interrupted")
+
+        assert MultiValueStore(tmp_path).read("PRODUCT", "P1") == ["written"]
+
+    def test_reads_inside_the_block_see_pending_writes(self, store: MultiValueStore) -> None:
+        """The generator reads back what it just wrote, so buffering must be visible."""
+        with store.bulk_write():
+            store.write("PRODUCT", "P1", ["pending"])
+
+            assert store.read("PRODUCT", "P1") == ["pending"]
+
+    def test_the_file_is_written_once_not_once_per_record(
+        self, store: MultiValueStore, monkeypatch
+    ) -> None:
+        """The point of the block is fewer writes, so count them.
+
+        Correctness alone would pass whether or not buffering happens, which is
+        exactly how a no-op implementation slips through. This asserts the
+        behaviour the block exists for.
+        """
+        write_count = 0
+        original_write_text = type(store)._save_now
+
+        def counting_save(self, file_name: str, records: dict[str, str]) -> None:
+            nonlocal write_count
+            write_count += 1
+            original_write_text(self, file_name, records)
+
+        monkeypatch.setattr(type(store), "_save_now", counting_save)
+
+        with store.bulk_write():
+            for index in range(50):
+                store.write("PRODUCT", f"P{index}", [f"part {index}"])
+
+        assert write_count == 1, f"the file was written {write_count} times for 50 records"
+
+
 class TestDurability:
     """The store is file-backed, so a new instance sees what an earlier one wrote."""
 
