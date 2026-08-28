@@ -8,6 +8,16 @@
 
 **Input**: User description: "A counter-sales lookup for an electrical distributor. A customer phones a branch asking for a quantity of a part today. The person answering must say, within about thirty seconds, whether the part is available, at which branches, what this customer pays for it, and what quantity is already committed to other orders. Stock is held in a MultiValue ERP where one inventory record carries every branch's position in parallel repeating fields."
 
+## Clarifications
+
+### Session 2026-08-28
+
+- Q: What interaction model and accessibility standard must the application meet? → A: Keyboard-first and WCAG 2.1 AA — every action reachable by keyboard, visible focus, AA contrast, screen-reader labels on data.
+- Q: How large should the demonstration data set be? → A: Realistic-small — approximately 3,000 parts, 12 branches, 150 customers, 800 open orders.
+- Q: Can a user take the answer out of the application, and how? → A: Copy to clipboard — one action copies a plain-text summary of the part, its availability, and the customer's net price. No file export or email.
+- Q: Which order states hold stock against a branch's on-hand quantity? → A: Confirmed through picking — orders that are confirmed, allocated or being picked hold stock; quotations, shipped and cancelled orders do not.
+- Q: What should the application do when the ERP does not answer promptly? → A: Fail fast and say so — give up after a few seconds and tell the user the data could not be reached, with a retry. Never serve stale figures.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Answer "have you got it?" (Priority: P1)
@@ -83,9 +93,9 @@ contract produced it.
 ### User Story 3 - See what the committed stock is promised to (Priority: P3)
 
 When a branch shows stock on hand but little free to sell, the representative can
-see which open orders are holding the difference, including the customer, the
-quantity, and the promised date. This lets them tell the caller when stock frees
-up, or judge whether another order could reasonably be moved.
+see which orders are holding the difference, including the customer, the
+quantity, the order's state, and the promised date. This lets them tell the caller
+when stock frees up, or judge whether another order could reasonably be moved.
 
 **Why this priority**: It converts a "no" into a "not until Thursday", which is a
 materially better answer for the customer. It depends on availability already
@@ -176,8 +186,9 @@ activity record names the person, the database account, and each action taken.
   they display correctly rather than being stripped.
 - A single part is stocked at an unusually large number of branches — all are
   shown, and the screen remains readable.
-- The ERP is unreachable or slow to answer — the user is told the system could not
-  reach the data, distinguishable from a genuine "no stock" answer.
+- The ERP is unreachable or slow to answer — the request is abandoned after a few
+  seconds and the user is told the data could not be reached, distinguishable from
+  a genuine "no stock" answer, and never replaced with an earlier reading.
 - A result set is capped for size — the user is told the answer may be partial
   rather than being shown a truncated list presented as complete.
 - Two people look up the same part at the same moment — both receive correct
@@ -230,43 +241,90 @@ activity record names the person, the database account, and each action taken.
 **Commitments**
 
 - **FR-016**: Users MUST be able to see, for a branch with committed stock, the
-  open orders holding it, with customer, quantity, and promised date.
+  orders holding it, with customer, quantity, order state, and promised date.
 - **FR-017**: The system MUST state when a branch has no commitments, rather than
   showing an empty list.
+- **FR-018**: The system MUST treat an order as holding stock only while it is
+  confirmed, allocated, or being picked. Quotations hold nothing, because a quote
+  is not a promise; shipped and cancelled orders hold nothing, because the stock
+  has either left or was never taken.
+- **FR-019**: The commitments listed for a branch MUST account for that branch's
+  entire committed quantity, so that a user can see what the whole of it is
+  promised to.
 
 **Showing the underlying record**
 
-- **FR-018**: Users MUST be able to view the inventory record as the ERP stores
+- **FR-020**: Users MUST be able to view the inventory record as the ERP stores
   it, alongside the structured form the screen uses.
-- **FR-019**: The system MUST render the separators within the stored record
+- **FR-021**: The system MUST render the separators within the stored record
   visibly and label them, rather than hiding or removing them.
-- **FR-020**: The system MUST show the query that retrieved the data being
+- **FR-022**: The system MUST show the query that retrieved the data being
   displayed.
 
 **Identity, permission and record-keeping**
 
-- **FR-021**: The system MUST show the signed-in user, the database account in
+- **FR-023**: The system MUST show the signed-in user, the database account in
   use, and whether the session may change data, on every screen.
-- **FR-022**: The system MUST NOT offer any control that would change data when
+- **FR-024**: The system MUST NOT offer any control that would change data when
   the session is read-only.
-- **FR-023**: The system MUST record every request against the person who made it,
+- **FR-025**: The system MUST record every request against the person who made it,
   the database account used, the time, and the duration.
-- **FR-024**: The system MUST record whether the database account used was shared
+- **FR-026**: The system MUST record whether the database account used was shared
   by more than one person.
-- **FR-025**: The system MUST NOT record credentials of any kind.
-- **FR-026**: Users MUST be able to review recent recorded activity from within
+- **FR-027**: The system MUST NOT record credentials of any kind.
+- **FR-028**: Users MUST be able to review recent recorded activity from within
   the application.
 
 **Truthfulness of answers**
 
-- **FR-027**: The system MUST distinguish "there is no stock" from "the stock
+- **FR-029**: The system MUST distinguish "there is no stock" from "the stock
   position could not be retrieved", and never present the second as the first.
-- **FR-028**: When results have been limited for size, the system MUST say so
+- **FR-030**: When results have been limited for size, the system MUST say so
   rather than presenting a partial answer as complete.
-- **FR-029**: The system MUST display text in any alphabet, including accented
+- **FR-031**: The system MUST display text in any alphabet, including accented
   characters and currency symbols, without alteration.
-- **FR-030**: All demonstration data MUST be identified as demonstration data
+- **FR-032**: All demonstration data MUST be identified as demonstration data
   wherever it is displayed.
+
+**When the data cannot be reached**
+
+- **FR-033**: The system MUST abandon a request that the ERP has not answered
+  within a few seconds, and tell the user it could not reach the data. A
+  representative on a live call can excuse themselves and ring back; what they
+  cannot do is wait, or repeat a figure they are unsure of.
+- **FR-034**: The failure message MUST offer an immediate retry.
+- **FR-035**: The system MUST NOT show previously retrieved figures in place of an
+  answer it could not obtain. Stock quoted from a stale reading is worse than no
+  answer, because the caller acts on it.
+- **FR-036**: A failure to reach the data MUST be recorded in the activity record
+  in the same way as a successful request.
+
+**Carrying the answer elsewhere**
+
+- **FR-037**: Users MUST be able to copy a plain-text summary of what they are
+  looking at — the part, its availability by branch, and the selected customer's
+  net price — to the clipboard in a single action, so it can be pasted into an
+  order, an email or a note without retyping.
+- **FR-038**: The copied summary MUST identify itself as demonstration data and
+  carry the time it was taken, so a figure pasted elsewhere cannot later be
+  mistaken for a live or current one.
+- **FR-039**: The system MUST confirm to the user that the copy succeeded.
+- **FR-040**: The copied summary MUST NOT contain anything the user could not see
+  on screen.
+
+**Operating the application**
+
+- **FR-041**: Every action MUST be reachable and completable using the keyboard
+  alone, without a pointing device. A representative holding a telephone has one
+  hand, and looking away to find a mouse costs the seconds this feature exists to
+  save.
+- **FR-042**: The element with keyboard focus MUST be visibly distinct at all
+  times, so a user can see where they are without moving the pointer.
+- **FR-043**: The application MUST meet WCAG 2.1 Level AA, including contrast
+  ratios and text alternatives.
+- **FR-044**: Quantities, prices and branch identifiers MUST carry labels that
+  identify them when read aloud by assistive technology, so that a figure is never
+  announced as a bare number without saying what it counts.
 
 ### Key Entities
 
@@ -282,8 +340,10 @@ activity record names the person, the database account, and each action taken.
   the pricing terms that apply to them.
 - **Contract terms**: The agreement that turns a list price into a customer's net
   price for a part or category, effective between two dates.
-- **Open order**: A commitment against stock — customer, part, quantity, branch,
-  and promised date.
+- **Order**: A customer's request for parts — customer, part, quantity, branch,
+  promised date, and state. An order holds stock only while it is confirmed,
+  allocated, or being picked; a quotation holds nothing, and shipped or cancelled
+  orders hold nothing.
 - **Activity record**: One recorded request — who made it, what they asked for,
   which database account served it, when, and how long it took.
 
@@ -296,7 +356,8 @@ activity record names the person, the database account, and each action taken.
 - **SC-002**: The complete availability picture for a part is legible without
   scrolling on a standard branch workstation screen.
 - **SC-003**: Searching, and opening a part, each return an answer in under one
-  second for 95% of attempts.
+  second for 95% of attempts, measured against the full demonstration catalogue of
+  approximately 3,000 parts rather than a reduced subset.
 - **SC-004**: A person unfamiliar with the application can answer a phoned
   availability question on their first attempt without being shown how.
 - **SC-005**: Every branch position shown matches the ERP record it came from,
@@ -311,20 +372,36 @@ activity record names the person, the database account, and each action taken.
   went wrong and what to do next; none produce a blank screen or a raw error.
 - **SC-010**: Ten people using the application at the same moment each receive
   correct answers, with no degradation a user would notice.
+- **SC-011**: Every user journey in this specification can be completed end to end
+  using the keyboard alone, with the focused element visible at every step.
+- **SC-012**: An automated accessibility audit of every screen reports no WCAG 2.1
+  Level AA violations.
+- **SC-013**: When the underlying data cannot be reached, the user is told so
+  within five seconds, on every occasion, and is never shown an earlier reading in
+  its place.
+- **SC-014**: Free-to-sell figures reconcile exactly with the orders listed as
+  holding stock, across the whole demonstration data set, with no branch where the
+  listed commitments fail to account for the committed quantity.
 
 ## Assumptions
 
 - **Read-only for this release.** The application answers questions; it does not
   place orders, reserve stock, or amend records. Everything a counter
-  representative would then do happens in the ERP as it does today.
+  representative would then do happens in the ERP as it does today. The answer
+  leaves the application only as text the user copies deliberately; there is no
+  file export and no outbound email.
 - **Demonstration data.** The system runs against a generated data set shaped like
   a distributor's, not against any real company's records. This is stated in the
-  application itself.
+  application itself. The set holds roughly 3,000 parts across 12 branches, with
+  150 customers and 800 open orders — large enough that search has to be built
+  properly rather than faked, and that a branch grid looks like real distribution,
+  while remaining small enough to verify exhaustively.
 - **A single region.** Availability is shown across the branches of one region,
   which is the set a representative would realistically transfer stock between.
 - **Desktop use.** The primary user is at a branch workstation with a keyboard and
-  a wide screen. The application should remain usable on a smaller screen, but is
-  not designed for phone-first use.
+  a wide screen, and is frequently holding a telephone. The application is driven
+  from the keyboard; a pointing device is supported but never required. It should
+  remain usable on a smaller screen, but is not designed for phone-first use.
 - **Sign-in exists.** Users arrive already identified; this feature consumes that
   identity rather than establishing it.
 - **Availability is defined as on hand less committed.** Stock on order from
@@ -334,6 +411,6 @@ activity record names the person, the database account, and each action taken.
   distribution. Quantity breaks and promotional pricing are out of scope.
 - **One user at a time per session.** No collaborative or shared-cursor behaviour
   is required.
-- **Reachability of the ERP is not guaranteed.** The application must behave
-  correctly when the ERP is slow or unavailable, but is not responsible for its
-  availability.
+- **Reachability of the ERP is not guaranteed.** The application fails fast and
+  says so when the ERP is slow or unavailable, and is not responsible for its
+  availability. No figure is cached and re-served in place of a live answer.

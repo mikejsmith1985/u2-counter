@@ -43,6 +43,20 @@
 
 **Iteration 2** — all items pass.
 
+**Iteration 3** — re-validated after the clarification session of 2026-08-28.
+All items still pass. Five clarifications were integrated, closing four
+categories that had been Partial: interaction and accessibility, data volume,
+scope of what leaves the application, the meaning of committed stock, and
+behaviour when the ERP cannot be reached. Requirements grew from 30 to 44 and
+success criteria from 10 to 14; requirements were renumbered once, in reading
+order, while no downstream artefact referenced them.
+
+Two statements that the clarifications had made imprecise were replaced rather
+than left alongside the new text: the edge case covering an unreachable ERP now
+states the fail-fast behaviour, and the reachability assumption no longer leaves
+caching open. The `Open order` entity became `Order` with an explicit state, since
+"open" was doing work the clarification took over.
+
 **Decisions taken rather than deferred to a clarification marker**, each recorded
 in the Assumptions section of the spec:
 
