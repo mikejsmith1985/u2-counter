@@ -1,0 +1,6 @@
+@Counter.Api_HostAddress = http://localhost:5252
+
+GET {{Counter.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

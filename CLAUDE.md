@@ -27,8 +27,8 @@ MultiValue ERP through a hardened MCP server.
 - Contracts: `specs/001-counter-availability-lookup/contracts/`
 - Quickstart: `specs/001-counter-availability-lookup/quickstart.md`
 
-**Stack**: C# 13 on .NET 9 (ASP.NET Core Web API, controllers) · TypeScript 5.7
-with React 19, Vite 6, TanStack Query, Radix UI · Python 3.12 (demonstration
+**Stack**: C# 13 on .NET 9 (ASP.NET Core Web API, controllers) · TypeScript 6.0
+with React 19.2, Vite 8.2, TanStack Query, Radix UI · Python 3.12 (demonstration
 MultiValue store, hardened `u2-mcp` fork) · SQL Server via EF Core 9 · xUnit with
 Testcontainers, Vitest, Cypress with `cypress-real-events` and `axe-core`, pytest
 · Docker on Azure Container Apps

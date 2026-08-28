@@ -22,12 +22,12 @@ failure the specification forbids.
 
 ## Technical Context
 
-**Language/Version**: C# 13 on .NET 9 (API); TypeScript 5.7 (web); Python 3.12
-(demonstration MultiValue store and the MCP server fork)
+**Language/Version**: C# 13 on .NET 9.0.317 (API); TypeScript 6.0 (web); Python
+3.12 (demonstration MultiValue store and the MCP server fork)
 
 **Primary Dependencies**: ASP.NET Core 9 Web API with controllers; EF Core 9;
-React 19; Vite 6; TanStack Query 5; Radix UI primitives; the hardened `u2-mcp`
-fork
+React 19.2; Vite 8.2; TanStack Query 5; Radix UI primitives; the hardened
+`u2-mcp` fork
 
 **Storage**: SQL Server for application state — sessions, preferences, and the
 mirror of the activity record. Azure SQL Database when deployed, SQL Server 2022

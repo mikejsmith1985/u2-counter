@@ -23,16 +23,16 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 **Purpose**: An empty repository becomes one where every tool runs.
 
-- [ ] T001 Create the directory structure from plan.md — `api/`, `web/`, `mvstore/`, `deploy/`, `scripts/`
-- [ ] T002 [P] Create the .NET solution and three projects in `api/` — `Counter.Api`, `Counter.Domain`, `Counter.Infrastructure` — targeting .NET 9
-- [ ] T003 [P] Initialise the Vite + React 19 + TypeScript 5.7 workspace in `web/`
-- [ ] T004 [P] Initialise the Python package in `mvstore/` with `pyproject.toml`, targeting 3.12
-- [ ] T005 [P] Add `api/.editorconfig` enforcing the Article IV naming and function-length rules as analyzer severities
-- [ ] T006 [P] Configure ESLint and Prettier in `web/` with the same naming rules and an import-order convention
-- [ ] T007 [P] Configure ruff and mypy for `mvstore/` in `mvstore/pyproject.toml`, matching the fork's settings
-- [ ] T008 Write `scripts/run-dev-clean.ps1` — starts all four services, records every process id in `.run/pids.json`, and on `-Stop` terminates **only those ids** (Article II)
-- [ ] T009 [P] Write `CHANGELOG.md` at the repository root with an `Unreleased` section (Article VI)
-- [ ] T010 [P] Write `.gitignore` covering `.run/`, build output, `node_modules/`, `.venv/`, and any `.env`
+- [X] T001 Create the directory structure from plan.md — `api/`, `web/`, `mvstore/`, `deploy/`, `scripts/`
+- [X] T002 [P] Create the .NET solution and three projects in `api/` — `Counter.Api`, `Counter.Domain`, `Counter.Infrastructure` — targeting .NET 9
+- [X] T003 [P] Initialise the Vite + React 19 + TypeScript 5.7 workspace in `web/`
+- [X] T004 [P] Initialise the Python package in `mvstore/` with `pyproject.toml`, targeting 3.12
+- [X] T005 [P] Add `api/.editorconfig` enforcing the Article IV naming and function-length rules as analyzer severities
+- [X] T006 [P] Configure ESLint and Prettier in `web/` with the same naming rules and an import-order convention
+- [X] T007 [P] Configure ruff and mypy for `mvstore/` in `mvstore/pyproject.toml`, matching the fork's settings
+- [X] T008 Write `scripts/run-dev-clean.ps1` — starts all four services, records every process id in `.run/pids.json`, and on `-Stop` terminates **only those ids** (Article II)
+- [X] T009 [P] Write `CHANGELOG.md` at the repository root with an `Unreleased` section (Article VI)
+- [X] T010 [P] Write `.gitignore` covering `.run/`, build output, `node_modules/`, `.venv/`, and any `.env`
 
 **Checkpoint**: Every toolchain runs; nothing does anything yet.
 
