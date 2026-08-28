@@ -52,7 +52,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T014 Implement `mvstore/src/mvstore/query.py` — the four read verbs and nothing else
 - [X] T015 [P] Write failing tests for record validation in `mvstore/tests/test_validation.py` — a parallel field longer than field 1 is rejected; a short field is padded, never truncating the others
 - [X] T016 Implement validation in `mvstore/src/mvstore/store.py` per the rules in `contracts/multivalue-files.md`
-- [ ] T017 Implement `mvstore/src/mvstore/driver.py` — the uopy-compatible surface the MCP fork's driver seam expects
+- [X] T017 Implement `mvstore/src/mvstore/driver.py` — the uopy-compatible surface the MCP fork's driver seam expects
 
 ### Seed data
 
@@ -62,8 +62,8 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### The MCP fork's driver seam
 
-- [ ] T021 Add `U2_DRIVER=uopy|demo` to the hardened `u2-mcp` fork, defaulting to `uopy`, with tests proving the default is unchanged
-- [ ] T022 Wire the `demo` driver to `mvstore` in the fork, and document the seam in the fork's `docs/hardening.md`
+- [X] T021 Add `U2_DRIVER=uopy|demo` to the hardened `u2-mcp` fork, defaulting to `uopy`, with tests proving the default is unchanged
+- [X] T022 Wire the `demo` driver to `mvstore` in the fork, and document the seam in the fork's `docs/hardening.md`
 
 ### API foundations
 
