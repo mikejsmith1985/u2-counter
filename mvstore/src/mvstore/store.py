@@ -49,6 +49,8 @@ class MultiValueStore:
         # a single write still persists immediately.
         self._pending: dict[str, dict[str, str]] = {}
         self._is_bulk_writing = False
+        # One parsed copy per file, keyed by the file's modification time.
+        self._file_cache: dict[str, tuple[int, dict[str, str]]] = {}
 
     @contextmanager
     def bulk_write(self) -> Iterator[None]:
@@ -170,6 +172,16 @@ class MultiValueStore:
         if not path.exists():
             return {}
 
+        # Cached against the file's modification time. Without this, reading n
+        # records re-reads and re-parses the whole file n times, which is
+        # quadratic: listing three thousand products took thirty seconds.
+        # Comparing the timestamp rather than trusting the cache means a file
+        # changed by the seed script is still picked up.
+        stamp = path.stat().st_mtime_ns
+        cached = self._file_cache.get(file_name)
+        if cached is not None and cached[0] == stamp:
+            return cached[1]
+
         records: dict[str, str] = {}
         for line in path.read_text(encoding=_ENCODING).split("\n"):
             if not line:
@@ -178,6 +190,8 @@ class MultiValueStore:
             # in a MultiValue record: the store rejects one on write.
             key, _, body = line.partition("\t")
             records[key] = body
+
+        self._file_cache[file_name] = (stamp, records)
         return records
 
     def _save(self, file_name: str, records: dict[str, str]) -> None:

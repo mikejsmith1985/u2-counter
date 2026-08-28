@@ -67,8 +67,8 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### API foundations
 
-- [ ] T023 [P] Write failing integration tests in `api/tests/Counter.IntegrationTests/McpClientTests.cs` — the client reaches a live `mvstore` and returns a parsed record
-- [ ] T024 Implement the MCP client in `api/src/Counter.Infrastructure/Mcp/McpClient.cs`, calling only the tools permitted by `contracts/mcp-usage.md`
+- [X] T023 [P] Write failing integration tests in `api/tests/Counter.IntegrationTests/McpClientTests.cs` — the client reaches a live `mvstore` and returns a parsed record
+- [X] T024 Implement the MCP client in `api/src/Counter.Infrastructure/Mcp/McpClient.cs`, calling only the tools permitted by `contracts/mcp-usage.md`
 - [ ] T025 Write `api/tests/Counter.IntegrationTests/ForbiddenToolTests.cs` asserting no binding exists to any tool in the forbidden table — the list must fail a build, not sit in a document
 - [X] T026 [P] Write failing tests in `api/tests/Counter.UnitTests/MultiValueParserTests.cs` — parallel fields align by position; a short field pads; a record with a quantity for an unnamed branch is rejected
 - [X] T027 Implement `api/src/Counter.Infrastructure/MultiValue/RecordParser.cs` producing one `BranchPosition` per index, never zipping separate lists
@@ -76,7 +76,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [ ] T029 [P] Write failing tests in `api/tests/Counter.IntegrationTests/ActivityRedactionTests.cs` asserting no seeded credential ever reaches a written record
 - [ ] T030 Implement the activity-recording action filter in `api/src/Counter.Api/Filters/ActivityRecordingFilter.cs` — one record per request including failures, naming the person and the database login
 - [ ] T031 Implement the five-second request budget in `api/src/Counter.Api/Filters/ErpTimeoutFilter.cs` — a linked cancellation token that stops the work, not merely the waiting
-- [ ] T032 Implement problem-detail mapping in `api/src/Counter.Api/Filters/ProblemDetailsMapper.cs` for the four error types in `contracts/rest-api.md`
+- [X] T032 Implement problem-detail mapping in `api/src/Counter.Api/Filters/ProblemDetailsMapper.cs` for the four error types in `contracts/rest-api.md`
 
 ### Web foundations
 
@@ -106,13 +106,13 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 - [X] T041 [P] [US1] Implement `Part`, `BranchPosition` and `StockState` in `api/src/Counter.Domain/Catalogue/`
 - [X] T042 [US1] Implement availability rules as named operations in `api/src/Counter.Domain/Availability/AvailabilityCalculator.cs` — not arithmetic inline in a controller
-- [ ] T043 [US1] Implement the in-memory catalogue projection in `api/src/Counter.Infrastructure/Catalogue/CatalogueProjection.cs`, built at startup and refreshable on demand
-- [ ] T044 [US1] Implement `api/src/Counter.Infrastructure/Erp/AvailabilityReader.cs` reading `INVENTORY` and `BRANCH` through the MCP client
+- [X] T043 [US1] Implement the in-memory catalogue projection in `api/src/Counter.Infrastructure/Catalogue/CatalogueProjection.cs`, built at startup and refreshable on demand
+- [X] T044 [US1] Implement `api/src/Counter.Infrastructure/Erp/AvailabilityReader.cs` reading `INVENTORY` and `BRANCH` through the MCP client
 
 ### Endpoints
 
-- [ ] T045 [US1] Implement `GET /api/v1/parts` in `api/src/Counter.Api/Controllers/PartsController.cs` per `contracts/rest-api.md`
-- [ ] T046 [US1] Implement `GET /api/v1/parts/{partNumber}/availability` in the same controller, returning the full envelope
+- [X] T045 [US1] Implement `GET /api/v1/parts` in `api/src/Counter.Api/Controllers/PartsController.cs` per `contracts/rest-api.md`
+- [X] T046 [US1] Implement `GET /api/v1/parts/{partNumber}/availability` in the same controller, returning the full envelope
 
 ### Front end
 
@@ -139,14 +139,14 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 ### Tests first
 
 - [X] T053 [P] [US2] Write failing tests in `api/tests/Counter.UnitTests/PricingRulesTests.cs` — lapsed terms are disregarded with a reason; the lowest applicable multiplier wins; no terms means list price labelled as list
-- [ ] T054 [P] [US2] Write failing integration tests in `api/tests/Counter.IntegrationTests/PricingEndpointTests.cs` — `basis` is `Contract` or `List`, and `disregardedTerms` is populated for an expired promotion
+- [X] T054 [P] [US2] Write failing integration tests in `api/tests/Counter.IntegrationTests/PricingEndpointTests.cs` — `basis` is `Contract` or `List`, and `disregardedTerms` is populated for an expired promotion
 
 ### Implementation
 
 - [X] T055 [P] [US2] Implement `Customer` and `ContractTerms` in `api/src/Counter.Domain/Pricing/`
 - [X] T056 [US2] Implement `api/src/Counter.Domain/Pricing/PriceCalculator.cs` — net price, applicable terms, and the terms deliberately not applied
-- [ ] T057 [US2] Implement `api/src/Counter.Infrastructure/Erp/PricingReader.cs` reading `CUSTOMER` and `PRICING`
-- [ ] T058 [US2] Extend the availability endpoint with the `pricing` block, and implement `GET /api/v1/customers` in `api/src/Counter.Api/Controllers/CustomersController.cs`
+- [X] T057 [US2] Implement `api/src/Counter.Infrastructure/Erp/PricingReader.cs` reading `CUSTOMER` and `PRICING`
+- [X] T058 [US2] Extend the availability endpoint with the `pricing` block, and implement `GET /api/v1/customers` in `api/src/Counter.Api/Controllers/CustomersController.cs`
 - [ ] T059 [US2] Implement `PUT /api/v1/session/customer` in `api/src/Counter.Api/Controllers/SessionController.cs` — the only non-`GET` route, and it writes to the session, never the ERP
 - [ ] T060 [P] [US2] Implement the customer selector in `web/src/features/pricing/CustomerSelector.tsx`, keyboard-reachable from the header
 - [ ] T061 [US2] Implement the pricing panel in `web/src/features/pricing/PricingPanel.tsx` — list, multiplier and net shown together, with disregarded terms visible
@@ -169,13 +169,13 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 ### Tests first
 
 - [X] T064 [P] [US3] Write failing tests in `api/tests/Counter.UnitTests/OrderStateTests.cs` — only `CONFIRMED`, `ALLOCATED` and `PICKING` hold stock; an unrecognised state holds nothing and is logged
-- [ ] T065 [P] [US3] Write failing integration tests in `api/tests/Counter.IntegrationTests/CommitmentsEndpointTests.cs` — the contract shape, and `unaccounted` populated where listed commitments fall short
+- [X] T065 [P] [US3] Write failing integration tests in `api/tests/Counter.IntegrationTests/CommitmentsEndpointTests.cs` — the contract shape, and `unaccounted` populated where listed commitments fall short
 
 ### Implementation
 
 - [X] T066 [P] [US3] Implement `Order` and `OrderState` as a closed set in `api/src/Counter.Domain/Orders/`
-- [ ] T067 [US3] Implement `api/src/Counter.Infrastructure/Erp/CommitmentReader.cs` — the state filter applied in the query, so the rule lives in one place
-- [ ] T068 [US3] Implement `GET /api/v1/parts/{partNumber}/commitments` in `api/src/Counter.Api/Controllers/PartsController.cs`
+- [X] T067 [US3] Implement `api/src/Counter.Infrastructure/Erp/CommitmentReader.cs` — the state filter applied in the query, so the rule lives in one place
+- [X] T068 [US3] Implement `GET /api/v1/parts/{partNumber}/commitments` in `api/src/Counter.Api/Controllers/PartsController.cs`
 - [ ] T069 [P] [US3] Implement the expandable branch row in `web/src/features/commitments/BranchCommitments.tsx`, expandable by keyboard
 - [ ] T070 [US3] Implement the unaccounted row in `web/src/features/commitments/UnaccountedRow.tsx` — a visible discrepancy beats a tidy screen
 - [ ] T071 [US3] Implement the no-commitments state in `web/src/features/commitments/NoCommitments.tsx` — stated in words rather than shown as an empty list
@@ -197,13 +197,13 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Tests first
 
-- [ ] T074 [P] [US4] Write failing integration tests in `api/tests/Counter.IntegrationTests/RecordEndpointTests.cs` — the response carries delimiters **as stored**, never stripped and never pre-rendered
+- [X] T074 [P] [US4] Write failing integration tests in `api/tests/Counter.IntegrationTests/RecordEndpointTests.cs` — the response carries delimiters **as stored**, never stripped and never pre-rendered
 - [ ] T075 [P] [US4] Write failing tests in `api/tests/Counter.UnitTests/MarkDescriptionTests.cs` — every mark present in a record is described in the `marks` array
 
 ### Implementation
 
-- [ ] T076 [US4] Implement `GET /api/v1/parts/{partNumber}/record` in `api/src/Counter.Api/Controllers/PartsController.cs`, returning raw, parsed, marks and query
-- [ ] T077 [US4] Ensure the serializer preserves the delimiter characters unaltered in `api/src/Counter.Api/Serialization/`
+- [X] T076 [US4] Implement `GET /api/v1/parts/{partNumber}/record` in `api/src/Counter.Api/Controllers/PartsController.cs`, returning raw, parsed, marks and query
+- [X] T077 [US4] Ensure the serializer preserves the delimiter characters unaltered in `api/src/Counter.Api/Serialization/`
 - [ ] T078 [P] [US4] Implement the record drawer in `web/src/features/record/RecordDrawer.tsx` with focus trapping, opened by `R` and closed by `Escape`
 - [ ] T079 [P] [US4] Implement visible, labelled mark rendering in `web/src/features/record/MarkedRecord.tsx`
 - [ ] T080 [US4] Implement the side-by-side raw and parsed panes in `web/src/features/record/RecordPanes.tsx`, with the query shown beneath them
