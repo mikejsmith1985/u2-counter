@@ -46,10 +46,10 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### The demonstration MultiValue store
 
-- [ ] T011 [P] Write failing tests for delimiter round-tripping in `mvstore/tests/test_store.py` — records with empty interior fields, missing trailing fields, and subvalues survive write-then-read unchanged
-- [ ] T012 Implement `mvstore/src/mvstore/store.py` — file-backed records held in genuine AM/VM/SM format, keyed reads and writes
-- [ ] T013 [P] Write failing tests for the query subset in `mvstore/tests/test_query.py` — `LIST`, `SELECT`, `SSELECT`, `COUNT`, including a `WITH` clause over a multivalued field
-- [ ] T014 Implement `mvstore/src/mvstore/query.py` — the four read verbs and nothing else
+- [X] T011 [P] Write failing tests for delimiter round-tripping in `mvstore/tests/test_store.py` — records with empty interior fields, missing trailing fields, and subvalues survive write-then-read unchanged
+- [X] T012 Implement `mvstore/src/mvstore/store.py` — file-backed records held in genuine AM/VM/SM format, keyed reads and writes
+- [X] T013 [P] Write failing tests for the query subset in `mvstore/tests/test_query.py` — `LIST`, `SELECT`, `SSELECT`, `COUNT`, including a `WITH` clause over a multivalued field
+- [X] T014 Implement `mvstore/src/mvstore/query.py` — the four read verbs and nothing else
 - [ ] T015 [P] Write failing tests for record validation in `mvstore/tests/test_validation.py` — a parallel field longer than field 1 is rejected; a short field is padded, never truncating the others
 - [ ] T016 Implement validation in `mvstore/src/mvstore/store.py` per the rules in `contracts/multivalue-files.md`
 - [ ] T017 Implement `mvstore/src/mvstore/driver.py` — the uopy-compatible surface the MCP fork's driver seam expects
