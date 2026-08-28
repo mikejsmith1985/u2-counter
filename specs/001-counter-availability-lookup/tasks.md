@@ -70,8 +70,8 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [ ] T023 [P] Write failing integration tests in `api/tests/Counter.IntegrationTests/McpClientTests.cs` — the client reaches a live `mvstore` and returns a parsed record
 - [ ] T024 Implement the MCP client in `api/src/Counter.Infrastructure/Mcp/McpClient.cs`, calling only the tools permitted by `contracts/mcp-usage.md`
 - [ ] T025 Write `api/tests/Counter.IntegrationTests/ForbiddenToolTests.cs` asserting no binding exists to any tool in the forbidden table — the list must fail a build, not sit in a document
-- [ ] T026 [P] Write failing tests in `api/tests/Counter.UnitTests/MultiValueParserTests.cs` — parallel fields align by position; a short field pads; a record with a quantity for an unnamed branch is rejected
-- [ ] T027 Implement `api/src/Counter.Infrastructure/MultiValue/RecordParser.cs` producing one `BranchPosition` per index, never zipping separate lists
+- [X] T026 [P] Write failing tests in `api/tests/Counter.UnitTests/MultiValueParserTests.cs` — parallel fields align by position; a short field pads; a record with a quantity for an unnamed branch is rejected
+- [X] T027 Implement `api/src/Counter.Infrastructure/MultiValue/RecordParser.cs` producing one `BranchPosition` per index, never zipping separate lists
 - [ ] T028 [P] Implement the EF Core context and migrations for `UserSession` and `ActivityRecord` in `api/src/Counter.Infrastructure/Data/`
 - [ ] T029 [P] Write failing tests in `api/tests/Counter.IntegrationTests/ActivityRedactionTests.cs` asserting no seeded credential ever reaches a written record
 - [ ] T030 Implement the activity-recording action filter in `api/src/Counter.Api/Filters/ActivityRecordingFilter.cs` — one record per request including failures, naming the person and the database login
@@ -97,15 +97,15 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Tests first
 
-- [ ] T037 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/AvailabilityRulesTests.cs` — free-to-sell is on-hand less committed, clamped at zero; on-order never counts toward it
-- [ ] T038 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/StockStateTests.cs` — `Available`, `AllCommitted` and `None` are three distinct states, not a boolean
+- [X] T037 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/AvailabilityRulesTests.cs` — free-to-sell is on-hand less committed, clamped at zero; on-order never counts toward it
+- [X] T038 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/StockStateTests.cs` — `Available`, `AllCommitted` and `None` are three distinct states, not a boolean
 - [ ] T039 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/PartSearchTests.cs` — matching ignores case, spacing and punctuation; no match returns empty rather than an error
 - [ ] T040 [P] [US1] Write failing integration tests in `api/tests/Counter.IntegrationTests/AvailabilityEndpointTests.cs` — the contract shape, `stockIsKnown: false` for a part with no inventory record, and a `504` when the store delays
 
 ### Domain and services
 
-- [ ] T041 [P] [US1] Implement `Part`, `BranchPosition` and `StockState` in `api/src/Counter.Domain/Catalogue/`
-- [ ] T042 [US1] Implement availability rules as named operations in `api/src/Counter.Domain/Availability/AvailabilityCalculator.cs` — not arithmetic inline in a controller
+- [X] T041 [P] [US1] Implement `Part`, `BranchPosition` and `StockState` in `api/src/Counter.Domain/Catalogue/`
+- [X] T042 [US1] Implement availability rules as named operations in `api/src/Counter.Domain/Availability/AvailabilityCalculator.cs` — not arithmetic inline in a controller
 - [ ] T043 [US1] Implement the in-memory catalogue projection in `api/src/Counter.Infrastructure/Catalogue/CatalogueProjection.cs`, built at startup and refreshable on demand
 - [ ] T044 [US1] Implement `api/src/Counter.Infrastructure/Erp/AvailabilityReader.cs` reading `INVENTORY` and `BRANCH` through the MCP client
 
@@ -138,13 +138,13 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Tests first
 
-- [ ] T053 [P] [US2] Write failing tests in `api/tests/Counter.UnitTests/PricingRulesTests.cs` — lapsed terms are disregarded with a reason; the lowest applicable multiplier wins; no terms means list price labelled as list
+- [X] T053 [P] [US2] Write failing tests in `api/tests/Counter.UnitTests/PricingRulesTests.cs` — lapsed terms are disregarded with a reason; the lowest applicable multiplier wins; no terms means list price labelled as list
 - [ ] T054 [P] [US2] Write failing integration tests in `api/tests/Counter.IntegrationTests/PricingEndpointTests.cs` — `basis` is `Contract` or `List`, and `disregardedTerms` is populated for an expired promotion
 
 ### Implementation
 
-- [ ] T055 [P] [US2] Implement `Customer` and `ContractTerms` in `api/src/Counter.Domain/Pricing/`
-- [ ] T056 [US2] Implement `api/src/Counter.Domain/Pricing/PriceCalculator.cs` — net price, applicable terms, and the terms deliberately not applied
+- [X] T055 [P] [US2] Implement `Customer` and `ContractTerms` in `api/src/Counter.Domain/Pricing/`
+- [X] T056 [US2] Implement `api/src/Counter.Domain/Pricing/PriceCalculator.cs` — net price, applicable terms, and the terms deliberately not applied
 - [ ] T057 [US2] Implement `api/src/Counter.Infrastructure/Erp/PricingReader.cs` reading `CUSTOMER` and `PRICING`
 - [ ] T058 [US2] Extend the availability endpoint with the `pricing` block, and implement `GET /api/v1/customers` in `api/src/Counter.Api/Controllers/CustomersController.cs`
 - [ ] T059 [US2] Implement `PUT /api/v1/session/customer` in `api/src/Counter.Api/Controllers/SessionController.cs` — the only non-`GET` route, and it writes to the session, never the ERP
@@ -168,12 +168,12 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Tests first
 
-- [ ] T064 [P] [US3] Write failing tests in `api/tests/Counter.UnitTests/OrderStateTests.cs` — only `CONFIRMED`, `ALLOCATED` and `PICKING` hold stock; an unrecognised state holds nothing and is logged
+- [X] T064 [P] [US3] Write failing tests in `api/tests/Counter.UnitTests/OrderStateTests.cs` — only `CONFIRMED`, `ALLOCATED` and `PICKING` hold stock; an unrecognised state holds nothing and is logged
 - [ ] T065 [P] [US3] Write failing integration tests in `api/tests/Counter.IntegrationTests/CommitmentsEndpointTests.cs` — the contract shape, and `unaccounted` populated where listed commitments fall short
 
 ### Implementation
 
-- [ ] T066 [P] [US3] Implement `Order` and `OrderState` as a closed set in `api/src/Counter.Domain/Orders/`
+- [X] T066 [P] [US3] Implement `Order` and `OrderState` as a closed set in `api/src/Counter.Domain/Orders/`
 - [ ] T067 [US3] Implement `api/src/Counter.Infrastructure/Erp/CommitmentReader.cs` — the state filter applied in the query, so the rule lives in one place
 - [ ] T068 [US3] Implement `GET /api/v1/parts/{partNumber}/commitments` in `api/src/Counter.Api/Controllers/PartsController.cs`
 - [ ] T069 [P] [US3] Implement the expandable branch row in `web/src/features/commitments/BranchCommitments.tsx`, expandable by keyboard
