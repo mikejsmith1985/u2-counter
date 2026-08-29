@@ -176,6 +176,9 @@ what the run reported, not what it was expected to report.
 | `mvstore` | **109 passed** | The store, its query verbs, the seeder's obligations, the delay switch |
 | Vitest | **17 passed** | The copied summary and the record rendering |
 | Cypress | **61 passed** | Every journey in a real browser with real events, `axe-core` on every screen |
+| `u2-mcp` (the fork) | **464 passed, 4 skipped** | The hardened server this reads through, run from its own repository |
+
+**793 tests in total**, all passing.
 
 Two figures from inside those runs are worth quoting, because they are the two a
 reviewer would otherwise have to take on trust:
