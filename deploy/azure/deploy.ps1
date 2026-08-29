@@ -34,6 +34,19 @@
 [CmdletBinding()]
 param(
     [switch] $SkipTests,
+
+    # Deploy with the write path switched on.
+    #
+    # Off by default, and the default is the claim: the deployed application
+    # runs the read-only driver, which has no write path at all rather than a
+    # disabled one. Passing this deploys the writable driver instead, so the
+    # find-review-update flow can be exercised at the public address.
+    #
+    # A deliberate switch on the command line rather than a setting in a file,
+    # because "is this deployment writable?" should be answerable by looking at
+    # how it was deployed.
+    [switch] $Writable,
+
     [string] $Tag
 )
 
@@ -403,6 +416,24 @@ function Test-AppExists {
 # Zero replicas at rest. It wakes when the API calls it, which adds a few seconds
 # to the first request after a quiet period and nothing after that.
 
+# Which driver the MCP server loads, and whether it may act.
+#
+# Two settings rather than one, because they answer different questions: the
+# driver name says which code is loaded, and MVSTORE_WRITABLE says whether that
+# code may write. A deployment that selected the writable driver by accident
+# still writes nothing.
+if ($Writable) {
+    Write-Host '  WRITABLE: this deployment can change ERP records' -ForegroundColor Yellow
+    $mcpDriver = 'U2_DRIVER=mvstore.writable_driver'
+    $mcpWritable = 'MVSTORE_WRITABLE=true'
+    $apiWritable = 'Erp__Writable=true'
+}
+else {
+    $mcpDriver = 'U2_DRIVER=demo'
+    $mcpWritable = 'MVSTORE_WRITABLE=false'
+    $apiWritable = 'Erp__Writable=false'
+}
+
 Write-Step "Deploying $($environment.McpApp) (internal, scales to zero)"
 
 if (Test-AppExists $environment.McpApp) {
@@ -422,7 +453,7 @@ if (Test-AppExists $environment.McpApp) {
         --image $mcpImage `
         --min-replicas 0 `
         --max-replicas 1 `
-        --set-env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' `
+        --set-env-vars $mcpDriver $mcpWritable 'MVSTORE_DATA_PATH=/srv/data' `
                        'U2_PASSWORD=secretref:u2-password' `
                        'U2_ALLOW_UNAUTHENTICATED_NETWORK_ACCESS=true' | Out-Null
 }
@@ -442,7 +473,7 @@ else {
         --max-replicas 1 `
         --cpu 0.5 --memory 1.0Gi `
         --secrets "u2-password=$u2Password" `
-        --env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' `
+        --env-vars $mcpDriver $mcpWritable 'MVSTORE_DATA_PATH=/srv/data' `
                    'U2_PASSWORD=secretref:u2-password' `
                    'U2_ALLOW_UNAUTHENTICATED_NETWORK_ACCESS=true' | Out-Null
 }
@@ -497,7 +528,7 @@ if (Test-AppExists $environment.ApiApp) {
         --max-replicas 1 `
         --set-env-vars "Erp__Endpoint=$mcpEndpoint/" `
                        "ConnectionStrings__Counter=$auditConnection" `
-                       $assistantSetting | Out-Null
+                       $assistantSetting $apiWritable | Out-Null
 }
 else {
     az containerapp create `
@@ -515,7 +546,7 @@ else {
         --cpu 1.0 --memory 2.0Gi `
         --secrets "anthropic-api-key=$assistantKey" `
         --env-vars "Erp__Endpoint=$mcpEndpoint/" "ConnectionStrings__Counter=$auditConnection" `
-                   $assistantSetting | Out-Null
+                   $assistantSetting $apiWritable | Out-Null
 
 }
 
