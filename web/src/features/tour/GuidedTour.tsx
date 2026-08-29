@@ -11,17 +11,21 @@
  * focus is held inside the card while it is open.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../api/client";
 import { TOUR_STEPS, type TourStep } from "./steps";
 
 /**
- * How long to let the application paint before deciding which steps to show.
+ * How long to keep looking for a step's target before giving up on it.
  *
- * The optional panels fetch before they render, so their anchors do not exist on
- * the tour's first frame. Long enough for that, short enough that nobody reads
- * it as a delay.
+ * Long enough for the branch grid's own request on a cold deployment, short
+ * enough that a genuinely missing target does not leave the card hunting.
  */
-const SETTLE_MS = 350;
+const TARGET_WAIT_MS = 4000;
+
+/** How often to look. */
+const TARGET_POLL_MS = 150;
 
 /** Space left between the spotlight and the element it surrounds. */
 const SPOTLIGHT_PADDING = 6;
@@ -53,33 +57,39 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
   const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Only the steps whose target is actually on the page.
+  // Which optional features this deployment has, asked of the API rather than
+  // guessed from the page.
   //
-  // Two are conditional. The assistant is absent when no key is configured, and
-  // the explorer is absent once a part has been selected. A tour that stopped on
-  // either would dim the screen and point at nothing, which reads as broken --
-  // and on a deployment without a key it would advertise a feature that is not
-  // there.
+  // The first version waited a third of a second and then looked for each step's
+  // element. That is a race, and it lost: the assistant's panel renders nothing
+  // until its own status request comes back, so on a deployment slower than the
+  // timer the tour decided there was no assistant and silently dropped the step
+  // that explains the whole point of the thing.
   //
-  // Decided after the application has painted, not during the tour's first
-  // render. Computing it at mount ran before the panels had rendered their
-  // anchors, so every optional step was judged missing and the tour offered one
-  // step of eight. The panels also fetch before they appear, which is why this
-  // waits rather than reading on the next tick.
-  //
-  // Decided once, because the tour itself selects a part partway through, and a
-  // list recomputed after that would renumber the steps behind somebody midway.
-  //
-  // Only steps the tour cannot conjure are tested this way -- see canBeShown.
-  const [steps, setSteps] = useState<TourStep[] | null>(null);
+  // Asking the API is deterministic. A tour that sometimes omits a feature is
+  // worse than one that never mentions it, because nobody knows to look.
+  const { data: assistant, isPending: isAskingAboutAssistant } = useQuery({
+    queryKey: ["ask-status"],
+    queryFn: ({ signal }) => api.askStatus(signal),
+    staleTime: Infinity,
+    retry: false,
+  });
 
-  useEffect(() => {
-    const settle = setTimeout(() => {
-      setSteps(TOUR_STEPS.filter(canBeShown));
-    }, SETTLE_MS);
-
-    return () => clearTimeout(settle);
-  }, []);
+  // Derived, not stored. Which steps exist follows from one answer, and the
+  // answer cannot change underneath somebody midway through: the query is
+  // cached for the life of the page, so once it resolves the list is fixed.
+  //
+  // Null until the answer arrives, so nothing is drawn that would have to
+  // renumber itself a moment later.
+  const steps = useMemo<TourStep[] | null>(
+    () =>
+      isAskingAboutAssistant
+        ? null
+        : TOUR_STEPS.filter(
+            (candidate) => !candidate.needsAssistant || assistant?.isConfigured === true,
+          ),
+    [isAskingAboutAssistant, assistant],
+  );
 
   const step = steps?.[index];
   const isFirst = index === 0;
@@ -119,28 +129,46 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
     });
   }, [step]);
 
-  // Measured after paint, and again shortly after: a step that opens a drawer
-  // changes the layout, and measuring only once catches the page mid-move.
+  // Measured after paint, and then again until the target turns up.
   //
-  // This is the case the "no setState in an effect" rule exempts. Where the
-  // spotlight goes is a fact about laid-out geometry, which does not exist until
-  // the browser has laid the page out -- so it cannot be derived during render
-  // and cannot come from the event that caused the change. The DOM is the
-  // external system here.
+  // A single measure is not enough, and a fixed second one only looked like it
+  // was. The steps that need a part select one when they open, and the branch
+  // grid does not exist until its own request comes back -- so the tour measured
+  // an element that was not there yet, found nothing, and centred the card over
+  // a step whose whole purpose was to point at that grid.
+  //
+  // So it keeps looking for a short while, and stops as soon as it finds it.
+  // Polling is the right shape here: what is being waited for is another
+  // component's fetch, which this one has no handle on.
   useLayoutEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
     measure();
 
-    const settle = setTimeout(measure, 120);
+    if (!step?.target) {
+      return;
+    }
+
+    const started = Date.now();
+
+    const looking = setInterval(() => {
+      const found = document.querySelector(step.target!) !== null;
+
+      if (found || Date.now() - started > TARGET_WAIT_MS) {
+        clearInterval(looking);
+      }
+
+      measure();
+    }, TARGET_POLL_MS);
+
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
 
     return () => {
-      clearTimeout(settle);
+      clearInterval(looking);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [measure]);
+  }, [measure, step]);
 
   /** Move on, or finish. */
   const advance = useCallback((): void => {
@@ -224,36 +252,6 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
       </div>
     </div>
   );
-}
-
-/**
- * Whether a step can be shown at all.
- *
- * @param step The step being considered.
- * @returns True when it has something to point at, now or later.
- *
- * @remarks
- * The distinction is which absences the tour can fix. A step that declares it
- * needs a part, a record or the activity panel is a step whose target the tour
- * creates itself when it gets there, so its target is legitimately missing at
- * the start and must not be filtered out. Filtering on presence alone dropped
- * exactly those steps -- the branch grid and the stored record, two of the most
- * worth showing -- because the tour had not yet selected the part that makes
- * them exist.
- *
- * Everything else is absent for a reason the tour cannot change: no API key
- * means no assistant, and a selected part means no explorer.
- */
-function canBeShown(step: TourStep): boolean {
-  if (step.target === undefined) {
-    return true;
-  }
-
-  if (step.needsPart || step.needsRecord || step.needsActivity) {
-    return true;
-  }
-
-  return document.querySelector(step.target) !== null;
 }
 
 /**

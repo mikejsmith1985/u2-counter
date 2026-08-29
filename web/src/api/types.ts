@@ -226,6 +226,8 @@ export interface AskStep {
   /** The record as the database returned it, separators intact. Empty for calls that read no record. */
   rawRecord: string;
   summary: string;
+  /** What the tool handed back. A summary is a claim; this is the evidence. */
+  result: string;
   durationMs: number;
 }
 

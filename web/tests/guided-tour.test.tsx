@@ -15,6 +15,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { createElement } from "react";
 
 import { GuidedTour } from "../src/features/tour/GuidedTour";
 import { TOUR_STEPS } from "../src/features/tour/steps";
@@ -22,46 +25,62 @@ import { TOUR_STEPS } from "../src/features/tour/steps";
 /**
  * Put the elements the tour points at on the page.
  *
- * The tour only shows a step whose target exists, so a test that rendered the
- * tour into an empty document would be testing a one-step tour. Standing the
- * anchors up is what makes these tests exercise the tour the application has.
- *
- * @param except Targets to leave out, for testing that their step is skipped.
+ * Every step still needs something to spotlight, so the anchors are stood up
+ * here. Which steps are *shown* is a separate question, answered by whether an
+ * assistant is configured — see the fetch stub below.
  */
-function standUpAnchors(except: string[] = []): void {
+function standUpAnchors(): void {
   for (const step of TOUR_STEPS) {
-    if (!step.target || except.includes(step.target)) {
+    if (!step.target?.startsWith("[data-tour")) {
       continue;
     }
 
     const anchor = document.createElement("div");
-    // The selector is `[data-tour='name']`; the attribute is what it matches.
     anchor.setAttribute("data-tour", step.target.replace(/\[data-tour='(.*)'\]/, "$1"));
     document.body.append(anchor);
   }
 }
 
+/** A fresh client per render, so one test's answer cannot leak into the next. */
+function wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return createElement(QueryClientProvider, { client }, children);
+}
+
 /**
  * Render the tour and wait for it to decide which steps to show.
  *
- * The tour holds off until the application has painted, because the optional
- * panels fetch before they render and judging them missing on the first frame
- * offered a one-step tour. So every test here waits for the card, exactly as a
- * reader does.
+ * It asks the API whether an assistant is configured before showing anything,
+ * because deciding from the page was a race it lost. So every test waits for the
+ * card, exactly as a reader does.
+ *
+ * @param hasAssistant What the API should say.
  */
-async function renderTour(missing: string[] = []) {
-  standUpAnchors(missing);
+async function renderTour(hasAssistant = true) {
+  standUpAnchors();
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ isConfigured: hasAssistant, model: "claude-haiku-4-5" }),
+          { status: 200 },
+        ),
+      ),
+    ),
+  );
 
   const closed = vi.fn();
   const prepared = vi.fn();
 
-  render(<GuidedTour onClose={closed} onPrepare={prepared} />);
+  render(<GuidedTour onClose={closed} onPrepare={prepared} />, { wrapper });
 
   await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
 
-  const shown = TOUR_STEPS.filter(
-    (step) => !step.target || !missing.includes(step.target),
-  );
+  const shown = TOUR_STEPS.filter((step) => !step.needsAssistant || hasAssistant);
 
   return { closed, prepared, shown };
 }
@@ -84,16 +103,26 @@ describe("the guided tour", () => {
     expect(screen.getByText(`Step 1 of ${shown.length}`)).toBeTruthy();
   });
 
-  it("skips a step whose target is not on the page", async () => {
-    // The assistant is absent when no key is configured, and the explorer is
-    // absent once a part is selected. A tour that stopped on either would dim
-    // the screen and point at nothing -- and on a deployment with no key, it
-    // would advertise a feature that is not there.
-    const { shown } = await renderTour(["[data-tour='ask']"]);
+  it("skips the assistant steps when no assistant is configured", async () => {
+    // On a deployment with no API key there is no assistant, and a tour that
+    // explained one would be advertising a feature that is not there.
+    const { shown } = await renderTour(false);
 
-    expect(shown.length).toBe(TOUR_STEPS.length - 1);
-    expect(screen.getByText(`Step 1 of ${shown.length}`)).toBeTruthy();
-    expect(screen.queryByText("Ask it in words")).toBeNull();
+    const aboutTheAssistant = TOUR_STEPS.filter((step) => step.needsAssistant);
+
+    expect(aboutTheAssistant.length).toBeGreaterThan(0);
+    expect(shown.length).toBe(TOUR_STEPS.length - aboutTheAssistant.length);
+    expect(screen.queryByText("Ask it in plain words")).toBeNull();
+  });
+
+  it("shows the assistant steps when there is one", async () => {
+    // The failure that prompted this: the tour decided from the page after a
+    // short delay, lost the race against the panel's own request, and silently
+    // dropped the steps explaining the point of the whole thing.
+    const { shown } = await renderTour(true);
+
+    expect(shown.length).toBe(TOUR_STEPS.length);
+    expect(screen.getByText(`Step 1 of ${TOUR_STEPS.length}`)).toBeTruthy();
   });
 
   it("moves forward and back", async () => {
@@ -142,9 +171,8 @@ describe("the guided tour", () => {
   });
 
   it("finishes on the last step rather than running off the end", async () => {
-    const { closed } = await renderTour();
 
-    const { shown: all } = { shown: TOUR_STEPS };
+    const { shown: all, closed } = await renderTour();
 
     for (let step = 0; step < all.length - 1; step++) {
       await userEvent.click(screen.getByRole("button", { name: "Next" }));

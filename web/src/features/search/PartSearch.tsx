@@ -176,19 +176,19 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="search search--part">
+    <div className="search search--part search--picker">
       <input
         ref={inputRef}
-        className="search__input"
+        className="search__input search__input--picker"
         type="search"
         role="combobox"
-        aria-expanded={isOpen && isSearchable}
+        aria-expanded={isOpen && (isSearchable || isBrowsing)}
         aria-controls={listId}
         aria-autocomplete="list"
         aria-label="Search for a part by number, description or manufacturer"
         placeholder={
           isReady
-            ? "Part number, description or manufacturer…"
+            ? "Choose a part, or type to narrow…"
             : "Waking up — one moment…"
         }
         value={text}
@@ -200,6 +200,13 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
         onFocus={() => setIsOpen(true)}
         onKeyDown={onKeyDown}
       />
+
+      {/* Says there is a list behind this, the way every other dropdown does.
+          The control already opened one on click; nobody clicked, because it
+          looked like a plain text box. */}
+      <span className={isOpen ? "search__caret search__caret--open" : "search__caret"}>
+        &#9660;
+      </span>
 
       {/* Announced rather than shown: sighted users can see the list change. */}
       <div className="visually-hidden" role="status" aria-live="polite">

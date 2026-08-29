@@ -268,6 +268,7 @@ public sealed class AskService(
             string.Empty,
             string.Empty,
             $"{found.Count} part(s) matched \"{text}\"",
+            body,
             (int)timer.ElapsedMilliseconds));
     }
 
@@ -298,6 +299,7 @@ public sealed class AskService(
             partNumber,
             string.Empty,
             $"{position.Positions.Count} branch position(s) read live",
+            body,
             (int)timer.ElapsedMilliseconds));
     }
 
@@ -332,6 +334,7 @@ public sealed class AskService(
             recordId,
             raw,
             "read in its stored form, separators included",
+            raw,
             (int)timer.ElapsedMilliseconds));
     }
 
@@ -350,6 +353,7 @@ public sealed class AskService(
             string.Empty,
             string.Empty,
             string.Empty,
+            reason,
             reason,
             (int)timer.ElapsedMilliseconds));
     }

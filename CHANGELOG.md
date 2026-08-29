@@ -261,6 +261,17 @@ source of truth for what changed (Article VI). Format follows
 
 ### Changed
 
+- **Both pickers look like the dropdowns they always were.** They opened a list
+  on click before this, and nobody clicked — they looked like plain text boxes,
+  and a control whose behaviour has to be discovered by accident is one most
+  people never find. Each now carries a caret, a pointer cursor and a placeholder
+  that says to choose rather than to search.
+
+- **The tour covers what a reader would otherwise have to find by accident**: the
+  assistant, how it reaches the database through MCP and that all three of its
+  tools are reads, the audit trail, pointing it at your own database, and the
+  keyboard shortcuts. Twelve stops.
+
 - **The tour now covers the assistant and the dictionary-driven screen**, and
   skips a step whose target is genuinely absent. The distinction is which
   absences the tour can fix: a step declaring it needs a part is one whose target
@@ -281,6 +292,25 @@ source of truth for what changed (Article VI). Format follows
   rather than accepting.
 
 ### Fixed
+
+- **The tour silently dropped the two steps about the assistant.** It decided
+  which steps to show by looking for each one's element a third of a second after
+  opening — a race it lost, because the assistant's panel renders nothing until
+  its own status request comes back. On a deployment slower than the timer, the
+  tour concluded there was no assistant and skipped the steps explaining the
+  whole point of the thing. It now asks the API instead, which is deterministic.
+
+- **A tour step could point at nothing.** The steps that need a part select one
+  when they open, and the branch grid does not exist until its own request
+  returns — so the spotlight measured an element that was not there yet and
+  centred the card over the step whose purpose was to point at that grid. It now
+  keeps looking until the target appears.
+
+- **The assistant's transcript reported a count instead of the data.** A step
+  reading "8 parts matched" tells a reader that a number was produced and nothing
+  about which parts, so somebody checking whether the answer follows from the
+  data had been handed the answer twice and the data never. Every call now shows
+  what it returned.
 
 - **The tour's record step spotlit a twelve-pixel strip.** It pointed at the
   element wrapping the drawer, and the drawer is positioned fixed — so the

@@ -24,7 +24,15 @@ namespace Counter.Infrastructure.Ai;
 /// The record exactly as the database returned it, separators included. Empty for
 /// calls that read no single record.
 /// </param>
-/// <param name="Summary">One line a person can read, for the calls that are not a record read.</param>
+/// <param name="Summary">One line a person can read, describing the call.</param>
+/// <param name="Result">
+/// What the tool actually handed back to the model.
+///
+/// Carried because a summary is a claim and this is the evidence for it. A step
+/// reading "8 parts matched" tells a reader that a number was produced and
+/// nothing about which parts, so somebody checking whether the answer follows
+/// from the data has been given the answer twice and the data never.
+/// </param>
 /// <param name="DurationMs">How long the call took.</param>
 public sealed record AskStep(
     string Tool,
@@ -33,6 +41,7 @@ public sealed record AskStep(
     string RecordId,
     string RawRecord,
     string Summary,
+    string Result,
     int DurationMs);
 
 /// <summary>

@@ -171,6 +171,10 @@ export function App(): React.JSX.Element {
     // previous step is pointing at.
     setIsRecordOpen(step.needsRecord === true);
     setIsActivityOpen(step.needsActivity === true);
+
+    // Opened and closed, so stepping backwards out of one puts it away rather
+    // than leaving it over the thing the previous step is pointing at.
+    setIsConnectOpen(step.needsConnect === true);
   }
 
   return (
@@ -215,7 +219,7 @@ export function App(): React.JSX.Element {
           Use your own data
         </button>
 
-        <span className="hints" aria-hidden="true">
+        <span className="hints" data-tour="shortcuts" aria-hidden="true">
           <span>
             <kbd>/</kbd> search
           </span>

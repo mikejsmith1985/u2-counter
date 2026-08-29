@@ -134,12 +134,16 @@ export function CustomerSelector({ selectedAccount, onSelect }: Props): React.JS
   }
 
   return (
-    <div className="search search--customer" style={{ maxWidth: "18rem" }} ref={containerRef}>
+    <div
+      className="search search--customer search--picker"
+      style={{ maxWidth: "18rem" }}
+      ref={containerRef}
+    >
       <input
-        className="search__input"
+        className="search__input search__input--picker"
         type="search"
         aria-label="Select the customer being served"
-        placeholder="Customer (for their price) — click to browse…"
+        placeholder="Choose a customer…"
         value={text}
         role="combobox"
         aria-expanded={isOpen && results.length > 0}
@@ -152,6 +156,13 @@ export function CustomerSelector({ selectedAccount, onSelect }: Props): React.JS
         onFocus={() => setIsOpen(true)}
         onKeyDown={onKeyDown}
       />
+
+      {/* Says there is a list behind this, the way every other dropdown does.
+          The control already opened one on click; nobody clicked, because it
+          looked like a plain text box. */}
+      <span className={isOpen ? "search__caret search__caret--open" : "search__caret"}>
+        &#9660;
+      </span>
 
       {isOpen && results.length > 0 && (
         <ul

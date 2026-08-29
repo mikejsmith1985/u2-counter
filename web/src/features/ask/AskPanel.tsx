@@ -150,7 +150,15 @@ function Step({ step }: { step: AskStep }): React.JSX.Element {
 
       <p className="ask__step-summary">{step.summary}</p>
 
-      {step.rawRecord && <MarkedRecord raw={step.rawRecord} />}
+      {/* What actually came back. A step reading "8 parts matched" tells a reader
+          a number was produced and nothing about which parts -- so somebody
+          checking whether the answer follows from the data has been handed the
+          answer twice and the data never. */}
+      {step.rawRecord ? (
+        <MarkedRecord raw={step.rawRecord} />
+      ) : (
+        step.result && <pre className="ask__result">{step.result}</pre>
+      )}
     </li>
   );
 }
