@@ -41,9 +41,41 @@ public sealed class SessionStore(
     private static readonly TimeSpan Lifetime = TimeSpan.FromHours(8);
 
     private readonly ConcurrentDictionary<string, CounterSession> _sessions = new();
+
+    // How many questions each session has put to the assistant.
+    //
+    // Kept beside the session rather than in it because it is not part of who
+    // somebody is -- it is what they have used. Counted per session key, so
+    // clearing cookies resets it; the daily ceiling in SpendLedger is what
+    // actually bounds the cost, and this only stops one person in one sitting
+    // from using the whole day's allowance.
+    private readonly ConcurrentDictionary<string, int> _questionsAsked = new();
     private readonly IDbContextFactory<CounterContext>? _contexts = contexts;
     private readonly ILogger<SessionStore> _logger = logger;
 
+
+    /// <summary>
+    /// How many questions this session has asked the assistant.
+    /// </summary>
+    /// <param name="session">Whose count to read.</param>
+    /// <returns>The number asked so far.</returns>
+    public int QuestionsAsked(CounterSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        return _questionsAsked.TryGetValue(session.Persona.Subject, out int asked) ? asked : 0;
+    }
+
+    /// <summary>
+    /// Record that this session asked one.
+    /// </summary>
+    /// <param name="session">Who asked.</param>
+    public void RecordQuestion(CounterSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        _questionsAsked.AddOrUpdate(session.Persona.Subject, 1, (_, asked) => asked + 1);
+    }
 
     /// <summary>
     /// Return the session for this request, creating one if there is none.

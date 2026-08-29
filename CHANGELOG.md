@@ -8,6 +8,30 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **A question in words, answered from the ERP through the MCP server.** This is
+  what makes the MCP server load-bearing rather than decorative: without a model
+  in the loop, a protocol designed for a model to call tools does nothing an
+  ordinary function call would not, and anybody who works with this software
+  would notice. Every answer is assembled from tool calls, and every one of those
+  calls is returned with it — including the raw record, separators intact.
+  That transcript is the point: a reader looking at "299 free to sell at Grand
+  Junction" cannot otherwise tell a MultiValue record from a relational row
+  wearing separators.
+
+  The tool list *is* the read-only guarantee. There is no write tool, no
+  arbitrary query tool, and the file a record may be read from is one of four
+  named ones — so a model that decided to change something has nothing to decide
+  it with, and the guarantee rests on the tool surface rather than on the model
+  behaving or a prompt asking it to.
+
+  Cost is bounded in five independent places, because the demonstration is public
+  and the key behind it is personal: the model is a constant with no code path
+  that can point it elsewhere, output is capped per answer, tool calls are capped
+  per round **and in total**, questions are capped per session, and the whole
+  deployment has a daily token ceiling. The total-call cap exists because rounds
+  alone were not a limit — Claude asks for tools in parallel, so four rounds
+  bounded the conversation and bounded nothing about the work.
+
 - **A guided tour, which drives the application rather than describing it.** Six
   steps, shown once on a first visit and replayable from the header afterwards.
   Everything this application is for — the branch grid, the contract price, the

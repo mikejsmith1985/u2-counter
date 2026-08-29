@@ -2,6 +2,7 @@ using Counter.Api.Filters;
 using Counter.Api.Services;
 using Counter.Infrastructure.Catalogue;
 using Counter.Infrastructure.Data;
+using Counter.Infrastructure.Ai;
 using Counter.Infrastructure.Erp;
 using Counter.Infrastructure.Mcp;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +52,40 @@ if (!string.IsNullOrWhiteSpace(counterConnection))
                 (int)NetworkShareSqlite.CommandBudget.TotalSeconds))
             .AddInterceptors(new NetworkShareSqlite()));
 }
+
+// The assistant, when there is a key for one.
+//
+// The key is read straight from the environment and never passed through this
+// code: the SDK's zero-argument client reads ANTHROPIC_API_KEY itself, so the
+// value has no chance to reach a log, a configuration dump or an error message.
+// All this decides is whether the feature exists at all.
+//
+// Absent is a supported state. Without a key the application runs exactly as it
+// did before the assistant existed, and says so on the screen rather than
+// offering a box that cannot answer.
+// The vault this is deployed from stores the key under its own name, and the
+// SDK reads ANTHROPIC_API_KEY. Bridged here rather than in every launcher and
+// deployment script, so there is one place that knows both names.
+//
+// Copied environment variable to environment variable: the value is never
+// assigned to a field, written to configuration, or passed as an argument, so
+// there is no object holding it for a log or an error message to reach.
+const string VaultKeyName = "SMITHBROS_CLAUDE_API_KEY";
+const string SdkKeyName = "ANTHROPIC_API_KEY";
+
+if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(SdkKeyName))
+    && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(VaultKeyName)))
+{
+    Environment.SetEnvironmentVariable(
+        SdkKeyName, Environment.GetEnvironmentVariable(VaultKeyName));
+}
+
+bool hasApiKey = !string.IsNullOrWhiteSpace(
+    Environment.GetEnvironmentVariable(SdkKeyName));
+
+builder.Services.AddSingleton(new AskOptions { IsConfigured = hasApiKey });
+builder.Services.AddSingleton<SpendLedger>();
+builder.Services.AddScoped<AskService>();
 
 builder.Services.AddScoped<AvailabilityReader>();
 builder.Services.AddScoped<PricingReader>();
