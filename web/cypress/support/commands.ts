@@ -60,9 +60,19 @@ Cypress.Commands.add("checkAccessibility", (context?: string) => {
   cy.checkA11y(
     context,
     {
+      // WCAG 2.1 at A and AA, which is the standard this project claims. Named
+      // explicitly: without it axe runs its whole ruleset, including
+      // best-practice rules that are not WCAG at all, and "no WCAG 2.1 AA
+      // violations" would be a claim about something else.
+      runOnly: {
+        type: "tag",
+        values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+      },
+
       // Serious and critical only. Reporting every minor advisory would bury the
       // violations that actually stop someone using this, and a suite whose
-      // failures are routinely ignored is worse than no suite.
+      // failures are routinely ignored is worse than no suite. Anything moderate
+      // or minor that survives is a known limit rather than a hidden one.
       includedImpacts: ["serious", "critical"],
     },
     (violations) => {

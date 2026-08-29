@@ -117,6 +117,47 @@ if (-not $SkipTests) {
         Pop-Location
     }
 
+    # Cypress last, because it needs the application running and the three suites
+    # above do not. It was missing from this gate entirely, which was the wrong
+    # suite to leave out: four of the nine defects this project has found came
+    # from it, and the requirements it covers -- keyboard operation, the failure
+    # states, accessibility -- have no other check.
+    Write-Step 'Starting the application for the browser suite'
+    & (Join-Path $repositoryRoot 'scripts/run-dev-clean.ps1') | Out-Null
+
+    try {
+        # Ready before the browser opens. A cold catalogue makes the first search
+        # return nothing, which fails as a broken search rather than a slow start.
+        $deadline = (Get-Date).AddMinutes(3)
+        $isReady = $false
+
+        while (-not $isReady -and (Get-Date) -lt $deadline) {
+            try {
+                $health = Invoke-RestMethod 'http://127.0.0.1:5080/health' -TimeoutSec 3
+                $isReady = $health.isReady
+            }
+            catch {
+                Start-Sleep -Milliseconds 500
+            }
+        }
+
+        if (-not $isReady) {
+            throw 'The application never became ready. The browser suite was not run.'
+        }
+
+        Push-Location (Join-Path $repositoryRoot 'web')
+        try {
+            & npm.cmd run cypress
+            if ($LASTEXITCODE -ne 0) { throw 'The browser suite failed. Nothing was deployed.' }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    finally {
+        & (Join-Path $repositoryRoot 'scripts/run-dev-clean.ps1') -Stop | Out-Null
+    }
+
     Write-Host '  All suites passed.' -ForegroundColor Green
 }
 else {

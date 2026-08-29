@@ -97,6 +97,15 @@ describe("a call at the counter", () => {
     }
   });
 
+  it("has no serious accessibility violation at a branch workstation's size", () => {
+    // Checked at the size the screen is actually used at. Contrast and focus
+    // rules do not change with the viewport, but what is on the page does --
+    // and this spec is the one that puts the most on it at once.
+    cy.viewport(1920, 1080);
+    cy.findPartByKeyboard("breaker");
+    cy.checkAccessibility();
+  });
+
   it("shows the answer, the price and the governance strip together", () => {
     // The three things a representative needs at once: what is available, what it
     // costs, and whose figures these are. Any one of them off screen turns a

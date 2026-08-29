@@ -95,6 +95,23 @@ describe("every journey, keyboard only", () => {
     });
   });
 
+  it("has no serious accessibility violation on any screen a journey reaches", () => {
+    // This spec had no accessibility check at all, which is the wrong file to
+    // have missed: keyboard operation is what it exists to prove, and the rules
+    // axe applies to focus order, labels and roles are the ones that decide
+    // whether the keyboard actually works for somebody using a screen reader.
+    cy.findPartByKeyboard("breaker");
+    cy.checkAccessibility();
+
+    cy.get(".branch").first().realClick();
+    cy.get("#commitments-title").should("be.visible");
+    cy.checkAccessibility();
+
+    cy.realPress("r");
+    cy.get('[role="dialog"]').should("be.visible");
+    cy.checkAccessibility();
+  });
+
   it("returns the caret to the search box after a drawer closes", () => {
     // Escape should put someone back where they were, not at the top of the
     // document with the whole page to tab through again.

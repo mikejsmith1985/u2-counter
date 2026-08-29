@@ -72,9 +72,11 @@ source of truth for what changed (Article VI). Format follows
   can type anything — including, eventually, a password pasted into the wrong
   window.
 
-- **`ErpTimeoutFilter`**, a per-request budget carried as a linked cancellation
-  token so it stops the work rather than only the waiting. A timeout that stops
-  the wait alone leaves the query running, which under load is how a system dies.
+- **A per-request budget on every ERP call**, enforced in `ErpReader` by racing
+  the call against the budget and dropping the connection when it expires. A
+  timeout that only stops the waiting leaves the query running, which under load
+  is how a system dies — and cancelling a token does not end a call already in
+  flight, so the race is what actually bounds it.
 
 - **`/health` and `/health/live`.** Readiness means the catalogue is built, not
   that the port is open: the application serves requests while it reads the
@@ -118,7 +120,13 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
-Each of these was found by a test written before the defect was known to exist.
+Each of these was found by a test written before the defect was known to exist,
+or by reading the repository as a hostile reviewer rather than as its author.
+
+The second kind is worth separating, because they were not failures of the code
+so much as failures of the writing about it: the documentation ran ahead of the
+implementation and nothing pulled it back. They are listed under *Documentation
+that had stopped being true*, below.
 
 - **Committed stock was generated independently of the orders holding it.** A
   branch could show nothing committed while three orders held thirty-nine units of
@@ -158,6 +166,30 @@ Each of these was found by a test written before the defect was known to exist.
   standing: a permission nobody uses is one nobody questions when it starts to
   matter.
 
+- **The `R` shortcut printed in the header did nothing.** Selecting a part left
+  focus in the search box, and the shortcuts are ignored while a text field has
+  focus — correctly, or typing an R into a part number would open a drawer. The
+  person was shown a hint, pressed the key, and was ignored.
+
+- **Focus was then stolen on every data refresh**, one of which happens when a
+  customer is chosen: someone selecting a customer and immediately typing a part
+  number lost their first keystrokes to a heading, silently.
+
+- **Closing a drawer left nothing focused**, stranding a keyboard user at the top
+  of the document with the whole page to tab through to get back.
+
+- **A branch with no stock was dimmed to 3.4:1 contrast** — and those are exactly
+  the rows a representative reads to confirm there is genuinely none before
+  telling a customer so.
+
+- **A slow ERP was reported after the query finished, not after the budget.**
+  Cancelling the token stops the next call and does not reliably end one already
+  in flight, so a ten-second query against a two-second budget took ten seconds
+  and then failed. The call is now raced against the budget and the connection
+  dropped. Then the filter written to enforce it turned out to truncate every
+  slow response to an empty `200` — the single worst answer this application can
+  give — and was removed.
+
 - **`run-dev-clean.ps1` recorded the launcher rather than the service.**
   `dotnet run` and `npm.cmd` each start a child and exit, so stopping the recorded
   id left the actual service holding its port. The stop path now ends the recorded
@@ -165,3 +197,58 @@ Each of these was found by a test written before the defect was known to exist.
   assigned — still one specific id at a time, never a name pattern (Article II).
   A partial failure to start is recorded as it happens, so services that did start
   remain stoppable.
+
+### Documentation that had stopped being true
+
+Found by an adversarial read of both repositories. The test counts were honest;
+several of the architecture claims around them were not.
+
+- **Seven documents still said SQL Server and Testcontainers** hours after the
+  audit trail moved to SQLite. The plan's own constitution-compliance table
+  certified "real SQL Server rather than SQLite" as an Article I pass — a
+  self-audit that passed itself on a statement the code contradicted. The
+  decision is corrected in place with the original text left visible.
+
+- **The launcher started a SQL Server container nothing connected to.** The
+  connection string was never set, so local development had never once exercised
+  the durable path — the one place a durability bug would have shown up was the
+  one place it could not.
+
+- **`execute_query` was permitted and called by nothing.** The arbitrary-query
+  tool, the most capability any entry on that list could grant, left dangling —
+  and the test written to catch exactly this could not, because it searched the
+  reader's source for a constant that sat in a method nobody invoked. The
+  permission is gone and the test now looks for callers.
+
+- **`isComplete` could never be false.** Every response was built with
+  `Complete()`; `Partial` was written, documented, rendered by the front end and
+  never called, while three real caps truncated answers silently. Fifteen
+  customers with the sixteenth invisible is a price quoted against the wrong
+  contract.
+
+- **Article IX was cited by name in the file that broke it.** No Key Vault, two
+  credentials in script variables. Recorded now as a known gap with what closing
+  it would take, rather than claimed as kept.
+
+- **The store said it rejected tabs on write and rejected nothing.** A tab or a
+  line break does not fail on write — it succeeds, and reads back as a different
+  record, or as two.
+
+- **A malformed request rendered as "the system could not reach the stock
+  data"**, sending a representative after an outage that was not happening.
+
+- **About twenty comments described code that was not there**, including
+  `SessionController` calling itself "the one route that is not a GET" with a
+  `POST` thirty-five lines above it, and a contract section describing the API
+  sending the signed-in user's subject to the fork — a mechanism that has never
+  existed, and the reason the API keeps an audit trail of its own.
+
+- **The hardened fork logged OAuth token bodies at INFO** — access tokens,
+  refresh tokens and client secrets, in cleartext, on the production HTTP path,
+  in a server whose README says credentials are never logged. Upstream code the
+  first hardening pass walked past.
+
+- **Read-only mode did not cover `call_subroutine`**, which executes arbitrary
+  cataloged BASIC. Read-only disabled the tools that announce themselves as
+  writes and left open the one that could do anything without saying so.
+

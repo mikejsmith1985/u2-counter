@@ -197,11 +197,14 @@ reviewer would otherwise have to take on trust:
 - **Every ERP file byte-identical** before and after the suite exercised every
   screen (SC-013's neighbour, and the read-only claim's only real proof).
 
-### Nine defects the suites found
+### What the suites found
 
-Listed because a suite that never fails is a suite nobody should believe. Each of
-these was found by a test written before the defect was known to exist, and each
-is recorded in [CHANGELOG.md](../../CHANGELOG.md) with what it would have done.
+Listed because a suite that never fails is a suite nobody should believe. Each was
+found by a test written before the defect was known to exist.
+
+This is a selection. [CHANGELOG.md](../../CHANGELOG.md) is the complete record —
+Article VI makes it the single source of truth, and this table is a sample rather
+than a second list to keep in step.
 
 | Found by | Defect |
 | --- | --- |
