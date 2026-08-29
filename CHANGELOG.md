@@ -8,6 +8,16 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **A guided tour, which drives the application rather than describing it.** Six
+  steps, shown once on a first visit and replayable from the header afterwards.
+  Everything this application is for — the branch grid, the contract price, the
+  stored record, the audit trail — sits behind a part number a first-time visitor
+  has no way to guess, so the steps that talk about those things select a part
+  and open the drawer themselves. The reader watches it happen instead of being
+  told it would. The spotlight cuts a hole in a dimmed page around the real
+  control, which stays usable; nothing is a mock-up. Escape leaves, arrows and
+  Enter move, and the whole thing is operable without a mouse.
+
 - **Both pickers now show what is there before anything is typed.** Found by
   using the application rather than by testing it: opened cold, there was a search
   box for parts and a search box for customers and no way to answer the question

@@ -16,6 +16,8 @@ import { PricingPanel } from "../features/pricing/PricingPanel";
 import { BranchCommitments } from "../features/commitments/BranchCommitments";
 import { RecordDrawer } from "../features/record/RecordDrawer";
 import { GovernanceStrip } from "../features/governance/GovernanceStrip";
+import { GuidedTour } from "../features/tour/GuidedTour";
+import { TOUR_PART_NUMBER, type TourStep } from "../features/tour/steps";
 import { ActivityPanel } from "../features/governance/ActivityPanel";
 import { SignIn } from "../features/governance/SignIn";
 import { ReadOnlyGate } from "../components/ReadOnlyGate";
@@ -28,6 +30,9 @@ import {
   StockUnknownState,
 } from "../features/availability/states/ResultStates";
 
+/** Remembers that somebody has already been shown the tour. */
+const TOUR_SEEN_KEY = "counter.tour.seen";
+
 export function App(): React.JSX.Element {
   const [partNumber, setPartNumber] = useState<string | null>(null);
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
@@ -37,6 +42,21 @@ export function App(): React.JSX.Element {
   const [customerAccount, setCustomerAccount] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
+  // The tour runs once by itself and afterwards only on request.
+  //
+  // Reading the flag inside the initialiser rather than in an effect means the
+  // tour never flashes on for somebody who has already dismissed it. Wrapped
+  // because storage throws outright in a browser set to block site data, and an
+  // application that will not start because it could not check whether to show a
+  // tour has its priorities the wrong way round.
+  const [isTourOpen, setIsTourOpen] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(TOUR_SEEN_KEY) === null;
+    } catch {
+      return false;
+    }
+  });
 
   // Where focus goes when a part is chosen. Somewhere in the answer rather than
   // in the search box, so the shortcuts work and a screen reader announces what
@@ -128,19 +148,58 @@ export function App(): React.JSX.Element {
     (branch) => branch.branchCode === expandedBranch,
   );
 
+  /**
+   * Put the application into the state a tour step needs.
+   *
+   * The tour drives the application rather than describing it, so the steps that
+   * talk about the branch grid and the stored record select a part and open the
+   * drawer first. The reader watches it happen; nobody is asked to imagine it.
+   *
+   * @param step The step about to be shown.
+   */
+  function prepareForTourStep(step: TourStep): void {
+    if (step.needsPart && partNumber === null) {
+      setPartNumber(TOUR_PART_NUMBER);
+    }
+
+    // Closed as well as opened, so stepping backwards out of the record step
+    // puts the drawer away instead of leaving it over the branch grid the
+    // previous step is pointing at.
+    setIsRecordOpen(step.needsRecord === true);
+    setIsActivityOpen(step.needsActivity === true);
+  }
+
   return (
     <div className="app">
       <header className="header">
         <span className="header__mark">Counter</span>
-        <PartSearch onSelect={selectPart} />
-        <CustomerSelector
+        <span data-tour="part-search">
+          <PartSearch onSelect={selectPart} />
+        </span>
+        <span data-tour="customer-picker">
+          <CustomerSelector
           selectedAccount={customerAccount}
           onSelect={(account, name) => {
             setCustomerAccount(account);
             setCustomerName(name);
           }}
-        />
+          />
+        </span>
         <span className="header__spacer" />
+        {/*
+          Replayable, and that is not a nicety. The tour shows itself once and
+          then never again, so without this the second person at the same
+          machine -- or the same person demonstrating it twice -- has no way back
+          to it.
+        */}
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => setIsTourOpen(true)}
+        >
+          Take the tour
+        </button>
+
         <span className="hints" aria-hidden="true">
           <span>
             <kbd>/</kbd> search
@@ -244,11 +303,13 @@ export function App(): React.JSX.Element {
                   />
                 </div>
 
-                <BranchGrid
-                  branches={availability.branches}
-                  homeBranchCode={session?.homeBranchCode ?? ""}
-                  onExpand={setExpandedBranch}
-                />
+                <div data-tour="branch-grid">
+                  <BranchGrid
+                    branches={availability.branches}
+                    homeBranchCode={session?.homeBranchCode ?? ""}
+                    onExpand={setExpandedBranch}
+                  />
+                </div>
               </>
             ) : (
               <StockUnknownState />
@@ -268,14 +329,33 @@ export function App(): React.JSX.Element {
         )}
       </main>
 
-      <GovernanceStrip
+      <div data-tour="governance">
+        <GovernanceStrip
         session={session ?? null}
         onShowActivity={() => setIsActivityOpen(true)}
         onChangeIdentity={() => setIsSignInOpen(true)}
-      />
+        />
+      </div>
 
       {isRecordOpen && partNumber && (
-        <RecordDrawer partNumber={partNumber} onClose={() => setIsRecordOpen(false)} />
+        <div data-tour="record-drawer">
+          <RecordDrawer partNumber={partNumber} onClose={() => setIsRecordOpen(false)} />
+        </div>
+      )}
+
+      {isTourOpen && (
+        <GuidedTour
+          onClose={() => {
+            setIsTourOpen(false);
+            try {
+              window.localStorage.setItem(TOUR_SEEN_KEY, "yes");
+            } catch {
+              // A browser that will not remember means the tour offers itself
+              // again next time, which is a small annoyance rather than a fault.
+            }
+          }}
+          onPrepare={prepareForTourStep}
+        />
       )}
 
       {isActivityOpen && <ActivityPanel onClose={() => setIsActivityOpen(false)} />}

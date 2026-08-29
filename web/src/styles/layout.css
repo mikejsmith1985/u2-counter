@@ -770,3 +770,91 @@ kbd {
   background: var(--surface-sunken);
   letter-spacing: 0.02em;
 }
+
+/* --- guided tour ----------------------------------------------------------- */
+
+/* The overlay sits above everything, including the drawers it points at, so a
+   step about the record view is readable over the record view. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+/* Four panels rather than one enormous box-shadow: a shadow big enough to cover
+   the page is a shadow the browser repaints on every scroll. */
+.tour__backdrop {
+  position: fixed;
+  background: rgb(0 0 0 / 0.58);
+}
+
+.tour__backdrop--full {
+  inset: 0;
+}
+
+/* The ring is not interactive and must not swallow clicks on what it surrounds:
+   the highlighted control is the real one, and it stays usable. */
+.tour__ring {
+  position: fixed;
+  border: 2px solid var(--accent);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.25);
+  pointer-events: none;
+}
+
+.tour__card {
+  position: fixed;
+  width: 21rem;
+  max-width: calc(100vw - 2rem);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+}
+
+.tour__card:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tour__count {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.tour__title {
+  margin: 0 0 0.4rem;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.tour__body {
+  margin: 0 0 0.9rem;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.tour__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Somebody who has taken the tour once should not have it animate at them
+   again, and somebody who asked not to have motion should never have. */
+@media (prefers-reduced-motion: no-preference) {
+  .tour__card {
+    animation: tour-card-in 140ms ease-out;
+  }
+
+  @keyframes tour-card-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+  }
+}

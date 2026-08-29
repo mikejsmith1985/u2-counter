@@ -11,7 +11,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../../api/client";
 import { useReadiness } from "../../api/readiness";
-import type { SearchResult } from "../../api/types";
 
 /** Wait after the last keystroke before asking the API. */
 const SETTLE_MS = 180;
