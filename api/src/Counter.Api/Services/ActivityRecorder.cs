@@ -78,14 +78,26 @@ public sealed class ActivityRecorder(
     /// Record one request.
     /// </summary>
     /// <param name="entry">What happened.</param>
-    /// <param name="cancellationToken">Abandons the durable write only.</param>
     /// <remarks>
+    /// Takes no cancellation token, and that is the point of its signature.
+    ///
+    /// The durable write happens after the action has run. Handed the request's
+    /// own token it would be cancelled by the very thing it exists to record --
+    /// a caller who goes away -- so anyone wanting their queries unlogged would
+    /// only have to stop waiting for the answers.
+    ///
+    /// The filter used to pass <c>CancellationToken.None</c> with a comment
+    /// explaining why. A comment stops no one from changing the argument, and a
+    /// test that raced a real client's cancellation against a real request was
+    /// flaky enough to fail a deployment. Removing the parameter settles it in
+    /// the type system: there is no longer an argument to get wrong.
+    ///
     /// A failure to write the audit row is logged and swallowed. The alternative
     /// turns a successful answer into an error the user sees, which would mean an
     /// audit problem denying service — and the in-memory copy plus the MCP
     /// server's own log still hold the event.
     /// </remarks>
-    public async Task RecordAsync(ActivityEntry entry, CancellationToken cancellationToken)
+    public async Task RecordAsync(ActivityEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
 
@@ -105,7 +117,7 @@ public sealed class ActivityRecorder(
         try
         {
             await using CounterContext context =
-                await _contexts.CreateDbContextAsync(cancellationToken);
+                await _contexts.CreateDbContextAsync();
 
             context.Activity.Add(new ActivityRow
             {
@@ -120,7 +132,7 @@ public sealed class ActivityRecorder(
                 Outcome = safe.Outcome,
             });
 
-            await context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync();
         }
 #pragma warning disable CA1031 // An audit write must never deny service.
         catch (Exception error)

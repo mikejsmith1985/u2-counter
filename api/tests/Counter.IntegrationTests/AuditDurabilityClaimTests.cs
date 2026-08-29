@@ -86,7 +86,7 @@ public sealed class AuditDurabilityClaimTests
 
         Assert.True(recorder.IsDurable);
 
-        await recorder.RecordAsync(AnEntry(), CancellationToken.None);
+        await recorder.RecordAsync(AnEntry());
 
         Assert.False(recorder.IsDurable);
     }
@@ -101,7 +101,7 @@ public sealed class AuditDurabilityClaimTests
             NullLogger<ActivityRecorder>.Instance,
             new FailingContextFactory());
 
-        await recorder.RecordAsync(AnEntry(), CancellationToken.None);
+        await recorder.RecordAsync(AnEntry());
 
         Assert.Single(recorder.Recent("demo|dana", 10));
     }

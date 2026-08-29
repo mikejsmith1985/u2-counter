@@ -50,11 +50,7 @@ public sealed class ActivityRecordingFilter(
                 DatabaseLogin: _configuration["Erp:DatabaseLogin"] ?? "u2demo@DEMO",
                 DatabaseLoginIsShared: true,
                 DurationMs: (int)timer.ElapsedMilliseconds,
-                Outcome: DescribeOutcome(executed)),
-            // Not the request's token. A caller who has gone away still leaves a
-            // request that was made, and the record of it is exactly what a
-            // reviewer would come looking for.
-            CancellationToken.None);
+                Outcome: DescribeOutcome(executed)));
     }
 
     /// <summary>Name the action in words a reviewer would recognise.</summary>

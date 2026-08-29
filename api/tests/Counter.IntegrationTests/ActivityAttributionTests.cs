@@ -115,40 +115,32 @@ public sealed class ActivityAttributionTests(CounterFixture fixture)
     }
 
     [Fact]
-    public async Task A_caller_who_disconnects_still_leaves_a_row()
+    public async Task Recording_cannot_be_cancelled_by_the_caller()
     {
-        // The audit trail's weakest point, and the one that would never show up
-        // in ordinary use.
+        // The audit trail's weakest point, asserted where it is decided.
         //
-        // The durable write happens after the action has run, and if it were
-        // handed the request's own cancellation token it would be cancelled by
-        // the very thing it is meant to record: a caller who goes away. Someone
-        // who wanted their queries unlogged would only have to stop waiting for
-        // the answers, and the trail would show nothing — not a failure, not an
-        // abandoned request, nothing at all.
+        // The durable write happens after the action has run. Given the
+        // request's own cancellation token it would be cancelled by the very
+        // thing it exists to record -- a caller who goes away -- so anyone
+        // wanting their queries unlogged would only have to stop waiting for the
+        // answers.
         //
-        // The recorder is passed `CancellationToken.None` for exactly this
-        // reason. That reasoning currently lives in a comment, and a comment
-        // stops no one from changing the argument.
-        string marker = "gone-" + Guid.NewGuid().ToString("N")[..8];
+        // This was first written as a real client cancelling a real request. It
+        // passed alone and failed under the full suite, because whether the
+        // request reached the server before the cancellation did is a race. A
+        // flaky test guarding a compliance claim is worse than none: it fails
+        // deployments for no reason until somebody deletes it.
+        //
+        // So the guarantee moved into the type system instead. RecordAsync takes
+        // no cancellation token, and this asserts that -- there is no argument
+        // left to get wrong, and no race to lose.
+        System.Reflection.MethodInfo record =
+            typeof(Counter.Api.Services.ActivityRecorder)
+                .GetMethod(nameof(Counter.Api.Services.ActivityRecorder.RecordAsync))!;
 
-        using HttpClient browser = NewBrowser();
-        using CancellationTokenSource abandoned = new();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-        {
-            Task<HttpResponseMessage> pending =
-                browser.GetAsync($"/api/v1/parts?q={marker}", abandoned.Token);
-
-            // Cancelled while in flight, which is what a closed tab looks like
-            // from the server's side.
-            await abandoned.CancelAsync();
-            using HttpResponseMessage response = await pending;
-        });
-
-        IReadOnlyList<ActivityRow> rows = await ReadRowsAsync(marker);
-
-        Assert.NotEmpty(rows);
+        Assert.DoesNotContain(
+            record.GetParameters(),
+            parameter => parameter.ParameterType == typeof(CancellationToken));
     }
 
     /// <summary>A client with its own cookie jar, so it is its own session.</summary>
