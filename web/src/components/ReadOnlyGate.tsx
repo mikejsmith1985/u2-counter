@@ -30,8 +30,14 @@ interface Props {
   canWrite: boolean;
   /** What the blocked action would have done, as a person would say it. */
   action: string;
-  /** The control that would perform it, rendered only when writing is possible. */
-  children: ReactNode;
+  /**
+   * The control that would perform it, rendered only when writing is possible.
+   *
+   * Optional, because this release has controls that exist only as the disabled
+   * shape of themselves. Requiring a placeholder child for those would put an
+   * empty element in the markup whose only purpose was to satisfy a type.
+   */
+  children?: ReactNode;
 }
 
 export function ReadOnlyGate({ canWrite, action, children }: Props): React.JSX.Element {

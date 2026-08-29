@@ -241,9 +241,7 @@ export function App(): React.JSX.Element {
                   <ReadOnlyGate
                     canWrite={session?.isReadOnly === false}
                     action="Reserve stock"
-                  >
-                    <span />
-                  </ReadOnlyGate>
+                  />
                 </div>
 
                 <BranchGrid

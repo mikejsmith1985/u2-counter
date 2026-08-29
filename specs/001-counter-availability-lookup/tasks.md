@@ -263,7 +263,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T105 Write `deploy/azure/provision.ps1` — Container Apps environment, two apps with the MCP server on internal ingress only, and Azure SQL
 - [X] T106 Write `deploy/azure/deploy.ps1` — build, push and revise; local script only, never a hosted pipeline (Article VIII)
 - [X] T107 Update `CHANGELOG.md` with everything this feature delivered (Article VI)
-- [ ] T108 Run the whole verification table in `quickstart.md` and record the results
+- [X] T108 Run the whole verification table in `quickstart.md` and record the results — recorded under "What the run recorded", including the nine defects the suites found, because a suite that never fails is a suite nobody should believe
 
 ---
 
