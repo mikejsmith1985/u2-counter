@@ -38,11 +38,39 @@ public static class ErpFiles
         public const int Status = 7;
     }
 
-    /// <summary>Stock positions, held as parallel fields keyed by part number.</summary>
+    /// <summary>
+    /// Stock positions, held as parallel fields keyed by part number.
+    /// </summary>
+    /// <remarks>
+    /// These five are parallel: position <em>n</em> of every field belongs to the
+    /// same branch. It is the one layout in this application where reading the
+    /// wrong position produces a screen that is entirely plausible and entirely
+    /// wrong — Aurora's on-hand beside Pueblo's committed, with nothing to
+    /// indicate it.
+    ///
+    /// Which is why they belong here. They lived privately in the parser, so the
+    /// file this class exists to be — one statement of each layout, checkable
+    /// against the contract — excluded the layout that most needed stating.
+    /// </remarks>
     public static class Inventory
     {
         /// <summary>File name.</summary>
         public const string Name = "INVENTORY";
+
+        /// <summary>Branch codes. Every other field is parallel to this one.</summary>
+        public const int BranchCodes = 1;
+
+        /// <summary>Units present.</summary>
+        public const int OnHand = 2;
+
+        /// <summary>Units promised to an order.</summary>
+        public const int Committed = 3;
+
+        /// <summary>Units expected from a supplier. Never counted as available.</summary>
+        public const int OnOrder = 4;
+
+        /// <summary>Where the stock sits. Empty when unrecorded.</summary>
+        public const int Bin = 5;
     }
 
     /// <summary>Stocking locations.</summary>

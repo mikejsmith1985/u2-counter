@@ -44,8 +44,6 @@ public sealed class SessionStore(
     private readonly IDbContextFactory<CounterContext>? _contexts = contexts;
     private readonly ILogger<SessionStore> _logger = logger;
 
-    /// <summary>Whether sessions survive a restart of the application.</summary>
-    public bool IsDurable => _contexts is not null;
 
     /// <summary>
     /// Return the session for this request, creating one if there is none.

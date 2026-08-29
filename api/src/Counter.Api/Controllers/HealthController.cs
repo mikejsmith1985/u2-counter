@@ -1,5 +1,6 @@
 namespace Counter.Api.Controllers;
 
+using Counter.Api.Services;
 using Counter.Infrastructure.Catalogue;
 using Counter.Infrastructure.Mcp;
 using Microsoft.AspNetCore.Mvc;
@@ -22,14 +23,17 @@ using Microsoft.Extensions.Options;
 /// </remarks>
 /// <param name="catalogue">What has been read, and whether it is ready.</param>
 /// <param name="erp">Where this instance believes the ERP is.</param>
+/// <param name="activity">Whether the audit trail is reaching a durable store.</param>
 [ApiController]
 [Route("health")]
 public sealed class HealthController(
     CatalogueProjection catalogue,
-    IOptions<ErpConnectionOptions> erp) : ControllerBase
+    IOptions<ErpConnectionOptions> erp,
+    ActivityRecorder activity) : ControllerBase
 {
     private readonly CatalogueProjection _catalogue = catalogue;
     private readonly ErpConnectionOptions _erp = erp.Value;
+    private readonly ActivityRecorder _activity = activity;
 
     /// <summary>
     /// Whether this instance should be given traffic.
@@ -50,6 +54,11 @@ public sealed class HealthController(
             // is an address, and the server holds the login.
             ErpEndpoint: _erp.Endpoint.ToString(),
             RequestBudgetSeconds: _erp.RequestBudget.TotalSeconds,
+            // Whether the record of who asked what will survive this container.
+            // Running without a durable store is supported, and the difference
+            // is exactly the sort of thing that is discovered at the worst
+            // moment unless something says it out loud.
+            IsAuditDurable: _activity.IsDurable,
             Detail: _catalogue.IsBuilt
                 ? "The catalogue is readable and search can answer."
                 : "The catalogue has not been read yet, so search would return nothing.");
@@ -78,10 +87,17 @@ public sealed class HealthController(
 /// <param name="CatalogueCount">How many parts are searchable.</param>
 /// <param name="ErpEndpoint">Where this instance believes the ERP is.</param>
 /// <param name="RequestBudgetSeconds">How long it will wait for one.</param>
+/// <param name="IsAuditDurable">
+/// Whether the audit trail reaches a durable store. False is a supported way to
+/// run — everything works except surviving a restart — and saying so here is what
+/// keeps it from being discovered later by someone looking for a record that was
+/// never kept.
+/// </param>
 /// <param name="Detail">Why, in a sentence, for whoever is reading a probe log.</param>
 public sealed record HealthView(
     bool IsReady,
     int CatalogueCount,
     string ErpEndpoint,
     double RequestBudgetSeconds,
+    bool IsAuditDurable,
     string Detail);

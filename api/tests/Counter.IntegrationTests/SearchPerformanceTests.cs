@@ -87,7 +87,14 @@ public sealed class SearchPerformanceTests(CounterFixture fixture)
 
         JsonElement results = body.GetProperty("results");
 
-        Assert.InRange(results.GetArrayLength(), 1, 25);
+        // Exactly the limit, not merely within it. A single letter matches
+        // thousands of parts, so anything less means the search is not finding
+        // them -- and `InRange(1, 25)`, which this used to be, was satisfied by
+        // a search returning one.
+        Assert.Equal(25, results.GetArrayLength());
+
+        // And it says it was capped, which is the other half of the promise.
+        Assert.False(body.GetProperty("envelope").GetProperty("isComplete").GetBoolean());
     }
 
     /// <summary>

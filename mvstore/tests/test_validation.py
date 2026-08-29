@@ -25,9 +25,12 @@ class TestParallelFieldAlignment:
             ["142", "38", "0", "85"],
             ["40", "12", "0", "6"],
             ["0", "0", "200", "0"],
-            ["A-12", "C-04", "", "B-21"],
+            # Short on purpose: three bins for four branches, which is the case
+            # under test. This used to be written full-length and overwritten on
+            # the next line, so the record being tested was not the one the
+            # reader saw.
+            ["A-12", "C-04", ""],
         ]
-        fields[4] = ["A-12", "C-04", ""]
 
         normalised = normalise_parallel_fields(fields, parallel_count=5)
 

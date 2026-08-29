@@ -61,9 +61,20 @@ class TestSeedObligations:
 
         assert unmet == [], f"Seed data does not exercise: {unmet}"
 
-    def test_the_obligation_list_is_not_empty(self) -> None:
-        """A verifier with nothing to check would pass vacuously."""
-        assert len(SEED_OBLIGATIONS) >= 10
+    def test_every_obligation_has_a_check(self) -> None:
+        """An obligation nothing verifies is a promise nothing keeps.
+
+        The obligations and the checks that verify them live in two hand-written
+        dictionaries. Adding a fifteenth obligation without adding its check
+        leaves it silently unverified, and `verify_obligations` still reports
+        that every obligation is met -- because it only iterates the checks.
+
+        This was `len(SEED_OBLIGATIONS) >= 10` against a list of fourteen, which
+        would have survived four of them being deleted.
+        """
+        from mvstore.seed import obligation_checks
+
+        assert set(obligation_checks()) == set(SEED_OBLIGATIONS)
 
     def test_a_part_is_stocked_at_every_branch(self, seeded: MultiValueStore) -> None:
         """One end of the branch grid."""

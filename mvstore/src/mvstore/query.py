@@ -34,9 +34,6 @@ READ_VERBS = frozenset({"LIST", "SELECT", "SSELECT", "COUNT", "WHO"})
 # Verbs that answer about the session rather than about a file.
 SESSION_VERBS = frozenset({"WHO"})
 
-# Verbs that return records rather than a figure.
-RECORD_VERBS = frozenset({"LIST", "SELECT", "SSELECT"})
-
 # `F3` names field 3. Universe uses dictionary names; this store uses positions,
 # because it has no dictionary and inventing one would be a second thing to keep
 # correct.

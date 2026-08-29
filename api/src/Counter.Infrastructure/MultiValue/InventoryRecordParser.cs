@@ -1,6 +1,7 @@
 namespace Counter.Infrastructure.MultiValue;
 
 using Counter.Domain.Availability;
+using Counter.Infrastructure.Erp;
 
 /// <summary>
 /// Turns an inventory record's parallel fields into branch positions.
@@ -21,11 +22,14 @@ using Counter.Domain.Availability;
 /// </remarks>
 public static class InventoryRecordParser
 {
-    private const int BranchField = 1;
-    private const int OnHandField = 2;
-    private const int CommittedField = 3;
-    private const int OnOrderField = 4;
-    private const int BinField = 5;
+    // Taken from ErpFiles rather than restated. The same number in two places
+    // is two opportunities for one of them to drift, and this is the layout where
+    // drifting produces a plausible wrong answer rather than an obvious one.
+    private const int BranchField = ErpFiles.Inventory.BranchCodes;
+    private const int OnHandField = ErpFiles.Inventory.OnHand;
+    private const int CommittedField = ErpFiles.Inventory.Committed;
+    private const int OnOrderField = ErpFiles.Inventory.OnOrder;
+    private const int BinField = ErpFiles.Inventory.Bin;
 
     /// <summary>
     /// Read every branch position from an inventory record.

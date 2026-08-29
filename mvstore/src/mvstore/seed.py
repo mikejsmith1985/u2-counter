@@ -153,16 +153,21 @@ def generate(
         _write_inventory(store, rng, part_numbers, branch_codes, holdings)
 
 
-def verify_obligations(store: MultiValueStore) -> list[str]:
-    """Return the obligations this data set fails to meet.
+def obligation_checks() -> dict[str, Callable[[MultiValueStore], bool]]:
+    """Return the check that verifies each obligation, keyed the same way.
 
-    Args:
-        store: A seeded store
+    Separate from `verify_obligations` so a test can hold this against
+    `SEED_OBLIGATIONS` and fail when they drift.
+
+    They can drift silently. The two are hand-written and keyed by the same
+    strings, and `verify_obligations` iterates the checks -- so an obligation
+    added here without a check is never evaluated, and the verifier still reports
+    that every obligation is met.
 
     Returns:
-        Descriptions of unmet obligations; empty when the data exercises every rule
+        One predicate per obligation, keyed by the obligation's name
     """
-    checks: dict[str, Callable[[MultiValueStore], bool]] = {
+    return {
         "part_at_every_branch": _has_part_at_every_branch,
         "part_at_one_branch": _has_part_at_one_branch,
         "part_without_inventory": _has_part_without_inventory,
@@ -178,6 +183,30 @@ def verify_obligations(store: MultiValueStore) -> list[str]:
         "non_ascii_text": _has_non_ascii_text,
         "discontinued_with_stock": _has_discontinued_with_stock,
     }
+
+
+def verify_obligations(store: MultiValueStore) -> list[str]:
+    """Return the obligations this data set fails to meet.
+
+    Args:
+        store: A seeded store
+
+    Returns:
+        Descriptions of unmet obligations; empty when the data exercises every rule
+
+    Raises:
+        RuntimeError: If an obligation has no check, which would pass vacuously
+    """
+    checks = obligation_checks()
+
+    # Refused rather than reported, because the failure mode is a verifier that
+    # cheerfully says everything is met while never having looked at one of them.
+    unchecked = set(SEED_OBLIGATIONS) - set(checks)
+    if unchecked:
+        raise RuntimeError(
+            f"These obligations have no check and would never be verified: "
+            f"{', '.join(sorted(unchecked))}"
+        )
 
     return [SEED_OBLIGATIONS[key] for key, check in checks.items() if not check(store)]
 
@@ -282,7 +311,9 @@ def _write_position(
 
     Three positions on the first record are given deliberate exceptions --
     entirely committed, oversold, and a stranded allocation -- because each is a
-    condition a counter representative meets and the interface has to handle. Neither is a discrepancy the arithmetic cannot express: committed is
+    condition a counter representative meets and the interface has to handle.
+
+    None of them is a discrepancy the arithmetic cannot express: committed is
     never allowed to fall below what the orders hold, which would make the
     unaccounted figure negative and the screen unreadable.
 
