@@ -677,7 +677,28 @@ container log for the reason the schema could not be opened.
 
     # One real search, because a catalogue count proves the catalogue was read
     # and not that a question can be answered from it.
-    $found = Invoke-RestMethod "https://$Url/api/v1/parts?q=breaker" -TimeoutSec 60
+    #
+    # Retried, because the request immediately after a deployment can meet a
+    # replica that is still starting and come back as a gateway timeout from the
+    # platform rather than an answer from the application. That is the cold start
+    # this deployment is designed around, not a fault -- so it is waited out
+    # rather than reported. An answer that arrives and is wrong still fails.
+    $found = $null
+
+    foreach ($attempt in 1..4) {
+        try {
+            $found = Invoke-RestMethod "https://$Url/api/v1/parts?q=breaker" -TimeoutSec 90
+            break
+        }
+        catch {
+            if ($attempt -eq 4) {
+                throw "The deployed application could not answer a search: $($_.Exception.Message)"
+            }
+
+            Write-Host "  the search timed out, waking (attempt $attempt)" -ForegroundColor DarkGray
+            Start-Sleep -Seconds 10
+        }
+    }
 
     if ($found.results.Count -eq 0) {
         throw "The deployed application returned no results for a search that should match."

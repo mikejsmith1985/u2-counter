@@ -190,6 +190,13 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **The post-deploy search check failed on a cold start.** The request
+  immediately after a deployment can meet a replica that has not finished
+  starting and come back as a gateway timeout from the platform rather than an
+  answer from the application — which is the cold start this deployment is
+  designed around, not a fault. It is now waited out across four attempts. An
+  answer that arrives and is wrong still fails the deployment.
+
 - **`run-dev-clean.ps1 -Stop` could stop a process it never started.** The port
   sweep assumed "the port is ours because this script assigned it", which holds
   only while the port was free. Vite falls back to the next port when its own is
