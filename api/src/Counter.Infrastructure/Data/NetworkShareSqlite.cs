@@ -18,25 +18,27 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 /// application blocked for thirty seconds on every cold start before serving its
 /// first request. One unsupported lock, three separate faults.
 ///
-/// Two pragmas answer it, and both are correct here rather than merely
-/// convenient:
+/// The fix belongs at the mount, not here. The share is mounted with `nobrl`,
+/// which tells the SMB client to handle byte-range locks locally instead of
+/// sending them to the server that cannot honour them. That is safe at one
+/// replica, which is what this runs at, and it is the standard remedy for SQLite
+/// on a CIFS or SMB mount.
 ///
-///   - `locking_mode=EXCLUSIVE` takes the file lock once and keeps it, instead of
-///     acquiring and releasing around every transaction. That is what SMB
-///     mishandles. It is safe because this application runs at one replica and is
-///     the only writer; a second writer would be refused rather than corrupt
-///     anything, which is the failure worth having.
+/// `locking_mode=EXCLUSIVE` was tried here first and was wrong. It does stop the
+/// lock traffic SMB mishandles, by taking the file lock once and keeping it --
+/// but bringing the schema up to date needs a second connection, and that
+/// connection then waits the full busy timeout before giving up. Every migration
+/// took thirty seconds on a local SSD, which is the same delay as the defect it
+/// was meant to fix. It is written down because it is the obvious thing to reach
+/// for and it makes the problem worse in a way that still passes its tests.
 ///
-///   - `journal_mode=DELETE` is SQLite's own default and is set explicitly
-///     because the alternative must never be chosen here: write-ahead logging
-///     uses shared memory that network filesystems do not provide, and a future
-///     edit turning WAL on would break this in a way that looks unrelated.
+/// What is left here is one pragma:
 ///
-/// The remaining risk is stated rather than hidden: an exclusive lock is released
-/// only when the connection closes, so a container killed mid-write leaves the
-/// file locked until the mount drops the handle. For an audit trail on a
-/// single-replica demonstration that is the right trade against not being able to
-/// write at all.
+///   - `journal_mode=DELETE` is SQLite's own default, set explicitly because the
+///     alternative must never be chosen on this deployment: write-ahead logging
+///     uses shared memory that network filesystems do not provide, so a future
+///     edit turning WAL on would break the audit trail in a way that looks
+///     nothing like its cause.
 /// </remarks>
 public sealed class NetworkShareSqlite : DbConnectionInterceptor
 {
@@ -92,8 +94,7 @@ public sealed class NetworkShareSqlite : DbConnectionInterceptor
         {
             using DbCommand command = connection.CreateCommand();
 
-            command.CommandText =
-                "PRAGMA journal_mode=DELETE; PRAGMA locking_mode=EXCLUSIVE;";
+            command.CommandText = "PRAGMA journal_mode=DELETE;";
 
             command.ExecuteNonQuery();
         }

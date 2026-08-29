@@ -491,12 +491,25 @@ else {
     # with restrictive permissions, and the .NET images run as a non-root user
     # (uid 1654) -- so without these the application cannot create its own
     # database file and the audit trail silently does not exist.
+    #
+    # `nobrl` is load-bearing for the same reason and was learnt the same way.
+    # SQLite coordinates writers with byte-range locks, and the SMB server behind
+    # an Azure Files share does not honour them, so the audit schema could not be
+    # created at all: `CREATE TABLE __EFMigrationsLock` waited out the command
+    # timeout and failed with "database is locked". Every write afterwards failed
+    # on a table that did not exist, while the health endpoint went on reporting
+    # a durable audit trail. `nobrl` has the SMB client handle those locks
+    # locally, which is safe at the one replica this runs at.
+    #
+    # Setting locking_mode=EXCLUSIVE in the application was tried instead and is
+    # worse: it made every migration wait thirty seconds, reproducing the delay
+    # it was chosen to remove.
     $definition = $definition -replace '(?m)^(\s*)volumes: null\s*$', @"
 `$1volumes:
 `$1- name: audit
 `$1  storageName: $($environment.StorageLink)
 `$1  storageType: AzureFile
-`$1  mountOptions: uid=1654,gid=1654,dir_mode=0755,file_mode=0644
+`$1  mountOptions: uid=1654,gid=1654,dir_mode=0755,file_mode=0644,nobrl
 "@
 
     $definition = $definition -replace '(?m)^(\s*)volumeMounts: null\s*$', @"
