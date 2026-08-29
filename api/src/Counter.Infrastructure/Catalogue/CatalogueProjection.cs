@@ -255,9 +255,6 @@ internal sealed class NullErpReader : IErpReader
         string fileName, IReadOnlyList<string> recordIds, CancellationToken cancellationToken) =>
         throw Refuse();
 
-    /// <inheritdoc />
-    public Task<ErpQueryResult> QueryAsync(string query, int maxRows, CancellationToken cancellationToken) =>
-        throw Refuse();
 
     private static InvalidOperationException Refuse() => new(
         "This catalogue was built over parts already in hand and has nothing to read from.");

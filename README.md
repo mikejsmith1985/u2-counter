@@ -73,7 +73,7 @@ names are shared, so an id alone is not identity and a name is not ownership.
 | Suite | What it runs against |
 | --- | --- |
 | `Counter.UnitTests` | The domain rules, in isolation |
-| `Counter.IntegrationTests` | The real MCP server as a process, and SQL Server in a container. Nothing mocked |
+| `Counter.IntegrationTests` | The real MCP server as a process, and the audit trail on the same SQLite engine that ships. Nothing mocked |
 | `mvstore` | The store, its verbs, and the seeder's own obligations |
 | Vitest | What the copy button puts on the clipboard, and how a record renders |
 | Cypress | A real browser with real events, and `axe-core` on every screen |

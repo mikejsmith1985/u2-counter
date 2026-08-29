@@ -13,8 +13,15 @@ public sealed class CommitmentReader(
     PricingReader customers,
     ILogger<CommitmentReader> logger)
 {
-    /// <summary>Most orders to consider for one part.</summary>
-    private const int MaximumOrders = 500;
+    /// <summary>
+    /// Most orders to consider for one part.
+    /// </summary>
+    /// <remarks>
+    /// Public because the message shown when the cap is reached quotes it, and a
+    /// message quoting a different number from the one enforced is worse than one
+    /// quoting none.
+    /// </remarks>
+    public const int MaximumOrdersRead = 500;
 
     private readonly IErpReader _erp = erp;
     private readonly PricingReader _customers = customers;
@@ -47,7 +54,7 @@ public sealed class CommitmentReader(
             $"AND WITH F{ErpFiles.Order.State} = {StatesHoldingStockClause()}";
 
         IReadOnlyList<string> orderNumbers = await _erp.SelectKeysAsync(
-            query, MaximumOrders, cancellationToken);
+            query, MaximumOrdersRead, cancellationToken);
 
         List<Commitment> holding = [];
 
@@ -65,7 +72,11 @@ public sealed class CommitmentReader(
         return new BranchCommitments(
             branchCode,
             committedTotal,
-            holding.OrderBy(commitment => commitment.PromisedDate).ToList());
+            holding.OrderBy(commitment => commitment.PromisedDate).ToList(),
+            // Hitting the cap means orders exist that this list does not show,
+            // which would make the unaccounted figure larger than the truth --
+            // and that figure is the one a representative rings the branch about.
+            WasCapped: orderNumbers.Count >= MaximumOrdersRead);
     }
 
     /// <summary>

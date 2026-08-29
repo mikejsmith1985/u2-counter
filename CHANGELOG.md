@@ -60,7 +60,7 @@ source of truth for what changed (Article VI). Format follows
   teaches nobody anything, while hiding them decides for the reader that they do
   not need to know how the data is shaped.
 
-- **A durable audit trail** (`UserSession`, `ActivityRecord`) in SQL Server via EF
+- **A durable audit trail** (`UserSession`, `ActivityRecord`) in SQLite via EF
   Core, written for every request including the ones that fail — a failure nobody
   recorded is indistinguishable from a request nobody made. No ERP data is stored;
   what is stored is the record of asking. The application also runs with no
@@ -92,9 +92,9 @@ source of truth for what changed (Article VI). Format follows
   got round to; shown, it reads as a decision.
 
 - **An integration suite against real infrastructure** (Article V): the hardened
-  MCP server started as a process against a copy of the data, and SQL Server in a
-  container. Nothing is mocked — a mock of the MCP server would prove only that
-  the application can talk to a mock.
+  MCP server started as a process against a copy of the data, and the audit
+  trail on the engine that ships. Nothing is mocked — a mock of the MCP server
+  would prove only that the application can talk to a mock.
 
 - **`ErpImmutabilityTests`**, which hashes every ERP file before and after
   exercising every journey. Every other read-only guarantee here describes intent;

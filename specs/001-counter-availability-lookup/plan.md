@@ -14,7 +14,7 @@ The approach is a keyboard-driven web application over a REST API, which reads t
 MultiValue ERP through a hardened MCP server rather than through a database driver
 — because that server already carries the read-only enforcement, command
 allowlist, per-caller identity and audit trail the feature requires, with tests
-that prove them. The application's own state lives in SQL Server; the ERP's data
+that prove them. The application's own state lives in SQLite; the ERP's data
 is never written to. Availability, pricing and commitments are always read live,
 while the catalogue's searchable projection is held in memory so search answers
 instantly: caching *what exists* is safe, caching *how much there is* is the
@@ -29,11 +29,27 @@ failure the specification forbids.
 React 19.2; Vite 8.2; TanStack Query 5; Radix UI primitives; the hardened
 `u2-mcp` fork
 
-**Storage**: SQL Server for application state — sessions, preferences, and the
-mirror of the activity record. Azure SQL Database when deployed, SQL Server 2022
-in a container locally. ERP data is read-only and never mirrored.
+**Storage**: SQLite for application state — sessions and the activity record.
+A file on a mounted share when deployed, a file under `.run/` locally.
 
-**Testing**: xUnit and Testcontainers (API); Vitest (web units); Cypress with
+> **Changed after this plan was written.** This said SQL Server, and the
+> compliance table below certified "real SQL Server rather than SQLite" as an
+> Article I pass. The deployment then moved to containers that scale to zero, and
+> a database server is the one component that cannot scale down with them — it
+> would cost money continuously to hold a few thousand audit rows nobody is
+> reading. The integration suite gained from the same change: it now runs against
+> the engine that ships rather than a container it waits two minutes to start.
+>
+> The original text is left visible rather than quietly rewritten, because a plan
+> that silently matches whatever was built is not a plan anyone can hold you to.
+
+> Superseded, as originally written: *"SQL Server for application state —
+> sessions, preferences, and the mirror of the activity record. Azure SQL
+> Database when deployed, SQL Server 2022 in a container locally."*
+
+ERP data is read-only and never mirrored, which has not changed.
+
+**Testing**: xUnit (API); Vitest (web units); Cypress with
 `cypress-real-events` and `axe-core` (user experience); pytest (store)
 
 **Target Platform**: Linux containers on Azure Container Apps; evergreen desktop
@@ -61,7 +77,7 @@ user stories; four screens and one drawer; ten people using it at once (SC-010).
 
 | Article | Requirement | Status | How it is met |
 | --- | --- | --- | --- |
-| I | Best route, not fastest; production-readiness over speed | ✅ Pass | Real SQL Server rather than SQLite; Testcontainers rather than in-memory providers; a genuine delimiter-format store rather than JSON dressed up on read |
+| I | Best route, not fastest; production-readiness over speed | ✅ Pass | A genuine delimiter-format store rather than JSON dressed up on read; the real MCP server as a process in the integration suite rather than a mock; the audit trail on the same engine in test and production. **Originally read "real SQL Server rather than SQLite" — see the storage note above for why that reversed, and note that this row certified a property the code no longer had until an adversarial review caught it** |
 | II | Never kill processes by name pattern | ✅ Pass | `scripts/run-dev-clean.ps1` writes a PID file and stops only those PIDs |
 | III | Feature branches, PR to main | ✅ Pass | Work proceeds on `001-counter-availability-lookup` |
 | IV | Self-documenting names, no magic numbers, functions under 40 lines, comments explain why | ✅ Pass | Enforced by review, by analyzer settings in `.editorconfig`, and by the ESLint configuration |
@@ -111,7 +127,7 @@ api/                                  # ASP.NET Core Web API (C#)
 │   └── Counter.Infrastructure/       # MCP client, EF Core, catalogue projection
 └── tests/
     ├── Counter.UnitTests/            # Isolated, no I/O
-    └── Counter.IntegrationTests/     # Testcontainers SQL Server, live mvstore
+    └── Counter.IntegrationTests/     # live MCP server process, SQLite, live mvstore
 
 web/                                  # React + TypeScript front end
 ├── src/

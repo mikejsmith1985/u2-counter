@@ -86,7 +86,7 @@ wire contract stable while the domain moves.
 
 ## R4. Where the application's own data lives
 
-**Decision**: SQL Server — Azure SQL Database when deployed, SQL Server in a
+**Decision (superseded)**: SQL Server — Azure SQL Database when deployed, SQL Server in a
 container locally — accessed through EF Core 9.
 
 **Rationale**: The ERP data is not ours to write to, and the read-only rule means

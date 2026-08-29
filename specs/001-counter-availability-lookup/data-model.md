@@ -8,9 +8,9 @@ Two stores, with a hard line between them.
 | Store | Holds | Written by this application |
 | --- | --- | --- |
 | MultiValue ERP | Parts, inventory, customers, orders, pricing, branches | **Never** |
-| SQL Server | Sessions, preferences, the activity mirror | Yes |
+| SQLite | Sessions and the activity record | Yes |
 
-The ERP is the system of record for everything a user asks about. SQL Server holds
+The ERP is the system of record for everything a user asks about. SQLite holds
 only what the application itself needs to function.
 
 ---
@@ -197,7 +197,7 @@ QUOTE ──▶ CONFIRMED ──▶ ALLOCATED ──▶ PICKING ──▶ SHIPPE
 
 ---
 
-## Application entities (SQL Server)
+## Application entities (SQLite)
 
 ### UserSession
 

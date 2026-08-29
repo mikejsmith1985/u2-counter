@@ -93,7 +93,18 @@ public sealed class AvailabilityService(
                 stock.TotalFreeToSell));
         }
 
-        return new SearchResponse(results, ResponseEnvelope.Complete());
+        // Capped when the catalogue returned exactly as many as were asked for:
+        // there is no way to tell that from a search that happened to match that
+        // many, so it is reported as possibly-capped rather than as whole. The
+        // wording says "at least", because that is what is actually known.
+        bool mayBeCapped = results.Count >= limit;
+
+        return new SearchResponse(
+            results,
+            mayBeCapped
+                ? ResponseEnvelope.Partial(
+                    $"Showing the first {limit} matches. Type more to narrow it.")
+                : ResponseEnvelope.Complete());
     }
 
     /// <summary>Work out what a customer pays, with the terms that did not apply.</summary>

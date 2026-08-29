@@ -99,24 +99,6 @@ public sealed class ErpReader : IErpReader, IAsyncDisposable
         return ErpRecords.RecordsFrom(result);
     }
 
-    /// <inheritdoc />
-    public async Task<ErpQueryResult> QueryAsync(
-        string query,
-        int maxRows,
-        CancellationToken cancellationToken)
-    {
-        JsonElement result = await CallAsync(
-            ErpTools.ExecuteQuery,
-            new Dictionary<string, object?>
-            {
-                ["query"] = query,
-                ["max_rows"] = maxRows,
-            },
-            cancellationToken);
-
-        return ErpResponse.QueryResultFrom(result, query);
-    }
-
     /// <summary>
     /// Call one permitted tool.
     /// </summary>

@@ -10,7 +10,7 @@ throughout: compiling is not evidence, and neither is a screenshot.
 | .NET SDK | 9.0 | API |
 | Node.js | 22 or later | Front end |
 | Python | 3.12 | Store and MCP server |
-| Docker | Any current release | SQL Server, and Testcontainers |
+| Docker | Any current release | Building the deployment images. Not needed to run or test locally |
 | PowerShell | 7 | The run and seed scripts |
 
 ## Running it
@@ -20,8 +20,8 @@ throughout: compiling is not evidence, and neither is a screenshot.
 # process id, its start time and the port it was given in .run/pids.json.
 ./scripts/run-dev-clean.ps1
 
-# Without the SQL Server container -- everything works except surviving a
-# restart, which is a supported way to run the demonstration.
+# -SkipSql is accepted and ignored. There was a SQL Server container here and
+# there is not one now: the audit trail is a SQLite file under .run/.
 ./scripts/run-dev-clean.ps1 -SkipSql
 ```
 
@@ -45,7 +45,7 @@ is often already gone while the service it started is still listening.
 | Front end | `http://127.0.0.1:5173` |
 | API | `http://127.0.0.1:5080` |
 | MCP server | `http://127.0.0.1:5081` (loopback only) |
-| SQL Server | `localhost:1433` (container, optional) |
+| Audit trail | `.run/counter.db` (a file, not a service) |
 
 Loopback binding is not incidental: the MCP fork refuses to serve unauthenticated
 traffic on a reachable interface, and this development configuration has no
@@ -82,8 +82,8 @@ Each success criterion has a check. None of them is "look at it".
 ### The whole suite
 
 ```powershell
-# The .NET suites start their own MCP server and SQL Server, so stop the
-# development services first or the two sets compete for ports.
+# The .NET suites start their own MCP server, so stop the development services
+# first or the two sets compete for ports.
 ./scripts/run-dev-clean.ps1 -Stop
 dotnet test api/Counter.sln                    # 83 unit, 59 integration
 
@@ -95,8 +95,9 @@ npm --prefix web test                          # 17 Vitest units
 npm --prefix web run cypress                   # 61 browser tests
 ```
 
-The integration suite needs Docker (SQL Server) and the hardened fork checked out
-beside this repository, or `U2_MCP_ROOT` pointing at it. It starts the fork's own
+The integration suite needs the hardened fork checked out beside this repository,
+or `U2_MCP_ROOT` pointing at it. It needs no Docker: the audit trail is a SQLite
+file it creates and deletes. It starts the fork's own
 installed entry point against a **copy** of the demonstration data, which is what
 lets `ErpImmutabilityTests` hash every file before and after and prove read-only
 by outcome rather than by assertion.
@@ -148,7 +149,7 @@ asserts outcome.
 ```powershell
 # Once. Writes the names it created to deploy/azure/environment.json, which
 # deploy.ps1 reads rather than deriving them again.
-./deploy/azure/provision.ps1 -ResourceGroup counter-demo -SqlAdminUser counteradmin
+./deploy/azure/provision.ps1 -ResourceGroup counter-demo
 
 # Each release. Runs every suite first and refuses to deploy if any fails.
 ./deploy/azure/deploy.ps1
@@ -161,8 +162,14 @@ suite the author was running a minute earlier.
 The API receives public ingress; the MCP server receives internal ingress only
 and exactly one replica, because it holds the database session and a second
 replica would reintroduce by deployment the connection multiplication the fork
-was hardened against. Secrets are Key Vault references resolved by the container
-app's own identity, and never pass through the script (Article IX).
+was hardened against.
+
+Two credentials do pass through these scripts, and Article IX says they should
+not: the storage account key and the registry password, both read from `az` into
+a variable. Neither is committed and both rotate, but the Article asks that the
+script name where a secret goes and something else deliver it. Closing it means a
+managed identity for the registry pull and a Key Vault reference for the share
+key. It is a known gap, recorded here rather than left for a reviewer to find.
 
 ## What the run recorded
 
@@ -172,7 +179,7 @@ what the run reported, not what it was expected to report.
 | Suite | Result | What it covers |
 | --- | --- | --- |
 | `Counter.UnitTests` | **83 passed** | The domain rules, the parser, search matching, mark descriptions |
-| `Counter.IntegrationTests` | **59 passed** | The whole application against the hardened MCP server and SQL Server, nothing mocked |
+| `Counter.IntegrationTests` | **59 passed** | The whole application against the hardened MCP server as a process, nothing mocked |
 | `mvstore` | **109 passed** | The store, its query verbs, the seeder's obligations, the delay switch |
 | Vitest | **17 passed** | The copied summary and the record rendering |
 | Cypress | **61 passed** | Every journey in a real browser with real events, `axe-core` on every screen |
@@ -217,5 +224,5 @@ is recorded in [CHANGELOG.md](../../CHANGELOG.md) with what it would have done.
 | `dotnet: No .NET SDKs were found` | The `dotnet` first on PATH is the shared host, not the SDK | `run-dev-clean.ps1` finds one with an SDK; run through the script, or put an SDK earlier on PATH |
 | Port already in use after a failed start | A service outlived the launcher that started it | `./scripts/run-dev-clean.ps1 -Stop` clears the recorded tree and the port holder |
 | MCP server exits at startup | It refuses an unauthenticated public bind | Confirm `U2_HTTP_HOST=127.0.0.1` locally |
-| Integration tests cannot start | Docker not running | Start Docker; Testcontainers needs it |
+| Integration tests cannot start | The hardened fork is not beside this repository | Clone it as a sibling, or set `U2_MCP_ROOT` |
 | Raw record shows no marks | Delimiters stripped in transit | The response must carry them as stored; check the serializer, not the client |

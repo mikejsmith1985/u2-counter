@@ -17,17 +17,25 @@ internet ──▶ counter-api      external ingress, HTTPS
 ## Once
 
 ```powershell
-./azure/provision.ps1 -ResourceGroup counter-demo -SqlAdminUser counteradmin
+./azure/provision.ps1 -ResourceGroup counter-demo
 ```
 
-Creates the registry, the Container Apps environment, the database and the key
-vault, and writes the names it chose to `azure/environment.json`. `deploy.ps1`
-reads that file rather than deriving the names again, because a random suffix
-derived in two places eventually disagrees.
+Creates the registry, the Container Apps environment, a storage account and the
+file share the audit trail lives on, and writes the names it chose to
+`azure/environment.json`. `deploy.ps1` reads that file rather than deriving the
+names again, because a random suffix derived in two places eventually disagrees.
 
-The SQL administrator password is read by the Azure CLI directly and the
-connection string is placed in Key Vault by whoever provisions — neither passes
-through the script, its variables, or the shell history (Article IX).
+There is no database server and no database password, because the audit trail is
+a SQLite file on that share.
+
+**Where this falls short of Article IX.** Two credentials do pass through these
+scripts: the storage account key, to attach the share to the environment, and the
+registry password, to let the apps pull. Both are read from `az` into a variable
+and passed on a command line. Neither is committed, and both are short-lived
+enough to rotate — but the Article says the agent names where a secret goes and
+something else delivers it, and that is not what happens here. Closing it means a
+user-assigned managed identity for the registry pull and a Key Vault reference
+for the share key; it is a known gap, not an oversight.
 
 ## Each release
 

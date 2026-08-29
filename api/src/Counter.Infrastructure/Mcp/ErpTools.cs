@@ -21,9 +21,6 @@ public static class ErpTools
     /// <summary>Read several records from one file.</summary>
     public const string ReadRecords = "read_records";
 
-    /// <summary>Run a read-only query.</summary>
-    public const string ExecuteQuery = "execute_query";
-
     /// <summary>Run a selection and return the matching keys.</summary>
     /// <remarks>
     /// Keys come back as structured data. A LIST returns the records formatted
@@ -40,17 +37,25 @@ public static class ErpTools
     /// it later turns out to matter, so the list is kept to what is actually
     /// needed rather than to what might be.
     ///
-    /// <c>list_dictionary</c> was in this list and has been removed. It would name
-    /// a file's fields, but the demonstration store deliberately holds no
-    /// dictionaries -- inventing one would be a second description of the record
-    /// layout to keep in step with the first -- so the record view names fields by
-    /// position, exactly as the file contract does.
+    /// Two tools have been removed from this list, and the second one is the
+    /// interesting removal.
+    ///
+    /// <c>list_dictionary</c> would name a file's fields, but the demonstration
+    /// store deliberately holds no dictionaries -- inventing one would be a second
+    /// description of the record layout to keep in step with the first -- so the
+    /// record view names fields by position, exactly as the file contract does.
+    ///
+    /// <c>execute_query</c> ran arbitrary query text. Nothing called it: every
+    /// question this application asks is a keyed read or a parameterised
+    /// selection. It sat here permitted for weeks because the test meant to catch
+    /// exactly this could not -- it searched the reader's source for the constant
+    /// name, and the constant was present in a method nobody invoked. Of all the
+    /// permissions to leave dangling, the arbitrary-query one is the worst.
     /// </remarks>
     public static readonly IReadOnlySet<string> Permitted = new HashSet<string>
     {
         ReadRecord,
         ReadRecords,
-        ExecuteQuery,
         GetSelectList,
     };
 
@@ -62,6 +67,10 @@ public static class ErpTools
         {
             ["write_record"] = "The feature is read-only against the ERP.",
             ["delete_record"] = "The feature is read-only against the ERP.",
+            ["execute_query"] =
+                "Runs arbitrary query text. Every question this application asks is a " +
+                "keyed read or a parameterised selection, so the ability to send a " +
+                "query somebody composed is capability it has no use for.",
             ["execute_tcl"] =
                 "No question in this feature needs a system-level command, and never " +
                 "calling it means we do not depend on the server's blocklist being complete.",

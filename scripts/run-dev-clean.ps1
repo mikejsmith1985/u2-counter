@@ -20,7 +20,9 @@
     Stop the services recorded in .run/pids.json and exit.
 
 .PARAMETER SkipSql
-    Do not start the SQL Server container. Useful when one is already running.
+    Accepted and ignored. There was a SQL Server container here and there is not
+    one now -- the audit trail is a SQLite file. Kept so that a habit, a note or
+    a script passing it does not fail.
 
 .EXAMPLE
     ./scripts/run-dev-clean.ps1
@@ -40,7 +42,6 @@ $runDirectory = Join-Path $repositoryRoot '.run'
 $pidFilePath = Join-Path $runDirectory 'pids.json'
 $logDirectory = Join-Path $runDirectory 'logs'
 
-$sqlContainerName = 'counter-sql'
 
 function Write-Step {
     param([string] $Message)
@@ -155,13 +156,6 @@ function Stop-RecordedProcesses {
     }
 
     if (Test-Path $pidFilePath) { Remove-Item $pidFilePath -Force }
-
-    # The SQL container is addressed by its own name, which docker guarantees is
-    # unique. This is not a process-name pattern.
-    if (docker ps --quiet --filter "name=^${sqlContainerName}$") {
-        Write-Step "Stopping container $sqlContainerName"
-        docker stop $sqlContainerName | Out-Null
-    }
 
     Write-Host 'Stopped.' -ForegroundColor Green
 }
@@ -288,20 +282,19 @@ function Register-Started {
     Save-RecordedProcesses -Records $script:started
 }
 
-if (-not $SkipSql) {
-    Write-Step 'Starting SQL Server container'
-    docker run --detach --rm `
-        --name $sqlContainerName `
-        --env 'ACCEPT_EULA=Y' `
-        --env "MSSQL_SA_PASSWORD=$env:COUNTER_SQL_PASSWORD" `
-        --publish '1433:1433' `
-        'mcr.microsoft.com/mssql/server:2022-latest' | Out-Null
-}
+# The audit trail is a SQLite file, so there is no database server to start.
+#
+# There was one here: a SQL Server container, started every run, that nothing
+# connected to -- the connection string was never set, so the application ran in
+# memory while a database sat beside it holding nothing. It was left behind when
+# the audit trail moved to SQLite, and removing it is what makes -SkipSql
+# unnecessary rather than merely optional.
+$auditDatabase = Join-Path $runDirectory 'counter.db'
 
-# The store is not a service of its own. It is a driver the MCP server loads in
-# process, presenting the same objects uopy does, so the server runs the code it
-# would run against a real Universe rather than a second path written for the
-# demonstration.
+# The store is not a service of its own either. It is a driver the MCP server
+# loads in process, presenting the same objects uopy does, so the server runs the
+# code it would run against a real Universe rather than a second path written for
+# the demonstration.
 Register-Started (Start-Service -Name 'mcp' `
     -FilePath $mcpExecutable `
     -ArgumentList @('--streamable-http', '--host', '127.0.0.1', '--port', '5081') `
@@ -326,7 +319,13 @@ Register-Started (Start-Service -Name 'api' `
     -FilePath $dotnetExecutable `
     -ArgumentList @('run', '--project', 'src/Counter.Api', '--urls', 'http://127.0.0.1:5080') `
     -WorkingDirectory (Join-Path $repositoryRoot 'api') `
-    -Environment @{ 'DOTNET_ROOT' = $dotnetRoot } `
+    -Environment @{
+        'DOTNET_ROOT'                = $dotnetRoot
+        # Set here because it was set nowhere, which meant local development
+        # never exercised the durable path at all -- and the one place a
+        # durability bug would have shown up was the one place it could not.
+        'ConnectionStrings__Counter' = "Data Source=$auditDatabase"
+    } `
     -Port 5080)
 
 # npm.cmd, not npm: the bare name resolves to a shell script that
@@ -343,6 +342,7 @@ Write-Host 'Running:' -ForegroundColor Green
 Write-Host '  Front end   http://127.0.0.1:5173'
 Write-Host '  API         http://127.0.0.1:5080'
 Write-Host '  MCP server  http://127.0.0.1:5081  (loopback only)'
+Write-Host "  Audit trail $auditDatabase" 
 Write-Host ''
 Write-Host "  Logs in $logDirectory"
 Write-Host '  Stop with: ./scripts/run-dev-clean.ps1 -Stop'

@@ -14,8 +14,9 @@ using Microsoft.Extensions.Configuration;
 /// <remarks>
 /// Real infrastructure, not stand-ins. The MCP server is the hardened fork,
 /// started as a process and reached over HTTP exactly as the application reaches
-/// it in production. SQL Server is a container. Nothing here is mocked, because a
-/// mock of the MCP server would prove that the application can talk to a mock.
+/// it in production. The audit trail is SQLite, which is the engine the
+/// application ships with, in a file of its own. Nothing here is mocked, because
+/// a mock of the MCP server would prove that the application can talk to a mock.
 ///
 /// The ERP data is copied to a temporary directory first. That is what allows
 /// <see cref="ErpImmutabilityTests"/> to hash every file before and after the

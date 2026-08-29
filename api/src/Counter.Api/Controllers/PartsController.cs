@@ -137,7 +137,15 @@ public sealed class PartsController(
                     commitment.State.ToString(),
                     commitment.PromisedDate))
                 .ToList(),
-            Envelope: ResponseEnvelope.Complete()));
+            // The unaccounted figure is only a discrepancy if every order that
+            // could explain it was read. Saying so is the difference between a
+            // representative ringing the branch about a real problem and ringing
+            // them about a truncated list.
+            Envelope: held.WasCapped
+                ? ResponseEnvelope.Partial(
+                    $"More than {CommitmentReader.MaximumOrdersRead} orders reference this part. " +
+                    "Some are not listed, so the unaccounted figure may be overstated.")
+                : ResponseEnvelope.Complete()));
     }
 
     /// <summary>

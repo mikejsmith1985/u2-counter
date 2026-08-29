@@ -16,16 +16,6 @@ public interface IErpReader
     Task<string> ReadRecordAsync(string fileName, string recordId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Run a read-only query.
-    /// </summary>
-    /// <param name="query">The query, built from validated parameters only.</param>
-    /// <param name="maxRows">Most rows to return.</param>
-    /// <param name="cancellationToken">Abandons the query when the caller gives up.</param>
-    /// <exception cref="ErpRefusedException">If the ERP refused the query.</exception>
-    /// <exception cref="ErpUnreachableException">If the ERP does not answer in time.</exception>
-    Task<ErpQueryResult> QueryAsync(string query, int maxRows, CancellationToken cancellationToken);
-
-    /// <summary>
     /// Run a selection and return the matching keys.
     /// </summary>
     /// <param name="query">A SELECT or SSELECT statement.</param>
@@ -59,6 +49,18 @@ public interface IErpReader
 /// that may be partial must never be presented as whole.
 /// </param>
 /// <param name="Warning">What to tell the user when the answer may be partial.</param>
+/// <summary>
+/// What a free-form query returned.
+/// </summary>
+/// <remarks>
+/// Nothing produces one of these any more, and the type is kept only because the
+/// envelope's completeness flag is meant to be derived from a result like it. See
+/// the note on <c>ResponseEnvelope</c>: an answer that was capped must not be
+/// presented as whole, and that is the one thing this record exists to carry.
+/// </remarks>
+/// <param name="Output">The rows, as the ERP formatted them.</param>
+/// <param name="IsComplete">False when a limit cut the answer short.</param>
+/// <param name="Warning">What to tell the user when it did.</param>
 public sealed record ErpQueryResult(string Output, bool IsComplete, string? Warning);
 
 /// <summary>Where the MCP server is, and how long to wait for it.</summary>
