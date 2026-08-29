@@ -418,19 +418,26 @@ function Test-AppExists {
 
 # Which driver the MCP server loads, and whether it may act.
 #
-# Two settings rather than one, because they answer different questions: the
-# driver name says which code is loaded, and MVSTORE_WRITABLE says whether that
-# code may write. A deployment that selected the writable driver by accident
-# still writes nothing.
+# Three settings rather than one, because they are three independent gates and
+# each answers a different question: which driver is loaded, whether that driver
+# may act, and whether the MCP server permits writes at all. All three have to
+# agree, and each defaults to no.
+#
+# That was not a design on paper -- deploying with the first two produced
+# "Write operations disabled in read-only mode" from the server itself, because
+# U2_READ_ONLY defaults to true in this fork. The guard worked before anybody
+# tested it, which is the point of defaults that fail closed.
 if ($Writable) {
     Write-Host '  WRITABLE: this deployment can change ERP records' -ForegroundColor Yellow
     $mcpDriver = 'U2_DRIVER=mvstore.writable_driver'
     $mcpWritable = 'MVSTORE_WRITABLE=true'
+    $mcpReadOnly = 'U2_READ_ONLY=false'
     $apiWritable = 'Erp__Writable=true'
 }
 else {
     $mcpDriver = 'U2_DRIVER=demo'
     $mcpWritable = 'MVSTORE_WRITABLE=false'
+    $mcpReadOnly = 'U2_READ_ONLY=true'
     $apiWritable = 'Erp__Writable=false'
 }
 
@@ -453,7 +460,7 @@ if (Test-AppExists $environment.McpApp) {
         --image $mcpImage `
         --min-replicas 0 `
         --max-replicas 1 `
-        --set-env-vars $mcpDriver $mcpWritable 'MVSTORE_DATA_PATH=/srv/data' `
+        --set-env-vars $mcpDriver $mcpWritable $mcpReadOnly 'MVSTORE_DATA_PATH=/srv/data' `
                        'U2_PASSWORD=secretref:u2-password' `
                        'U2_ALLOW_UNAUTHENTICATED_NETWORK_ACCESS=true' | Out-Null
 }
@@ -473,7 +480,7 @@ else {
         --max-replicas 1 `
         --cpu 0.5 --memory 1.0Gi `
         --secrets "u2-password=$u2Password" `
-        --env-vars $mcpDriver $mcpWritable 'MVSTORE_DATA_PATH=/srv/data' `
+        --env-vars $mcpDriver $mcpWritable $mcpReadOnly 'MVSTORE_DATA_PATH=/srv/data' `
                    'U2_PASSWORD=secretref:u2-password' `
                    'U2_ALLOW_UNAUTHENTICATED_NETWORK_ACCESS=true' | Out-Null
 }
