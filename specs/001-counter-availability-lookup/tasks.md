@@ -74,15 +74,15 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T027 Implement `api/src/Counter.Infrastructure/MultiValue/RecordParser.cs` producing one `BranchPosition` per index, never zipping separate lists
 - [ ] T028 [P] Implement the EF Core context and migrations for `UserSession` and `ActivityRecord` in `api/src/Counter.Infrastructure/Data/`
 - [ ] T029 [P] Write failing tests in `api/tests/Counter.IntegrationTests/ActivityRedactionTests.cs` asserting no seeded credential ever reaches a written record
-- [ ] T030 Implement the activity-recording action filter in `api/src/Counter.Api/Filters/ActivityRecordingFilter.cs` — one record per request including failures, naming the person and the database login
+- [X] T030 Implement the activity-recording action filter in `api/src/Counter.Api/Filters/ActivityRecordingFilter.cs` — one record per request including failures, naming the person and the database login
 - [ ] T031 Implement the five-second request budget in `api/src/Counter.Api/Filters/ErpTimeoutFilter.cs` — a linked cancellation token that stops the work, not merely the waiting
 - [X] T032 Implement problem-detail mapping in `api/src/Counter.Api/Filters/ProblemDetailsMapper.cs` for the four error types in `contracts/rest-api.md`
 
 ### Web foundations
 
-- [ ] T033 [P] Implement the application shell, routing and TanStack Query provider in `web/src/app/`
-- [ ] T034 [P] Implement the keyboard layer in `web/src/components/keyboard/` — `/` focus search, `Escape` clear, `Enter` open, `R` record drawer
-- [ ] T035 [P] Implement the shared response envelope types and the typed API client in `web/src/api/`
+- [X] T033 [P] Implement the application shell, routing and TanStack Query provider in `web/src/app/`
+- [X] T034 [P] Implement the keyboard layer in `web/src/components/keyboard/` — `/` focus search, `Escape` clear, `Enter` open, `R` record drawer
+- [X] T035 [P] Implement the shared response envelope types and the typed API client in `web/src/api/`
 - [ ] T036 Configure Cypress with `cypress-real-events` and `axe-core` in `web/cypress/`, with a smoke test that the shell renders
 
 **Checkpoint**: Data exists, the API can read it, every request is timed and recorded. User stories can now proceed.
@@ -116,10 +116,10 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Front end
 
-- [ ] T047 [P] [US1] Implement the search box and type-ahead results in `web/src/features/search/`, auto-focused on load
-- [ ] T048 [P] [US1] Implement the branch grid in `web/src/features/availability/BranchGrid.tsx` — colour-coded by stock state, with roving keyboard focus
-- [ ] T049 [US1] Implement the part detail screen in `web/src/features/availability/PartDetail.tsx`, leading with the single large free-to-sell figure
-- [ ] T050 [US1] Implement the unreachable, unknown-stock and no-match states in `web/src/features/availability/states/` — each visually distinct, none rendering as an empty grid
+- [X] T047 [P] [US1] Implement the search box and type-ahead results in `web/src/features/search/`, auto-focused on load
+- [X] T048 [P] [US1] Implement the branch grid in `web/src/features/availability/BranchGrid.tsx` — colour-coded by stock state, with roving keyboard focus
+- [X] T049 [US1] Implement the part detail screen in `web/src/features/availability/PartDetail.tsx`, leading with the single large free-to-sell figure
+- [X] T050 [US1] Implement the unreachable, unknown-stock and no-match states in `web/src/features/availability/states/` — each visually distinct, none rendering as an empty grid
 
 ### Story verification
 
@@ -147,10 +147,10 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T056 [US2] Implement `api/src/Counter.Domain/Pricing/PriceCalculator.cs` — net price, applicable terms, and the terms deliberately not applied
 - [X] T057 [US2] Implement `api/src/Counter.Infrastructure/Erp/PricingReader.cs` reading `CUSTOMER` and `PRICING`
 - [X] T058 [US2] Extend the availability endpoint with the `pricing` block, and implement `GET /api/v1/customers` in `api/src/Counter.Api/Controllers/CustomersController.cs`
-- [ ] T059 [US2] Implement `PUT /api/v1/session/customer` in `api/src/Counter.Api/Controllers/SessionController.cs` — the only non-`GET` route, and it writes to the session, never the ERP
-- [ ] T060 [P] [US2] Implement the customer selector in `web/src/features/pricing/CustomerSelector.tsx`, keyboard-reachable from the header
-- [ ] T061 [US2] Implement the pricing panel in `web/src/features/pricing/PricingPanel.tsx` — list, multiplier and net shown together, with disregarded terms visible
-- [ ] T062 [US2] Implement the no-customer-selected state in `web/src/features/pricing/ListPriceNotice.tsx` — prompts for a customer while showing list price
+- [X] T059 [US2] Implement `PUT /api/v1/session/customer` in `api/src/Counter.Api/Controllers/SessionController.cs` — the only non-`GET` route, and it writes to the session, never the ERP
+- [X] T060 [P] [US2] Implement the customer selector in `web/src/features/pricing/CustomerSelector.tsx`, keyboard-reachable from the header
+- [X] T061 [US2] Implement the pricing panel in `web/src/features/pricing/PricingPanel.tsx` — list, multiplier and net shown together, with disregarded terms visible
+- [X] T062 [US2] Implement the no-customer-selected state in `web/src/features/pricing/ListPriceNotice.tsx` — prompts for a customer while showing list price
 
 ### Story verification
 
@@ -176,9 +176,9 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T066 [P] [US3] Implement `Order` and `OrderState` as a closed set in `api/src/Counter.Domain/Orders/`
 - [X] T067 [US3] Implement `api/src/Counter.Infrastructure/Erp/CommitmentReader.cs` — the state filter applied in the query, so the rule lives in one place
 - [X] T068 [US3] Implement `GET /api/v1/parts/{partNumber}/commitments` in `api/src/Counter.Api/Controllers/PartsController.cs`
-- [ ] T069 [P] [US3] Implement the expandable branch row in `web/src/features/commitments/BranchCommitments.tsx`, expandable by keyboard
-- [ ] T070 [US3] Implement the unaccounted row in `web/src/features/commitments/UnaccountedRow.tsx` — a visible discrepancy beats a tidy screen
-- [ ] T071 [US3] Implement the no-commitments state in `web/src/features/commitments/NoCommitments.tsx` — stated in words rather than shown as an empty list
+- [X] T069 [P] [US3] Implement the expandable branch row in `web/src/features/commitments/BranchCommitments.tsx`, expandable by keyboard
+- [X] T070 [US3] Implement the unaccounted row in `web/src/features/commitments/UnaccountedRow.tsx` — a visible discrepancy beats a tidy screen
+- [X] T071 [US3] Implement the no-commitments state in `web/src/features/commitments/NoCommitments.tsx` — stated in words rather than shown as an empty list
 
 ### Story verification
 
@@ -204,9 +204,9 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 - [X] T076 [US4] Implement `GET /api/v1/parts/{partNumber}/record` in `api/src/Counter.Api/Controllers/PartsController.cs`, returning raw, parsed, marks and query
 - [X] T077 [US4] Ensure the serializer preserves the delimiter characters unaltered in `api/src/Counter.Api/Serialization/`
-- [ ] T078 [P] [US4] Implement the record drawer in `web/src/features/record/RecordDrawer.tsx` with focus trapping, opened by `R` and closed by `Escape`
-- [ ] T079 [P] [US4] Implement visible, labelled mark rendering in `web/src/features/record/MarkedRecord.tsx`
-- [ ] T080 [US4] Implement the side-by-side raw and parsed panes in `web/src/features/record/RecordPanes.tsx`, with the query shown beneath them
+- [X] T078 [P] [US4] Implement the record drawer in `web/src/features/record/RecordDrawer.tsx` with focus trapping, opened by `R` and closed by `Escape`
+- [X] T079 [P] [US4] Implement visible, labelled mark rendering in `web/src/features/record/MarkedRecord.tsx`
+- [X] T080 [US4] Implement the side-by-side raw and parsed panes in `web/src/features/record/RecordPanes.tsx`, with the query shown beneath them
 
 ### Story verification
 
@@ -230,13 +230,13 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Implementation
 
-- [ ] T085 [P] [US5] Implement cookie sign-in against the three demonstration personas in `api/src/Counter.Api/Controllers/AuthController.cs`
-- [ ] T086 [US5] Implement `GET /api/v1/session` returning identity, read-only state, and whether the database login is shared
-- [ ] T087 [US5] Implement `GET /api/v1/activity` in `api/src/Counter.Api/Controllers/ActivityController.cs` — never another user's activity, never a credential
+- [X] T085 [P] [US5] Implement cookie sign-in against the three demonstration personas in `api/src/Counter.Api/Controllers/AuthController.cs`
+- [X] T086 [US5] Implement `GET /api/v1/session` returning identity, read-only state, and whether the database login is shared
+- [X] T087 [US5] Implement `GET /api/v1/activity` in `api/src/Counter.Api/Controllers/ActivityController.cs` — never another user's activity, never a credential
 - [ ] T088 [P] [US5] Implement the sign-in screen in `web/src/features/governance/SignIn.tsx`, stating plainly that the personas are for demonstration
-- [ ] T089 [P] [US5] Implement the governance strip in `web/src/features/governance/GovernanceStrip.tsx` — identity, database login, shared-login notice, read-only badge
-- [ ] T090 [US5] Implement the activity panel in `web/src/features/governance/ActivityPanel.tsx`
-- [ ] T091 [US5] Gate every data-changing control behind the read-only flag in `web/src/features/governance/ReadOnlyGate.tsx`, so none is rendered in a read-only session
+- [X] T089 [P] [US5] Implement the governance strip in `web/src/features/governance/GovernanceStrip.tsx` — identity, database login, shared-login notice, read-only badge
+- [X] T090 [US5] Implement the activity panel in `web/src/features/governance/ActivityPanel.tsx`
+- [X] T091 [US5] Gate every data-changing control behind the read-only flag in `web/src/features/governance/ReadOnlyGate.tsx`, so none is rendered in a read-only session
 
 ### Story verification
 
@@ -249,7 +249,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T094 [P] Implement copy-to-clipboard in `web/src/features/availability/CopySummary.ts` — carrying the demonstration marker and the retrieval time (FR-033 to FR-036)
+- [X] T094 [P] Implement copy-to-clipboard in `web/src/features/availability/CopySummary.ts` — carrying the demonstration marker and the retrieval time (FR-033 to FR-036)
 - [ ] T095 [P] Write `web/tests/CopySummary.test.ts` asserting the copied text contains nothing not on screen
 - [ ] T096 [P] Write `api/tests/Counter.IntegrationTests/SearchPerformanceTests.cs` — 200 searches against the full catalogue, 95th percentile under one second (SC-003)
 - [ ] T097 [P] Write `api/tests/Counter.IntegrationTests/ConcurrentCallerTests.cs` — ten simultaneous sessions each get the single-caller answer (SC-010)
@@ -257,7 +257,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [ ] T099 [P] Add the `axe-core` sweep across every screen to the Cypress suite (SC-012)
 - [ ] T100 [P] Add keyboard-only completion of all five journeys in `web/cypress/e2e/keyboard-journeys.cy.ts` (SC-011)
 - [ ] T101 [P] Implement light and dark themes in `web/src/styles/`, both meeting AA contrast
-- [ ] T102 [P] Implement the demonstration-data marker in `web/src/components/DemonstrationBadge.tsx` and place it on every screen showing figures (FR-032)
+- [X] T102 [P] Implement the demonstration-data marker in `web/src/components/DemonstrationBadge.tsx` and place it on every screen showing figures (FR-032)
 - [ ] T103 Write `deploy/api.Dockerfile` — API serving the built front-end assets
 - [ ] T104 Write `deploy/mcp.Dockerfile` — the hardened fork plus `mvstore`, bound to loopback
 - [ ] T105 Write `deploy/azure/provision.ps1` — Container Apps environment, two apps with the MCP server on internal ingress only, and Azure SQL

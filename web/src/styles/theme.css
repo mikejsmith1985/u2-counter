@@ -1,0 +1,184 @@
+/*
+ * The look of a fast internal tool, not a marketing page.
+ *
+ * The user is at a branch workstation with a telephone against their shoulder
+ * and a customer waiting. Everything here serves reading one number quickly:
+ * dense layout so the answer fits above the fold, tabular figures so columns of
+ * quantities line up, and a focus ring that is never subtle, because the whole
+ * interface is driven from the keyboard.
+ *
+ * Both themes are defined at token level. A colour whose only definition sits
+ * inside a media query never applies in the other theme, which is how an
+ * interface ends up with one theme's text on the other theme's background.
+ */
+
+:root {
+  /* Neutrals carry a slight warm bias so the greys read as chosen rather than
+     inherited from the browser. */
+  --surface: #fbfaf8;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f2efea;
+  --line: #ddd8d0;
+  --line-strong: #c4bcb0;
+
+  --text: #1c1917;
+  --text-muted: #6b6259;
+  --text-faint: #948b80;
+
+  /* One accent, spent on what the eye should find first. */
+  --accent: #b45309;
+  --accent-text: #ffffff;
+  --accent-soft: #fdf1e3;
+
+  /* Semantic colours are reserved for stock state and never used decoratively. */
+  --stock-available: #15803d;
+  --stock-available-soft: #dcfce7;
+  --stock-committed: #a16207;
+  --stock-committed-soft: #fef3c7;
+  --stock-none: #6b6259;
+  --stock-none-soft: #f2efea;
+
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+
+  --focus: #1d4ed8;
+
+  --radius: 3px;
+  --gap: 0.75rem;
+
+  --font-sans: "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #17150f;
+    --surface-raised: #211e17;
+    --surface-sunken: #100e0a;
+    --line: #38332a;
+    --line-strong: #4d463a;
+
+    --text: #f2efea;
+    --text-muted: #a89f92;
+    --text-faint: #7d746a;
+
+    --accent: #f59e0b;
+    --accent-text: #17150f;
+    --accent-soft: #3a2b12;
+
+    --stock-available: #4ade80;
+    --stock-available-soft: #14311f;
+    --stock-committed: #fbbf24;
+    --stock-committed-soft: #362a0d;
+    --stock-none: #a89f92;
+    --stock-none-soft: #211e17;
+
+    --danger: #f87171;
+    --danger-soft: #3b1414;
+
+    --focus: #93c5fd;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface: #17150f;
+  --surface-raised: #211e17;
+  --surface-sunken: #100e0a;
+  --line: #38332a;
+  --line-strong: #4d463a;
+
+  --text: #f2efea;
+  --text-muted: #a89f92;
+  --text-faint: #7d746a;
+
+  --accent: #f59e0b;
+  --accent-text: #17150f;
+  --accent-soft: #3a2b12;
+
+  --stock-available: #4ade80;
+  --stock-available-soft: #14311f;
+  --stock-committed: #fbbf24;
+  --stock-committed-soft: #362a0d;
+  --stock-none: #a89f92;
+  --stock-none-soft: #211e17;
+
+  --danger: #f87171;
+  --danger-soft: #3b1414;
+
+  --focus: #93c5fd;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every digit the same width, so columns of quantities line up and a changing
+   number does not make the row jump. */
+.figures {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/*
+ * The focus ring is deliberately loud. Someone driving this from the keyboard
+ * with a customer on the line must never have to hunt for where they are.
+ */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Removing the default ring without replacing it is how keyboard users get
+   stranded, so it is only removed where :focus-visible provides one. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+input {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Visible only to assistive technology. Used for announcing results as they
+   change, which is how a screen-reader user learns the search found something. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

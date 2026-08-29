@@ -15,6 +15,9 @@ builder.Services.Configure<ErpConnectionOptions>(
 builder.Services.AddSingleton<IErpReader, ErpReader>();
 builder.Services.AddSingleton<BranchDirectory>();
 builder.Services.AddSingleton<CatalogueProjection>();
+builder.Services.AddSingleton<CustomerDirectory>();
+builder.Services.AddSingleton<SessionStore>();
+builder.Services.AddSingleton<ActivityRecorder>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddScoped<AvailabilityReader>();
@@ -28,6 +31,11 @@ builder.Services.AddControllers(options =>
     // arriving as an empty success would be indistinguishable from "no stock",
     // and a representative would repeat that to a customer.
     options.Filters.Add<ErpProblemFilter>();
+
+    // Every request is recorded against the person who made it, including the
+    // ones that fail: a failure nobody recorded is indistinguishable from a
+    // request nobody made.
+    options.Filters.Add<ActivityRecordingFilter>();
 });
 
 builder.Services.AddProblemDetails();
@@ -47,8 +55,17 @@ builder.Services.AddCors(options =>
 
 WebApplication app = builder.Build();
 
+// The built front end is served by the API, so one container carries both and
+// the browser never has to reach two origins.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseCors();
 app.MapControllers();
+
+// Anything the API does not answer is a front-end route, so the single-page
+// application is returned and the client router takes it from there.
+app.MapFallbackToFile("index.html");
 
 // The catalogue is read once at startup so search answers instantly. It is built
 // in the background: a slow ERP should delay search, not stop the application
