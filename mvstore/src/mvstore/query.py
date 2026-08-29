@@ -19,6 +19,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from .dictionaries import is_dictionary_name, store_name_for
 from .store import MultiValueStore
 
 # The only verbs this store answers.
@@ -57,12 +58,15 @@ class QueryResult:
         record_ids: Matching keys, empty for COUNT
         count: How many records matched
         is_complete: False when a SAMPLE clause capped the result
+        is_keys_only: True when the query asked for `@ID` alone, so a listing
+            prints keys without their records
     """
 
     verb: str
     file_name: str
     record_ids: list[str] = field(default_factory=list)
     count: int = 0
+    is_keys_only: bool = False
     is_complete: bool = True
 
 
@@ -120,15 +124,39 @@ def run_query(store: MultiValueStore, query: str) -> QueryResult:
     if len(tokens) < 2:
         raise QueryError(f"'{verb}' names no file to act on")
 
-    file_name = tokens[1].upper()
-    remaining = tokens[2:]
+    # `DICT PRODUCT` is one file name written as two words. Taking only the
+    # first token left the file as "DICT" and pushed the real name into the
+    # criteria, where it failed as an unexpected word -- so every attempt to list
+    # a dictionary reported a malformed query rather than a missing feature.
+    if tokens[1].upper() == "DICT" and len(tokens) > 2:
+        file_name = f"DICT {tokens[2].upper()}"
+        remaining = tokens[3:]
+    else:
+        file_name = tokens[1].upper()
+        remaining = tokens[2:]
+
+    # Output field names say what to display, not what to match. `@ID` asks for
+    # the keys alone, which is what UniVerse then prints -- one key per line and
+    # nothing else. Recorded rather than discarded, because a caller who asked
+    # for keys and received whole records has to take the records apart again,
+    # and the tools that ask this way parse what comes back by line.
+    #
+    # Only @-prefixed names are recognised, so an ordinary typo is still reported
+    # rather than quietly ignored.
+    output_fields = [token.upper() for token in remaining if token.startswith("@")]
+    remaining = [token for token in remaining if not token.startswith("@")]
+    is_keys_only = output_fields == ["@ID"]
 
     explicit_keys, remaining = _take_explicit_keys(remaining)
     sample_limit, remaining = _take_sample_limit(remaining)
     criteria = _parse_criteria(remaining)
 
-    candidates = explicit_keys if explicit_keys else store.keys(file_name)
-    matching = [key for key in candidates if _matches(store, file_name, key, criteria)]
+    # The name the caller used stays on the result, because that is what they
+    # asked for; the store is read under the name it actually holds.
+    store_file = store_name_for(file_name) if is_dictionary_name(file_name) else file_name
+
+    candidates = explicit_keys if explicit_keys else store.keys(store_file)
+    matching = [key for key in candidates if _matches(store, store_file, key, criteria)]
     matching.sort()
 
     if verb == "COUNT":
@@ -145,6 +173,7 @@ def run_query(store: MultiValueStore, query: str) -> QueryResult:
         record_ids=matching,
         count=len(matching),
         is_complete=is_complete,
+        is_keys_only=is_keys_only,
     )
 
 

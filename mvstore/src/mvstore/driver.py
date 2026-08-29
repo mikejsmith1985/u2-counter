@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .query import QueryError, run_query
+from .dictionaries import is_dictionary_name, store_name_for
 from .store import AM, MultiValueStore, RecordNotFoundError, build_record
 
 logger = logging.getLogger(__name__)
@@ -172,12 +173,18 @@ class File:
         self.name = name
         self.session = session
 
-        # `DICT CUSTOMERS` names the dictionary of CUSTOMERS. The demonstration
-        # store has no dictionaries, so those reads find nothing rather than
-        # returning a fiction.
-        self._is_dictionary = name.upper().startswith("DICT ")
+        # `DICT CUSTOMERS` names the dictionary of CUSTOMERS. A MultiValue
+        # database is self-describing, and the dictionary is where that
+        # description lives -- so this store holds real ones rather than
+        # answering nothing, which is what it used to do.
+        #
+        # UniVerse writes the name with a space and a file on disk cannot, so the
+        # store holds `DICT.CUSTOMERS` and the translation happens here. It is in
+        # one place for the same reason every other layout in this project is.
+        self._is_dictionary = is_dictionary_name(name)
+        self._store_name = store_name_for(name) if self._is_dictionary else name
 
-        if not self._is_dictionary and not session.store.keys(name):
+        if not session.store.keys(self._store_name):
             raise UOError(f"File '{name}' does not exist")
 
     def read(self, record_id: str) -> str:
@@ -186,13 +193,10 @@ class File:
         Raises:
             UOError: If the record is absent
         """
-        if self._is_dictionary:
-            raise UOError(f"'{record_id}' is not in '{self.name}'")
-
         _pause_if_configured()
 
         try:
-            return self.session.store.raw(self.name, record_id)
+            return self.session.store.raw(self._store_name, record_id)
         except RecordNotFoundError as error:
             raise UOError(str(error)) from error
 
@@ -264,21 +268,52 @@ class Command:
             self.response = f"{result.count} records selected to list 0."
             return
 
-        self.response = self._format_records(result.record_ids)
+        self.response = self._format_records(
+            result.file_name, result.record_ids, result.is_keys_only
+        )
 
-    def _format_records(self, record_ids: list[str]) -> str:
+    def _format_records(
+        self, file_name: str, record_ids: list[str], is_keys_only: bool = False
+    ) -> str:
         """Render records the way a LIST prints them.
 
         Fields are joined with attribute marks rather than spaces, because the
         server converts those marks itself and would otherwise receive text it
         cannot separate back into fields.
+
+        Args:
+            file_name: The file the query named, as the parser resolved it
+            record_ids: The keys to print
+            is_keys_only: True when the query asked for `@ID` alone
+
+        Returns:
+            The listing, one record per line, with Universe's closing summary
+
+        Remarks:
+            The name is passed in rather than recovered from the command text.
+            Splitting the text here took the second word, which is right for
+            `LIST PRODUCT` and wrong for `LIST DICT PRODUCT` -- it read the file
+            as "DICT", found no records under that name, and printed an empty
+            listing. Not an error: an empty answer, which is the kind that gets
+            believed. The parser had already worked the name out correctly, and
+            working it out a second time in a different way is what made them
+            disagree.
         """
-        file_name = self.command_text.split()[1].upper()
+        store_file = store_name_for(file_name) if is_dictionary_name(file_name) else file_name
         lines: list[str] = []
+
+        # `LIST X @ID` prints keys and nothing else, which is what Universe does
+        # and what a caller asking that way is parsing for. Printing whole
+        # records here meant every line began with marks, so a reader taking the
+        # first word of each line took an entire record as though it were a key.
+        if is_keys_only:
+            lines.extend(record_ids)
+            lines.append(f"{len(record_ids)} records listed.")
+            return "\n".join(lines)
 
         for record_id in record_ids:
             try:
-                fields = self.session.store.read(file_name, record_id)
+                fields = self.session.store.read(store_file, record_id)
             except RecordNotFoundError:
                 continue
             lines.append(f"{record_id}{AM}{build_record(fields)}")

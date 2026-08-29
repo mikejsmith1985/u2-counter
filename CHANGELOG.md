@@ -8,6 +8,16 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **The demonstration store has dictionaries, so it describes itself.** A
+  MultiValue file has two parts — the data, and a dictionary saying what each
+  field means. This store had only the first, so the MCP server's discovery tools
+  returned nothing against it: the path a stranger takes first was the one path
+  never exercised end to end. Each of the six files now carries real D-type
+  dictionary items with locations, conversion codes, headings and the
+  single/multi flag — including the five parallel `INVENTORY` fields marked
+  multi-valued, which is the only warning a reader gets that position *n* of each
+  belongs to the same branch.
+
 - **The governance strip says how this is hosted.** The deployment powers itself
   down when nobody is using it, so a first visit after a quiet period waits about
   twenty seconds. The page is served by that same container, so for most of that
@@ -153,6 +163,19 @@ source of truth for what changed (Article VI). Format follows
   rather than accepting.
 
 ### Fixed
+
+- **A listing of a dictionary read the wrong file, and said so by returning
+  nothing.** `LIST DICT INVENTORY` was parsed by taking the second word, which is
+  right for `LIST PRODUCT` and wrong here — it read the file as `DICT`, found no
+  records under that name and printed an empty listing. Not an error: an empty
+  answer, which is the kind that gets believed. The parser had already resolved
+  the name correctly and the formatter worked it out again, differently, which is
+  what let them disagree. It is now passed the name the parser resolved.
+
+- **`LIST X @ID` printed whole records instead of keys.** Universe prints keys
+  alone when asked for `@ID`, and the tools that ask this way parse the result by
+  line — so receiving whole records meant every line began with attribute marks
+  and a reader taking the first word took an entire record as a key.
 
 - **The audit share's mount options could be set once and never changed.** The
   block that configures them ran only when the app was created, with a comment

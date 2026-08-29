@@ -17,6 +17,7 @@ from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
+from .dictionaries import DICTIONARIES, store_name_for
 from .store import MultiValueStore
 
 # Branches of one region, which is the realistic radius for transferring stock.
@@ -151,6 +152,30 @@ def generate(
             store, rng, orders, part_numbers, account_numbers, branch_codes
         )
         _write_inventory(store, rng, part_numbers, branch_codes, holdings)
+
+        # The dictionaries last, because they describe everything above.
+        #
+        # A MultiValue database is self-describing: someone handed an account
+        # they have never seen runs LIST DICT INVENTORY and learns what each
+        # field means. This store had no dictionaries, so the discovery tools --
+        # the first thing a stranger would reach for -- returned nothing.
+        _write_dictionaries(store)
+
+
+def _write_dictionaries(store: MultiValueStore) -> None:
+    """Write each file's dictionary, in UniVerse's own D-type layout.
+
+    Args:
+        store: The store to write into
+    """
+    for file_name, items in DICTIONARIES.items():
+        dictionary_file = store_name_for(file_name)
+
+        for item_name, definition in items.items():
+            # The tuple is already in field order -- type, location, conversion,
+            # heading, format, single or multi -- so it is written as it stands
+            # rather than unpacked and reassembled.
+            store.write(dictionary_file, item_name, list(definition))
 
 
 def obligation_checks() -> dict[str, Callable[[MultiValueStore], bool]]:
