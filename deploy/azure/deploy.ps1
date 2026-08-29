@@ -39,14 +39,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# UTF-8, before anything calls the Azure CLI.
+# UTF-8, before anything calls the Azure CLI. It does not appear to be enough.
 #
 # The CLI streams build logs through a library that writes directly to the
-# console encoding. On a Windows console defaulting to cp1252 that throws the
-# moment a build prints a tick or a box-drawing character -- which every
-# successful Docker build does. The build carries on server-side; what dies is
-# this script's ability to watch it, and it then races ahead to deploy images
-# that do not exist yet.
+# console encoding. On Windows that stays cp1252 and throws the moment a build
+# prints a tick, which every successful Docker build does. Setting the console
+# encoding, the output encoding, PYTHONIOENCODING and PYTHONUTF8 all failed to
+# prevent it, so these are left as the correct settings rather than as a fix.
+#
+# What actually makes this survivable is Assert-ImageExists below: the build
+# carries on in the registry after the CLI dies, so the script waits for the tag
+# to appear rather than trusting the exit it never got. Chasing the encoding
+# further would be time spent making a cosmetic crash quieter.
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONIOENCODING = 'utf-8'
@@ -347,6 +351,30 @@ function Test-AppExists {
     return -not [string]::IsNullOrWhiteSpace($existing)
 }
 
+# -- accepting the exposure risk, deliberately --------------------------------
+#
+# The fork refuses to serve unauthenticated MCP on a reachable interface. That
+# refusal is the first fix made to it, and it blocked this deployment -- which is
+# the check working rather than a problem with it.
+#
+# The container must bind 0.0.0.0 or the platform cannot route to it; loopback is
+# not an option here. Authentication would need an identity provider this
+# demonstration does not have. So the risk is accepted, and the reason it is
+# acceptable is the network rather than the server:
+#
+#   - the app has internal ingress only, so it has no public address at all
+#   - nothing outside this Container Apps environment can reach it
+#   - the only thing inside the environment is the API in front of it
+#   - the driver is the demonstration store; there is no Universe behind it
+#
+# That is a boundary, not an authentication, and the distinction matters: anything
+# that gained a foothold inside the environment would reach this server freely. A
+# deployment against a real database would set U2_AUTH_ENABLED and put an identity
+# provider in front, and the fork supports that -- it is simply not exercised here.
+#
+# Written down rather than quietly set, because a security control switched off
+# without a recorded reason is one nobody can review.
+
 # -- the MCP server, private ---------------------------------------------------
 # Internal ingress. This process holds the database session and enforces the
 # read-only rules; a public address on it would put those rules between the
@@ -381,7 +409,8 @@ if (Test-AppExists $environment.McpApp) {
         --min-replicas 0 `
         --max-replicas 1 `
         --set-env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' `
-                       'U2_PASSWORD=secretref:u2-password' | Out-Null
+                       'U2_PASSWORD=secretref:u2-password' `
+                       'U2_ALLOW_UNAUTHENTICATED_NETWORK_ACCESS=true' | Out-Null
 }
 else {
     az containerapp create `
@@ -400,7 +429,8 @@ else {
         --cpu 0.5 --memory 1.0Gi `
         --secrets "u2-password=$u2Password" `
         --env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' `
-                   'U2_PASSWORD=secretref:u2-password' | Out-Null
+                   'U2_PASSWORD=secretref:u2-password' `
+                   'U2_ALLOW_UNAUTHENTICATED_NETWORK_ACCESS=true' | Out-Null
 }
 
 $mcpEndpoint = "http://$($environment.McpApp)"

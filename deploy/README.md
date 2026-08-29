@@ -62,3 +62,30 @@ way to be wrong.
 second replica would hold a second — which is the connection multiplication the
 hardened fork was fixed for, reintroduced by the deployment rather than by the
 code.
+
+## One security control is deliberately switched off
+
+The hardened MCP server refuses to serve unauthenticated MCP on a reachable
+interface. It is the first fix that was made to that fork, and it blocked this
+deployment — correctly.
+
+A container must bind every interface or the platform cannot route to it, and
+authentication would need an identity provider this demonstration does not have.
+So `U2_ALLOW_UNAUTHENTICATED_NETWORK_ACCESS` is set, and what makes that
+acceptable is the network rather than the server:
+
+| Mitigation | |
+| --- | --- |
+| Internal ingress only | The app has no public address |
+| Environment boundary | Nothing outside it can reach the server |
+| One neighbour | The API is the only thing inside |
+| No database | The driver is the demonstration store |
+
+**That is a boundary, not an authentication**, and the distinction is the point:
+anything that gained a foothold inside the environment would reach this server
+freely. A deployment against a real Universe would set `U2_AUTH_ENABLED` and put
+an identity provider in front — the fork supports it; this demonstration does not
+exercise it.
+
+Recorded here rather than quietly set, because a security control switched off
+without a written reason is one nobody can review.
