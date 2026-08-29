@@ -32,6 +32,32 @@ public sealed class CustomerDirectory(IErpReader erp, ILogger<CustomerDirectory>
     /// <param name="text">What the user typed.</param>
     /// <param name="limit">Most matches to return.</param>
     /// <param name="cancellationToken">Abandons the work when the caller gives up.</param>
+    /// <summary>
+    /// Return the first customers on the account list, and how many there are.
+    /// </summary>
+    /// <param name="limit">Most customers to return.</param>
+    /// <param name="cancellationToken">Abandons the work when the caller gives up.</param>
+    /// <returns>Customers in name order, and the total the directory holds.</returns>
+    /// <remarks>
+    /// For the representative who has not been told who they are serving. A
+    /// selector that shows nothing until two characters are typed is unusable by
+    /// anyone who does not already know a customer's name, which is everyone
+    /// meeting the system for the first time.
+    /// </remarks>
+    public async Task<(IReadOnlyList<CustomerAccount> Customers, int TotalCount)> BrowseAsync(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        await EnsureBuiltAsync(cancellationToken);
+
+        IReadOnlyList<CustomerAccount> page = _customers
+            .OrderBy(customer => customer.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Take(limit)
+            .ToList();
+
+        return (page, _customers.Count);
+    }
+
     public async Task<IReadOnlyList<CustomerAccount>> SearchAsync(
         string text,
         int limit,

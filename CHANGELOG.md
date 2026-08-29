@@ -8,6 +8,22 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Both pickers now show what is there before anything is typed.** Found by
+  using the application rather than by testing it: opened cold, there was a search
+  box for parts and a search box for customers and no way to answer the question
+  anyone actually arrives with — what is in here? A counter representative learns
+  their catalogue over months and types a part number from memory; nobody meeting
+  the system for the first time can, and that includes everyone it gets
+  demonstrated to. Clicking either box now lists the catalogue or the account
+  file, says how many there are altogether, and narrows as you type. Browsing is
+  a separate route from searching (`/parts/browse`, `/customers/browse`) because
+  they answer different questions — "what is here" against "where is this" — and
+  only browsing has any business reporting a total. Keeping them apart also
+  leaves the search guard intact: a search with an empty term is still refused.
+  A browsed row carries no quantity, because stock is read live when a part is
+  opened and a number standing in for "no number" is the plausible wrong answer
+  this application exists to prevent.
+
 - **The demonstration store has dictionaries, so it describes itself.** A
   MultiValue file has two parts — the data, and a dictionary saying what each
   field means. This store had only the first, so the MCP server's discovery tools

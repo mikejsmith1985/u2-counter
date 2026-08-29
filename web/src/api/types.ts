@@ -187,3 +187,32 @@ export interface ActivityEntry {
 export interface ActivityResponse {
   entries: ActivityEntry[];
 }
+
+/**
+ * A part as a picker row shows it.
+ *
+ * No quantities. Stock is read live when a part is opened, because a cached
+ * quantity is a promise to a customer that cannot be kept -- and a picker exists
+ * to find a part, not to report on one.
+ */
+export interface PartSummary {
+  partNumber: string;
+  description: string;
+  manufacturer: string;
+  manufacturerPartNumber: string;
+  unitOfMeasure: string;
+  isDiscontinued: boolean;
+}
+
+/**
+ * What browsing returned, and how much there is altogether.
+ *
+ * The total is separate from the page on purpose. A page of twenty with no total
+ * tells a reader they are looking at everything, which for a three thousand part
+ * catalogue is wrong by two orders of magnitude.
+ */
+export interface BrowseResponse<TItem> {
+  results: TItem[];
+  totalCount: number;
+  envelope: ResponseEnvelope;
+}

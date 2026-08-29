@@ -149,6 +149,23 @@ public sealed class CatalogueProjection(IErpReader erp, ILogger<CatalogueProject
     }
 
     /// <summary>
+    /// Return the first parts in the catalogue, for someone who has not searched.
+    /// </summary>
+    /// <param name="limit">Most parts to return.</param>
+    /// <returns>Parts in part-number order.</returns>
+    /// <remarks>
+    /// Not a search with the term left out. Searching answers "where is this" and
+    /// ranks by how well each part matches; browsing answers "what is here" and
+    /// has nothing to rank by, so it returns them in the order the catalogue is
+    /// already held in. That order is stable between calls, which matters because
+    /// a picker whose contents reshuffle each time it opens is one nobody can
+    /// learn.
+    /// </remarks>
+    public IReadOnlyList<Part> Browse(int limit) =>
+        _entries.Take(limit).Select(entry => entry.Part).ToList();
+
+
+    /// <summary>
     /// Find parts matching what someone typed.
     /// </summary>
     /// <param name="text">Part number, description words, or manufacturer.</param>

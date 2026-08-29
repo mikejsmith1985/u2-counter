@@ -9,8 +9,11 @@
 
 import type {
   AvailabilityResponse,
+  BrowseResponse,
   CommitmentsResponse,
   CustomerSearchResponse,
+  CustomerSummary,
+  PartSummary,
   RecordResponse,
   SearchResponse,
   SessionResponse,
@@ -158,6 +161,14 @@ export const api = {
   /** Read the stored record beside its parsed form. */
   record: (partNumber: string, signal?: AbortSignal) =>
     request<RecordResponse>(`/parts/${encodeURIComponent(partNumber)}/record`, signal),
+
+  /** List the catalogue, for somebody who has not got a part number yet. */
+  browseParts: (limit: number, signal?: AbortSignal) =>
+    request<BrowseResponse<PartSummary>>(`/parts/browse?limit=${limit}`, signal),
+
+  /** List the account file, for somebody who has not been told who they serve. */
+  browseCustomers: (limit: number, signal?: AbortSignal) =>
+    request<BrowseResponse<CustomerSummary>>(`/customers/browse?limit=${limit}`, signal),
 
   /** Find customers for the selector. */
   searchCustomers: (text: string, signal?: AbortSignal) =>

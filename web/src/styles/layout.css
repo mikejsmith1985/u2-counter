@@ -757,3 +757,16 @@ kbd {
   color: var(--text-faint);
   border-style: dashed;
 }
+
+/* The line at the top of a browsed list saying how much of the whole it is.
+   Not a result -- aria-hidden, and not selectable -- because arrowing onto a
+   count and pressing Enter should do nothing, and a row that looks like the
+   others invites exactly that. */
+.search__hint {
+  padding: 0.35rem 0.7rem;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-sunken);
+  letter-spacing: 0.02em;
+}

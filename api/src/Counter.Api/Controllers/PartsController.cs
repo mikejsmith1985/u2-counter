@@ -42,6 +42,53 @@ public sealed class PartsController(
     /// <summary>
     /// Find parts by number, description or manufacturer.
     /// </summary>
+    /// <summary>
+    /// List the catalogue, for somebody who has not got a part number yet.
+    /// </summary>
+    /// <param name="limit">Most parts to return.</param>
+    /// <param name="cancellationToken">Abandons the work when the caller gives up.</param>
+    /// <response code="200">The first parts, and how many there are altogether.</response>
+    /// <remarks>
+    /// A separate route from searching rather than a search with the term left
+    /// out, because they answer different questions. Searching answers "where is
+    /// this"; browsing answers "what is here", and only browsing has any business
+    /// reporting a total.
+    ///
+    /// Keeping them apart also leaves the search guard intact. A search with an
+    /// empty term is still a bad request, and that matters: a query of
+    /// punctuation once returned the entire catalogue ranked as though every row
+    /// were a strong match.
+    ///
+    /// No quantities. Stock is read live, every time, because a cached quantity is
+    /// a promise to a customer that cannot be kept -- and a picker exists to find
+    /// a part, not to report on one.
+    /// </remarks>
+    [HttpGet("browse")]
+    [ProducesResponseType<BrowseResponse<PartSummary>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<BrowseResponse<PartSummary>>> Browse(
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken)
+    {
+        await _catalogue.EnsureBuiltAsync(cancellationToken);
+
+        int effectiveLimit = Math.Clamp(
+            limit ?? DefaultSearchResults, 1, MaximumSearchResults);
+
+        IReadOnlyList<PartSummary> page = _catalogue
+            .Browse(effectiveLimit)
+            .Select(part => new PartSummary(
+                part.PartNumber,
+                part.Description,
+                part.Manufacturer,
+                part.ManufacturerPartNumber,
+                part.UnitOfMeasure,
+                part.IsDiscontinued))
+            .ToList();
+
+        return Ok(new BrowseResponse<PartSummary>(
+            page, _catalogue.Count, ResponseEnvelope.Complete()));
+    }
+
     /// <param name="q">What the user typed.</param>
     /// <param name="limit">Most results to return.</param>
     /// <param name="cancellationToken">Abandons the search when the caller gives up.</param>

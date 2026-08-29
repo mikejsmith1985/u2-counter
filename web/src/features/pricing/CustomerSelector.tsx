@@ -11,7 +11,15 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 
 const SETTLE_MS = 180;
-const MINIMUM_QUERY_LENGTH = 2;
+
+/**
+ * How many customers to show when nothing has been typed.
+ *
+ * Enough to make the list feel like the account file rather than a sample, and
+ * few enough to scan. The total is shown beside it, so nobody mistakes the page
+ * for everything there is.
+ */
+const BROWSE_SIZE = 25;
 
 interface Props {
   selectedAccount: string | null;
@@ -31,14 +39,34 @@ export function CustomerSelector({ selectedAccount, onSelect }: Props): React.JS
     return () => clearTimeout(timer);
   }, [text]);
 
-  const { data } = useQuery({
+  // Two queries, and which one answers depends on whether anything was typed.
+  //
+  // Before this the selector showed nothing until two characters were entered,
+  // which made it unusable by anyone who did not already know a customer's name.
+  // That is everybody meeting the system for the first time. A picker facing a
+  // stranger with no list in it is a locked door with no handle.
+  const isFiltering = settled.length > 0;
+
+  const { data: filtered } = useQuery({
     queryKey: ["customers", settled],
     queryFn: ({ signal }) => api.searchCustomers(settled, signal),
-    enabled: settled.length >= MINIMUM_QUERY_LENGTH && isOpen,
+    enabled: isFiltering && isOpen,
     staleTime: 60_000,
+    // The previous answer stays on screen while the next one is fetched.
+    // Without it the list empties between keystrokes, so a name typed at
+    // ordinary speed makes the whole list flash out and back on every letter.
+    placeholderData: (previous) => previous,
   });
 
-  const results = data?.results ?? [];
+  const { data: browsed } = useQuery({
+    queryKey: ["customers", "browse"],
+    queryFn: ({ signal }) => api.browseCustomers(BROWSE_SIZE, signal),
+    enabled: !isFiltering && isOpen,
+    staleTime: 5 * 60_000,
+  });
+
+  const results = (isFiltering ? filtered?.results : browsed?.results) ?? [];
+  const totalCount = browsed?.totalCount ?? 0;
 
   /**
    * Serve this customer, and put the box back the way it was.
@@ -111,7 +139,7 @@ export function CustomerSelector({ selectedAccount, onSelect }: Props): React.JS
         className="search__input"
         type="search"
         aria-label="Select the customer being served"
-        placeholder="Customer (for their price)…"
+        placeholder="Customer (for their price) — click to browse…"
         value={text}
         role="combobox"
         aria-expanded={isOpen && results.length > 0}
@@ -126,7 +154,16 @@ export function CustomerSelector({ selectedAccount, onSelect }: Props): React.JS
       />
 
       {isOpen && results.length > 0 && (
-        <ul className="search__results" role="listbox" aria-label="Matching customers">
+        <ul
+          className="search__results"
+          role="listbox"
+          aria-label={isFiltering ? "Matching customers" : "Customers on the account file"}
+        >
+          {!isFiltering && totalCount > results.length && (
+            <li className="search__hint" aria-hidden="true">
+              {results.length} of {totalCount.toLocaleString()} accounts &mdash; type to narrow
+            </li>
+          )}
           {results.map((customer, index) => (
             <li
               key={customer.accountNumber}

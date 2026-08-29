@@ -19,6 +19,30 @@ const SETTLE_MS = 180;
 /** Below this, a search matches too much to be useful. */
 const MINIMUM_QUERY_LENGTH = 2;
 
+/**
+ * How many parts to show when nothing has been typed.
+ *
+ * The catalogue holds three thousand, so this is a way in rather than a listing.
+ * The total is shown beside it: a page of twenty with no total tells somebody
+ * they are looking at everything.
+ */
+const BROWSE_SIZE = 20;
+
+/**
+ * One row of the picker, whether it was searched for or browsed to.
+ *
+ * `totalFreeToSell` is null on a browsed row and a number on a searched one,
+ * because browsing reads no stock. Modelled as absent rather than as zero so the
+ * row cannot render a quantity nobody looked up.
+ */
+interface PickerRow {
+  partNumber: string;
+  description: string;
+  unitOfMeasure: string;
+  isDiscontinued: boolean;
+  totalFreeToSell: number | null;
+}
+
 const RESULT_LIMIT = 12;
 
 interface Props {
@@ -75,7 +99,42 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
     staleTime: 30_000,
   });
 
-  const results: SearchResult[] = data?.results ?? [];
+  // What the box offers before anything is typed.
+  //
+  // A counter representative learns the catalogue over months and types a part
+  // number from memory. Nobody meeting the system for the first time can, and a
+  // search box facing a stranger with no list behind it is a locked door with no
+  // handle. Opening the box now shows the catalogue rather than nothing.
+  const { data: browsed } = useQuery({
+    queryKey: ["parts", "browse"],
+    queryFn: ({ signal }) => api.browseParts(BROWSE_SIZE, signal),
+    enabled: !isSearchable && isOpen && isReady,
+    staleTime: 5 * 60_000,
+  });
+
+  // A browsed row carries no quantity, because stock is read live when a part is
+  // opened rather than cached into a listing. So the quantity is absent rather
+  // than zero or minus one: a number standing in for "no number" is exactly the
+  // plausible-looking wrong answer this application exists to prevent.
+  const browsedRows: PickerRow[] = (browsed?.results ?? []).map((part) => ({
+    partNumber: part.partNumber,
+    description: part.description,
+    unitOfMeasure: part.unitOfMeasure,
+    isDiscontinued: part.isDiscontinued,
+    totalFreeToSell: null,
+  }));
+
+  const searchedRows: PickerRow[] = (data?.results ?? []).map((result) => ({
+    partNumber: result.partNumber,
+    description: result.description,
+    unitOfMeasure: result.unitOfMeasure,
+    isDiscontinued: result.isDiscontinued,
+    totalFreeToSell: result.totalFreeToSell,
+  }));
+
+  const isBrowsing = !isSearchable && browsedRows.length > 0;
+  const results: PickerRow[] = isSearchable ? searchedRows : browsedRows;
+  const catalogueTotal = browsed?.totalCount ?? 0;
   const failure = error instanceof ApiFailure ? error : null;
 
   /**
@@ -162,7 +221,17 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
       )}
 
       {isOpen && isSearchable && isReady && (
-        <ul className="search__results" id={listId} role="listbox" aria-label="Matching parts">
+        <ul
+          className="search__results"
+          id={listId}
+          role="listbox"
+          aria-label={isBrowsing ? "Parts in the catalogue" : "Matching parts"}
+        >
+          {isBrowsing && catalogueTotal > results.length && (
+            <li className="search__hint" aria-hidden="true">
+              {results.length} of {catalogueTotal.toLocaleString()} parts &mdash; type to narrow
+            </li>
+          )}
           {failure && (
             <li className="search__empty">
               {failure.kind === "unreachable"
@@ -192,7 +261,9 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
                 {result.isDiscontinued && " · discontinued"}
               </span>
               <span className="search__result-free figures">
-                {result.totalFreeToSell} {result.unitOfMeasure}
+                {result.totalFreeToSell === null
+                  ? result.unitOfMeasure
+                  : `${result.totalFreeToSell} ${result.unitOfMeasure}`}
               </span>
             </li>
           ))}

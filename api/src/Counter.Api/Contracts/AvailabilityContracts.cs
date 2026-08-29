@@ -22,6 +22,21 @@ public sealed record SearchResponse(
     IReadOnlyList<SearchResult> Results,
     ResponseEnvelope Envelope);
 
+/// <summary>
+/// What browsing returned, and how much there is altogether.
+/// </summary>
+/// <param name="Results">The first page, in a stable order.</param>
+/// <param name="TotalCount">
+/// How many there are in total. Separate from the page because a page of twenty
+/// with no total tells a reader they are looking at everything, which for a three
+/// thousand part catalogue is wrong by two orders of magnitude.
+/// </param>
+/// <param name="Envelope">How much of the answer this is.</param>
+public sealed record BrowseResponse<TItem>(
+    IReadOnlyList<TItem> Results,
+    int TotalCount,
+    ResponseEnvelope Envelope);
+
 /// <summary>The part being looked at.</summary>
 /// <param name="PartNumber">The key.</param>
 /// <param name="Description">What it is.</param>
