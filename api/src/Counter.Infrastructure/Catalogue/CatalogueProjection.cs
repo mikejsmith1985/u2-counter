@@ -289,6 +289,29 @@ internal sealed record CatalogueEntry(Part Part)
         const int PartNumberPrefix = 50;
         const int PartNumberContains = 25;
         const int TextContains = 10;
+        const int NoMatch = 0;
+
+        // A query of nothing matches nothing, and it arrives here by a route
+        // that is easy to miss. Normalising drops punctuation so that a part
+        // number found on a box matches however its hyphens fared, which means a
+        // query that is *only* punctuation — "*", "-", "..." — normalises to the
+        // empty string. Every part number then starts with it, and the whole
+        // catalogue came back ranked as part-number prefix matches.
+        //
+        // Checked here rather than at the controller, because the controller can
+        // only see that something was typed. Whether what was typed contains
+        // anything to match on is a question about matching, and this is where
+        // matching is defined.
+        //
+        // The empty normalised query is the whole test: normalising keeps every
+        // letter and digit in the string, so an empty result means there was not
+        // one of either anywhere. The word list is no help here — it splits on
+        // spaces without normalising, so "*" survives in it as a word and would
+        // hide this case rather than catch it.
+        if (normalisedQuery.Length == 0)
+        {
+            return NoMatch;
+        }
 
         if (NormalisedPartNumber == normalisedQuery)
         {

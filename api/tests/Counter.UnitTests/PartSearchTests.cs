@@ -125,6 +125,36 @@ public sealed class PartSearchTests
         Assert.Empty(Search(typed));
     }
 
+    [Theory]
+    [InlineData("*")]
+    [InlineData("?")]
+    [InlineData("%")]
+    [InlineData("_")]
+    [InlineData("-")]
+    [InlineData("...")]
+    [InlineData("@#$")]
+    [InlineData("---")]
+    [InlineData("//")]
+    public void A_search_that_is_only_punctuation_returns_nothing_too(string typed)
+    {
+        // The same requirement as the test above, reached through the gap that
+        // test left open.
+        //
+        // Matching ignores punctuation, so that a part number read off a box is
+        // found however the hyphens survived the journey. A query that is
+        // *entirely* punctuation therefore normalises to the empty string, and
+        // every part number starts with the empty string — so the whole
+        // catalogue came back, each row ranked as though it were a part-number
+        // prefix match.
+        //
+        // That is the failure this application exists to prevent rather than an
+        // untidy edge, because nothing about it looks wrong. The rows are real
+        // parts with real quantities, presented as strong matches for something
+        // nobody searched for. An answer that is visibly missing gets
+        // questioned; this one gets read out to a customer.
+        Assert.Empty(Search(typed));
+    }
+
     [Fact]
     public void The_limit_is_honoured()
     {

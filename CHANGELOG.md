@@ -120,6 +120,18 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **A search that was only punctuation returned the whole catalogue.** Matching
+  ignores punctuation so that a part number read off a box is found however its
+  hyphens fared, which means a query of `*`, `-`, `...` or `%` normalises to the
+  empty string — and every part number starts with the empty string, so the
+  ranking scored all three thousand parts as part-number prefix matches. Found by
+  throwing hostile input at the deployed application: `q=*` returned a full page
+  of real parts. This is the failure the application exists to prevent rather
+  than an untidy edge, because nothing about the answer looks wrong — real parts
+  with real quantities, presented as strong matches for something nobody
+  searched for. A visibly missing answer gets questioned; this one gets read out
+  to a customer.
+
 - **A MultiValue file name could name a file outside the store.** The store keeps
   one file per MultiValue file and built the path by joining the caller's name
   onto its root without checking it. That name is reachable input rather than a
