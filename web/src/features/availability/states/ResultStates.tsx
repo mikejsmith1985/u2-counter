@@ -147,8 +147,9 @@ export function EmptyState(): React.JSX.Element {
       <div className="state">
         <p className="state__title">Waking up</p>
         <p className="state__detail">
-          Nobody has used this for a while, so it powered itself down. Reading the
-          catalogue now — this takes a few seconds.
+          Nobody has used this for a while, so it powered itself down rather than
+          bill for sitting idle. Reading the catalogue now — a few seconds, and
+          only on the first visit after a quiet period.
         </p>
       </div>
     );

@@ -8,6 +8,16 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **The governance strip says how this is hosted.** The deployment powers itself
+  down when nobody is using it, so a first visit after a quiet period waits about
+  twenty seconds. The page is served by that same container, so for most of that
+  wait the browser has nothing to show — the application's own waking screen
+  cannot render until the thing serving it is running. That makes the strip the
+  only place a reviewer who waited can learn the delay was chosen rather than
+  suffered, and a deliberate trade that goes unsaid reads exactly like a system
+  that is merely slow. The waking screen now names the trade too, rather than
+  only reporting the fact.
+
 - **The deploy script now proves the deployment instead of announcing it.**
   Everything it did previously checked that Azure had accepted what it was given,
   which is not the same as the application working — a broken audit trail

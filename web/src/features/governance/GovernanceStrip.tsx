@@ -65,6 +65,28 @@ export function GovernanceStrip({
         isDemonstrationData={session.isDemonstrationData}
       />
 
+      {/*
+        Stated where the other operating facts are stated, and for the same
+        reason: nobody should have to guess why the first load was slow.
+
+        This deployment powers itself down when nobody is using it, so a first
+        visit after a quiet period waits about twenty seconds while a container
+        starts. That is a choice, not a fault — the alternative is paying to keep
+        it running around the clock for a demonstration — and a deliberate trade
+        that goes unsaid reads exactly like a system that is merely slow.
+      */}
+      <span
+        className="governance__hosting"
+        title={
+          "This deployment powers itself down when nobody is using it, so the " +
+          "first visit after a quiet period waits about twenty seconds while it " +
+          "starts. Running it around the clock would answer instantly and cost " +
+          "money continuously; this costs nothing at rest."
+        }
+      >
+        Scales to zero <span className="governance__mono">$0 idle</span>
+      </span>
+
       <span className="header__spacer" />
 
       <button type="button" className="button button--quiet" onClick={onShowActivity}>

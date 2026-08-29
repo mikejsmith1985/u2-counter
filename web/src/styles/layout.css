@@ -414,6 +414,15 @@
   font-size: 11px;
 }
 
+/* The hosting note sits with the other operating facts rather than beside the
+   provenance badges, because it is not a claim about the data -- it is a fact
+   about how this is run. A dotted underline marks it as carrying more detail on
+   hover without dressing it up as a control, which it is not. */
+.governance__hosting {
+  border-bottom: 1px dotted var(--line-strong);
+  cursor: help;
+}
+
 /* --- commitments ----------------------------------------------------------- */
 
 .commitments {
