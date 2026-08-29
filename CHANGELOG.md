@@ -120,6 +120,20 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **A MultiValue file name could name a file outside the store.** The store keeps
+  one file per MultiValue file and built the path by joining the caller's name
+  onto its root without checking it. That name is reachable input rather than a
+  constant the application chooses: the MCP server exposes it as a tool
+  parameter. It escaped two ways, and only one of them looked like an escape —
+  `../` walked up, and an absolute path did not join at all, because
+  `Path("/srv/data") / "C:/Windows"` is `C:/Windows`, the root discarded silently
+  by code that reads like ordinary path joining. Reading, writing, listing keys,
+  testing existence and deleting were all affected. The only thing limiting it
+  was the `.mv` suffix the store appends, which is a real limit and an accident
+  rather than a control. A file name is now required to be a single plain name,
+  refused rather than sanitised — stripping the dangerous parts out invites an
+  encoding nobody thought of, and no legitimate caller has ever needed a path.
+
 Each of these was found by a test written before the defect was known to exist,
 or by reading the repository as a hostile reviewer rather than as its author.
 

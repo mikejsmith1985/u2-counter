@@ -80,7 +80,19 @@ class MultiValueStore:
     # -- paths ---------------------------------------------------------------
 
     def _path_for(self, file_name: str) -> Path:
-        """Return the path holding one MultiValue file's records."""
+        """Return the path holding one MultiValue file's records.
+
+        Args:
+            file_name: MultiValue file name, which must be a single name and not
+                a path
+
+        Returns:
+            The path under this store's root
+
+        Raises:
+            ValueError: If the name is not a plain file name
+        """
+        _reject_path_like_name(file_name)
         return self.root / f"{file_name}.mv"
 
     # -- reading -------------------------------------------------------------
@@ -261,6 +273,52 @@ class MultiValueStore:
         """Write every record in a file, replacing what was there."""
         lines = [f"{key}\t{body}" for key, body in records.items()]
         self._path_for(file_name).write_text("\n".join(lines) + "\n", encoding=_ENCODING)
+
+
+# Characters that make a name into a path rather than a name. The colon is here
+# for Windows drive letters and alternate data streams, both of which reach
+# outside the root without containing a separator at all.
+_PATH_CHARACTERS = frozenset({"/", "\\", ":", chr(0)})
+
+
+def _reject_path_like_name(file_name: str) -> None:
+    """Refuse a file name that could name something outside the store.
+
+    The name arrives from the caller -- the MCP server exposes it as a tool
+    parameter -- so it is reachable input rather than a constant the application
+    always chooses. Joined onto the root unchecked it escapes two ways, and only
+    one of them looks like an escape:
+
+      - `../` walks up, which is the obvious one
+      - an absolute path does not join at all. `Path("/srv/data") / "C:/Windows"`
+        is `C:/Windows`: the root is discarded silently, and the code that does
+        it reads exactly like ordinary path joining
+
+    Anything but a single plain name is refused rather than sanitised. Stripping
+    the dangerous parts out of a name invites an encoding nobody thought of;
+    refusing the whole name has no such gap, and no legitimate caller has ever
+    needed one.
+
+    Args:
+        file_name: The name to check
+
+    Raises:
+        ValueError: If the name is empty, is a path, or walks upward
+    """
+    if not file_name:
+        raise ValueError("A MultiValue file name cannot be empty")
+
+    if set(file_name) & _PATH_CHARACTERS:
+        raise ValueError(
+            f"A MultiValue file name must be a name, not a path: {file_name!r}"
+        )
+
+    # Caught after the separator check so that "../x" reports as a path, which is
+    # the more useful description of it. This leaves "." and ".." themselves.
+    if file_name in {".", ".."} or file_name.strip(".") == "":
+        raise ValueError(
+            f"A MultiValue file name cannot name a directory: {file_name!r}"
+        )
 
 
 def parse_record(raw: str) -> list[FieldValue]:
