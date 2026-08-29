@@ -17,6 +17,7 @@ import { BranchCommitments } from "../features/commitments/BranchCommitments";
 import { RecordDrawer } from "../features/record/RecordDrawer";
 import { GovernanceStrip } from "../features/governance/GovernanceStrip";
 import { AskPanel } from "../features/ask/AskPanel";
+import { ConnectPanel } from "../features/connect/ConnectPanel";
 import { SchemaExplorer } from "../features/explore/SchemaExplorer";
 import { GuidedTour } from "../features/tour/GuidedTour";
 import { TOUR_PART_NUMBER, type TourStep } from "../features/tour/steps";
@@ -40,6 +41,7 @@ export function App(): React.JSX.Element {
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [isConnectOpen, setIsConnectOpen] = useState(false);
   const [isSignInOpen, setIsSignInOpen] = useState(false);
   const [customerAccount, setCustomerAccount] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState<string | null>(null);
@@ -200,6 +202,17 @@ export function App(): React.JSX.Element {
           onClick={() => setIsTourOpen(true)}
         >
           Take the tour
+        </button>
+
+        {/* Offered in the header rather than buried, because "can I run this
+            against my own data?" is the question anybody serious asks within a
+            minute, and an answer they have to hunt for reads as no answer. */}
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => setIsConnectOpen(true)}
+        >
+          Use your own data
         </button>
 
         <span className="hints" aria-hidden="true">
@@ -365,6 +378,8 @@ export function App(): React.JSX.Element {
           onPrepare={prepareForTourStep}
         />
       )}
+
+      {isConnectOpen && <ConnectPanel onClose={() => setIsConnectOpen(false)} />}
 
       {isActivityOpen && <ActivityPanel onClose={() => setIsActivityOpen(false)} />}
 

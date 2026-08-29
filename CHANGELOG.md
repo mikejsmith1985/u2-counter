@@ -8,6 +8,17 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **"Use your own data" — how to point this at your database and your key.** The
+  question anybody serious asks within a minute, and one the demonstration cannot
+  answer by itself: nobody evaluating software wants to send their inventory
+  through somebody else's API key, or judge a system on data they have never
+  seen. Four environment variables, one command that proves the connection and
+  the write refusal, and an honest table of which parts fit an unfamiliar schema —
+  the MCP server and the explore screen do; the counter screens need a mapping,
+  and mapping a real ERP schema is a real job no amount of tidy code makes
+  trivial. Offered from the header rather than buried, because an answer somebody
+  has to hunt for reads as no answer.
+
 - **A screen with no field names in it, built from the database's own
   dictionary.** Every other screen here is compiled to one layout, which is right
   for a counter — the people using it want the same four numbers in the same
