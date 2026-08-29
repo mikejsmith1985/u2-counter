@@ -46,7 +46,10 @@ if (!string.IsNullOrWhiteSpace(counterConnection))
     // that outlives the action's scope, and a context resolved per request would
     // already be disposed by the time the row is added.
     builder.Services.AddDbContextFactory<CounterContext>(options =>
-        options.UseSqlite(counterConnection));
+        options
+            .UseSqlite(counterConnection, sqlite => sqlite.CommandTimeout(
+                (int)NetworkShareSqlite.CommandBudget.TotalSeconds))
+            .AddInterceptors(new NetworkShareSqlite()));
 }
 
 builder.Services.AddScoped<AvailabilityReader>();
@@ -155,6 +158,16 @@ using (IServiceScope scope = app.Services.CreateScope())
             //
             // Now it degrades. The activity panel still works from memory for
             // the length of a session, and the log says plainly what was lost.
+            //
+            // Said on the health endpoint as well as in the log, because until
+            // this call the application went on reporting `isAuditDurable: true`
+            // from here onwards. The claim was built from whether a database had
+            // been configured rather than from whether anything could be stored
+            // in it, so the one field a reviewer would check to find this
+            // problem was the field concealing it.
+            app.Services.GetRequiredService<ActivityRecorder>()
+                .ReportDurableStoreUnavailable();
+
             startupLogger.LogError(
                 error,
                 "The audit trail could not be opened. The application is running, and the " +

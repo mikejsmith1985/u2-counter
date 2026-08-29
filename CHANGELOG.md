@@ -8,6 +8,18 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **The deploy script now proves the deployment instead of announcing it.**
+  Everything it did previously checked that Azure had accepted what it was given,
+  which is not the same as the application working — a broken audit trail
+  survived seven deployments, each reporting success because each asked nothing
+  after the update was accepted. The pre-deploy gate did check `/health`, but
+  against the local build, where the database sits on a local disk and works; the
+  one environment where it was broken was the one nothing asked. The script now
+  waits for the deployed application to become ready, fails the deployment if it
+  reports a non-durable audit trail, and runs one real search — because a
+  catalogue count proves the catalogue was read, not that a question can be
+  answered from it.
+
 - **Project scaffolding for the counter availability lookup.** A .NET 9 solution
   in `api/` with domain, infrastructure and API projects and two test projects; a
   React and TypeScript workspace in `web/`; a Python package in `mvstore/` for the
@@ -119,6 +131,36 @@ source of truth for what changed (Article VI). Format follows
   against.
 
 ### Fixed
+
+- **The deployed application reported an audit trail it did not have.** Found by
+  reading the running container's logs rather than by any test. `/health` said
+  `isAuditDurable: true` while every write failed with "no such table:
+  ActivityRecord": the schema had never been created, because SQLite cannot take
+  its write lock on the Azure Files share the database sits on. Bringing the
+  schema up to date issued `CREATE TABLE IF NOT EXISTS "__EFMigrationsLock"`,
+  waited the full thirty-second command timeout and failed with "database is
+  locked" — which also blocked start-up for those thirty seconds, so the platform
+  recorded thirty consecutive failed start-up probes and every cold start was
+  half a minute slower than it needed to be. One unsupported lock, three faults.
+
+  Three separate corrections, because each piece was defensible alone and only
+  the combination was dangerous:
+
+  - `locking_mode=EXCLUSIVE` and an explicit `journal_mode=DELETE` are now set on
+    every connection. The first is what SMB can honour, and is correct rather
+    than convenient at one replica: a second writer would be refused rather than
+    corrupt anything. The second is SQLite's own default, pinned because
+    write-ahead logging needs shared memory a network filesystem does not have,
+    and switching it on later would break this in a way that looks unrelated.
+  - The statement budget is eight seconds rather than thirty, so a database
+    problem can no longer hold the port closed long enough to look like a slow
+    application.
+  - `isAuditDurable` now reports whether anything is being **stored** rather than
+    whether a database has been **configured**. Those are different questions,
+    and answering the second while appearing to answer the first is what let this
+    run for hours: the one field a reviewer would check to find the problem was
+    the field concealing it. The claim is now withdrawn by evidence — a migration
+    that could not run says so, and so does the first write that fails.
 
 - **A search that was only punctuation returned the whole catalogue.** Matching
   ignores punctuation so that a part number read off a box is found however its

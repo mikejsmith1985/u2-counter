@@ -521,6 +521,85 @@ $url = az containerapp show `
     --query 'properties.configuration.ingress.fqdn' `
     --output tsv
 
+# -- prove the deployment, rather than announcing it ---------------------------
+#
+# Everything above this line checks that Azure accepted what it was given. That
+# is not the same as the application working, and the difference is not
+# theoretical: a broken audit trail survived seven deployments of this script.
+# Each one reported success, because each one was told the update had been
+# accepted and asked nothing further.
+#
+# The application could not create its schema -- SQLite cannot take a write lock
+# on the Azure Files share -- so every audit write failed on a table that did not
+# exist. The pre-deploy gate did check /health, but on the local build, where the
+# database sits on a local disk and works. The one environment where it was
+# broken was the one nothing asked.
+#
+# So this asks the deployed application, and treats a wrong answer as a failed
+# deployment.
+function Assert-DeploymentAnswers {
+    param(
+        [Parameter(Mandatory)] [string] $Url
+    )
+
+    Write-Host ''
+    Write-Host 'Checking the deployed application...' -ForegroundColor Cyan
+
+    # Generous, and deliberately so: this is the first request after a
+    # deployment, so it is waking a container from zero. Measured cold starts
+    # here run to about a minute.
+    $deadline = (Get-Date).AddSeconds(180)
+    $health = $null
+
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $health = Invoke-RestMethod "https://$Url/health" -TimeoutSec 60
+            if ($health.isReady) { break }
+        }
+        catch {
+            # A refusal here is the container still starting, which is expected
+            # and is why this loop exists rather than a single request.
+            $health = $null
+        }
+
+        Start-Sleep -Seconds 5
+    }
+
+    if ($null -eq $health -or -not $health.isReady) {
+        throw "The deployed application did not become ready within three minutes."
+    }
+
+    Write-Host "  ready, $($health.catalogueCount) parts searchable" -ForegroundColor Green
+
+    # The check that would have caught the defect above. `isAuditDurable` reports
+    # whether anything is actually being stored, so a false here means the
+    # application is answering questions and recording none of them.
+    if (-not $health.isAuditDurable) {
+        throw @"
+The deployed application reports that its audit trail is not durable.
+
+    $($health.detail)
+
+Every request is being answered and none is being recorded. Check the
+container log for the reason the schema could not be opened.
+"@
+    }
+
+    Write-Host '  the audit trail is durable' -ForegroundColor Green
+
+    # One real search, because a catalogue count proves the catalogue was read
+    # and not that a question can be answered from it.
+    $found = Invoke-RestMethod "https://$Url/api/v1/parts?q=breaker" -TimeoutSec 60
+
+    if ($found.results.Count -eq 0) {
+        throw "The deployed application returned no results for a search that should match."
+    }
+
+    Write-Host "  a search answered with $($found.results.Count) parts" -ForegroundColor Green
+}
+
+Assert-DeploymentAnswers -Url $url
+
 Write-Host ''
 Write-Host 'Deployed.' -ForegroundColor Green
 Write-Host "  https://$url"

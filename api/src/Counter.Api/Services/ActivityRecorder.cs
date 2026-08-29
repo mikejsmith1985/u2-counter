@@ -38,8 +38,41 @@ public sealed class ActivityRecorder(
     private readonly ILogger<ActivityRecorder> _logger = logger;
     private readonly IDbContextFactory<CounterContext>? _contexts = contexts;
 
-    /// <summary>Whether entries reach a durable store as well as memory.</summary>
-    public bool IsDurable => _contexts is not null;
+    /// <summary>
+    /// Set false the moment the durable store is known not to be working.
+    /// </summary>
+    /// <remarks>
+    /// Volatile because it is written by whichever request first fails and read
+    /// by the health endpoint on another thread, and a stale read here would be
+    /// the endpoint reporting the very thing this field exists to correct.
+    /// </remarks>
+    private volatile bool _durableStoreIsWorking = contexts is not null;
+
+    /// <summary>Whether entries are reaching a durable store as well as memory.</summary>
+    /// <remarks>
+    /// Whether anything is being <em>stored</em>, not whether a database has been
+    /// <em>configured</em>. Those are different questions, and answering the
+    /// second while appearing to answer the first is how the deployed
+    /// application came to report a healthy audit trail for hours while every
+    /// write failed on a table that had never been created.
+    ///
+    /// So the claim is withdrawn by evidence rather than only asserted at
+    /// startup: a migration that could not run says so, and so does the first
+    /// write that fails. A claim that can only be set once is a claim that can
+    /// outlive its truth, and this one is read by someone deciding whether the
+    /// trail can be relied on.
+    /// </remarks>
+    public bool IsDurable => _contexts is not null && _durableStoreIsWorking;
+
+    /// <summary>
+    /// Record that the durable store could not be opened.
+    /// </summary>
+    /// <remarks>
+    /// Called by startup when the schema could not be brought up to date. Without
+    /// this the application would go on offering an audit trail it had already
+    /// discovered it did not have.
+    /// </remarks>
+    public void ReportDurableStoreUnavailable() => _durableStoreIsWorking = false;
 
     /// <summary>
     /// Record one request.
@@ -93,6 +126,12 @@ public sealed class ActivityRecorder(
         catch (Exception error)
 #pragma warning restore CA1031
         {
+            // Withdrawn here rather than only logged. The log said this for
+            // hours while the health endpoint went on reporting a durable audit
+            // trail, and nobody reads a log to find out whether a claim on a
+            // status page is true.
+            _durableStoreIsWorking = false;
+
             _logger.LogError(
                 error,
                 "The activity record for {Action} by {Subject} could not be stored",
