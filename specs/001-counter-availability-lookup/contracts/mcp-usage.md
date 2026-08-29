@@ -15,10 +15,18 @@ an identity provider in front of it.
 | Tool | Used for | Arguments |
 | --- | --- | --- |
 | `read_record` | One inventory, product, customer or order record | `file_name`, `record_id` |
-| `read_records` | A batch of orders holding stock at a branch | `file_name`, `record_ids` |
-| `execute_query` | Selecting orders that reference a part | `query`, `max_rows` |
+| `read_records` | The catalogue at startup, in batches | `file_name`, `record_ids` |
+| `get_select_list` | Selecting the orders that reference a part | `query`, `max_ids` |
 
-That is the whole list. Anything absent from it is absent by decision.
+That is the whole list, and it is checked: `ErpTools.Permitted` holds exactly
+these three, and a test fails the build if any of them stops having a caller.
+
+`execute_query` was on this list and has been removed. It ran arbitrary query
+text, and nothing called it — every question this application asks is a keyed
+read or a parameterised selection. Of all the permissions to leave dangling, the
+arbitrary-query one is the worst, and it survived because the test meant to catch
+it searched the reader's source for the constant name: the constant sat in a
+method nobody invoked, so the check passed. The test now looks for callers.
 
 ## Tools the API must never call
 
@@ -30,30 +38,51 @@ That is the whole list. Anything absent from it is absent by decision.
 | `begin_transaction`, `commit_transaction`, `rollback_transaction` | Nothing is written, so nothing needs a transaction |
 | `save_knowledge`, `delete_knowledge` | Writes to the server's own store; not this feature's concern |
 
-An integration test asserts that the MCP client exposes no method binding to any
-tool in this table. A blocklist that lives only in a document is a comment; one
-that fails a build is a control.
+An integration test asserts that no name in this table appears anywhere in the
+infrastructure source outside the single file that declares them. That is a
+source scan rather than a check on the compiled assembly, and deliberately so:
+string constants are inlined, so a scan of the assembly finds the permitted and
+the forbidden names mixed together with no way to tell which came from a call.
+
+A blocklist that lives only in a document is a comment; one that fails a build is
+a control. This one is a control, and a reviewer can run the same grep by hand.
+
+**This table is not the server's whole surface.** The fork exposes more tools than
+appear on either list here — exports, catalog listings, account information. They
+are not called and not permitted, and `ErpTools.Permitted` is what the code
+enforces: anything absent from it is refused by the reader before a request is
+made, whether or not it is named below.
 
 ---
 
 ## Query patterns
 
-Only two query shapes are ever sent. Both start with an allowlisted read verb, and
-both are built from parameters that have been validated first — a part number
-matched against the catalogue projection, a branch code matched against `BRANCH`.
-Nothing typed by a user is concatenated into a query.
+Only two query shapes are ever sent, both through `get_select_list`, and both
+returning keys rather than formatted output — a `LIST` renders records for a
+person to read, turning the separators into newlines and losing the structure
+they carried.
+
+Both start with an allowlisted read verb, and both are built from parameters
+validated first: a part number matched against the catalogue projection, a branch
+code matched against `BRANCH`. Nothing typed by a user is concatenated into a
+query.
+
+**Every product, at startup**
+
+```text
+SELECT PRODUCT
+```
 
 **Orders holding stock for a part**
 
 ```text
-SELECT ORDER WITH PART.NUMBER = "SQD-QO120" AND WITH STATE = "CONFIRMED" "ALLOCATED" "PICKING"
+SELECT ORDER WITH F4 = "SQD-QO120" AND WITH F3 = "CONFIRMED" "ALLOCATED" "PICKING"
 ```
 
-**Counting matches for a part**
-
-```text
-COUNT ORDER WITH PART.NUMBER = "SQD-QO120"
-```
+Fields are named by position rather than by dictionary name, because the
+demonstration store holds no dictionaries — inventing one would be a second
+description of the record layout to keep in step with the first. Against a real
+UniVerse account with dictionaries, these become `PART.NUMBER` and `STATE`.
 
 The state filter is applied in the query rather than after retrieval so that the
 rule from FR-018 lives in one place. Filtering afterwards would leave two
@@ -79,10 +108,19 @@ the screen.
 
 ## Identity
 
-The API sends the signed-in user's subject with every call, so the fork's audit
-trail names the person rather than the service. The fork records the database
-login and whether it was shared; the API mirrors both into `ActivityRecord` and
-surfaces them in the governance strip.
+**The API does not send the signed-in user's subject to the fork.** This section
+said it did; it does not, and the distinction changes where the audit trail comes
+from.
+
+`ErpReader` sends tool arguments and nothing else — no header, no subject, no
+credential. Every call reaches the fork as the same shared database login. So the
+record that names a person is written by the API, into `ActivityRecord`, and the
+governance strip shows it. The fork's own log can say only that `u2demo` asked.
+
+That is the honest arrangement for a deployment with one shared ERP account, and
+it is why the API keeps an audit trail at all. Passing the subject through to the
+fork — so its `mapped` identity mode could give each person their own database
+login — is the next thing this would need in production, and it is not built.
 
 In this deployment the ERP account is shared — there is one demonstration login —
 and the application says so plainly rather than letting the shared account read as

@@ -56,9 +56,13 @@ public sealed class ErpImmutabilityTests(CounterFixture fixture)
     [Fact]
     public async Task A_refused_write_leaves_the_record_exactly_as_it_was()
     {
-        // The path that would matter if someone added a tool by mistake: the
-        // server refuses, and the record has to be untouched afterwards rather
-        // than half-written.
+        // The API's own routing refuses these before any handler runs, so this
+        // asserts the outer boundary rather than the server's. The MCP server is
+        // never reached, and a comment here once said it was.
+        //
+        // What makes that acceptable is the test above: it exercises every
+        // journey that *does* reach the server and then hashes every file. The
+        // server's own refusal is proved in the fork's suite, against the fork.
         string partNumber = await _fixture.Client.AnyPartNumberAsync();
 
         JsonElement before = await _fixture.Client.ReadJsonAsync(

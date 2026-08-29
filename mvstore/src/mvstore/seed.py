@@ -15,6 +15,7 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from datetime import date, timedelta
+from typing import Any
 
 from .store import MultiValueStore
 
@@ -202,8 +203,10 @@ def _write_products(store: MultiValueStore, rng: random.Random, count: int) -> l
         description = _describe(rng, category)
         part_number = f"{_prefix(manufacturer)}-{category}{index:05d}"
 
-        # The last few parts are discontinued, and one of them keeps its stock,
-        # so a discontinued part with inventory can be shown.
+        # The last five parts are discontinued, and all of them keep their stock,
+        # so a discontinued part with inventory can be shown. Discontinued means
+        # not stocked going forward, not absent -- a screen that hid these would
+        # tell a customer there is none of something sitting on the shelf.
         status = "D" if index >= count - 5 else "A"
 
         store.write(
@@ -277,9 +280,9 @@ def _write_position(
     orders holding its committed stock, and they add up because the committed
     figure was those orders in the first place.
 
-    Two positions on the first record are given deliberate exceptions, because
-    both are conditions a counter representative meets and the interface has to
-    handle. Neither is a discrepancy the arithmetic cannot express: committed is
+    Three positions on the first record are given deliberate exceptions --
+    entirely committed, oversold, and a stranded allocation -- because each is a
+    condition a counter representative meets and the interface has to handle. Neither is a discrepancy the arithmetic cannot express: committed is
     never allowed to fall below what the orders hold, which would make the
     unaccounted figure negative and the screen unreadable.
 
@@ -503,7 +506,7 @@ def _prefix(manufacturer: str) -> str:
 # -- obligation checks --------------------------------------------------------
 
 
-def _values(fields: list, index: int) -> list[str]:
+def _values(fields: list[Any], index: int) -> list[str]:
     """Return field `index` as a list of scalars."""
     if index >= len(fields):
         return []

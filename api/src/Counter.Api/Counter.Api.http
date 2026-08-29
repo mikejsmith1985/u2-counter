@@ -1,6 +1,63 @@
-@Counter.Api_HostAddress = http://localhost:5252
+# Requests for poking the API by hand, from an editor.
+#
+# Every one of these is a GET, because every route that touches ERP data is.
+# The two exceptions -- signing in and choosing a customer -- change this
+# application's own session and are included so the whole surface is here.
 
-GET {{Counter.Api_HostAddress}}/weatherforecast/
+@host = http://127.0.0.1:5080
+
+### Is it awake, and what does it think it is pointed at
+GET {{host}}/health
 Accept: application/json
 
-###
+### Alive, without consulting anything
+GET {{host}}/health/live
+Accept: application/json
+
+### Search the catalogue
+GET {{host}}/api/v1/parts?q=breaker&limit=10
+Accept: application/json
+
+### One part, every branch, and the list price
+GET {{host}}/api/v1/parts/S-BRK00000/availability
+Accept: application/json
+
+### The same part, priced for a customer
+GET {{host}}/api/v1/parts/S-BRK00000/availability?customerAccount=C-10000
+Accept: application/json
+
+### What is holding a branch's committed stock
+GET {{host}}/api/v1/parts/S-BRK00000/commitments?branchCode=DEN
+Accept: application/json
+
+### The record as the ERP stores it, separators and all
+GET {{host}}/api/v1/parts/S-BRK00000/record
+Accept: application/json
+
+### Customers, for the selector
+GET {{host}}/api/v1/customers?q=front
+Accept: application/json
+
+### Who is signed in
+GET {{host}}/api/v1/session
+Accept: application/json
+
+### The demonstration personas on offer
+GET {{host}}/api/v1/session/personas
+Accept: application/json
+
+### What this person has asked of the system
+GET {{host}}/api/v1/activity?limit=20
+Accept: application/json
+
+### Become a different persona. Not a login; there is no password.
+POST {{host}}/api/v1/session
+Content-Type: application/json
+
+{ "subject": "demo|marcus" }
+
+### Choose the customer being served
+PUT {{host}}/api/v1/session/customer
+Content-Type: application/json
+
+{ "customerAccount": "C-10000" }

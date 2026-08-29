@@ -20,11 +20,17 @@ MultiValue on the way out, that screen would display a rendering the store never
 held — which makes the screen dishonest about the one thing it exists to prove.
 
 So records are stored with `CHAR(254)`, `CHAR(253)` and `CHAR(252)` between
-fields, values and subvalues, exactly as a real system stores them.
+fields, values and subvalues — the same code points a real system uses, and the
+same structure.
+
+One difference, stated because it is the kind of thing a reviewer checks: these
+files are UTF-8, so a mark occupies two bytes on disk where UniVerse writes one.
+The code points are identical and every parser sees the same characters; only the
+byte count differs. Nothing in this project reads the files as bytes.
 
 ## What it is not
 
-It is not a database. It answers four read verbs and nothing else, has no query
+It is not a database. It answers five read verbs and nothing else, has no query
 planner, no indexes, no transactions and no concurrency control beyond a lock
 around writes. It is a test fixture that happens to be deployable.
 

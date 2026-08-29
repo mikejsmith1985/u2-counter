@@ -1,4 +1,4 @@
-"""The four read verbs this feature uses, and nothing else.
+"""The read verbs this feature uses, and nothing else.
 
 `LIST`, `SELECT`, `SSELECT` and `COUNT`. Every other verb is refused here as
 well as at the MCP server in front of this store. Two independent refusals are
@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from .store import MultiValueStore
 
@@ -250,7 +251,7 @@ def _matches(
     return all(_field_matches(fields, criterion) for criterion in criteria)
 
 
-def _field_matches(fields: list, criterion: _Criterion) -> bool:
+def _field_matches(fields: list[Any], criterion: _Criterion) -> bool:
     """Return whether any value in the named field matches the criterion.
 
     Any rather than all: one inventory record holds every branch, so a record

@@ -11,9 +11,12 @@
 # it a matter of configuration rather than of network.
 
 # -- build the front end ------------------------------------------------------
-# Pinned to a digest-stable major. A floating tag turns a rebuild into a
-# different application, which is exactly the surprise a deployment should not
-# hold.
+# Pinned to a major version, not to a digest.
+#
+# A digest is what would make a rebuild reproducible, and these tags float within
+# their major: the same Dockerfile can produce a different image next month. That
+# is a real gap and it is stated rather than papered over -- pinning digests here
+# means a renovation job to move them, which this demonstration does not have.
 FROM node:24-alpine AS web
 
 WORKDIR /src/web

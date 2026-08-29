@@ -2,7 +2,12 @@
 
 **Base path**: `/api/v1` · **Format**: JSON, UTF-8 · **Auth**: session cookie
 
-Every endpoint here is a read. No verb other than `GET` exists in this API, and an
+Every endpoint that touches ERP data is a read. Two routes are not `GET` —
+`POST /api/v1/session` and `PUT /api/v1/session/customer` — and both write to this
+application's own session rather than to the ERP. `ReadOnlyRouteTests` permits
+exactly those two by name, so a third fails the build rather than joining a list.
+
+An
 integration test asserts that no route is registered for `POST`, `PUT`, `PATCH` or
 `DELETE` against ERP data (FR-022).
 
@@ -29,21 +34,39 @@ empty result.
 
 ### Timing
 
-Every ERP-backed request carries a five-second budget (FR-033). On expiry the API
-cancels the work — not merely stops waiting for it — and returns `504`.
+Every ERP-backed request carries a five-second budget (FR-033) and returns `504`
+on expiry.
+
+The wait is bounded by racing each call against the budget and then dropping the
+MCP connection, rather than by cancelling a token. Cancelling stops the *next*
+call; it does not reliably end one already in flight, because the transport is
+waiting on a response the server has not sent and has no way to un-ask for it.
+Measured, a ten-second query against a two-second budget took the full ten
+seconds before this changed.
+
+Dropping the connection is what makes the abandoned query somebody else's
+problem rather than the next caller's: a session with a response still coming
+cannot be reused, or the next request would read the abandoned answer as its own.
 
 ### Truthfulness envelope
 
-Any response that could be partial carries:
+Every response carries one, under `envelope`:
 
 ```json
 {
-  "isComplete": true,
-  "warning": null,
-  "isDemonstrationData": true,
-  "retrievedAt": "2026-08-28T21:14:07Z"
+  "envelope": {
+    "envelope": {
+      "isComplete": true,
+      "warning": null,
+      "isDemonstrationData": true,
+      "retrievedAt": "2026-08-28T21:14:07Z"
+    }
+  }
 }
 ```
+
+The examples below show it in place. It is nested rather than flattened so that
+adding a field to a response can never collide with a field of the envelope.
 
 `isComplete: false` with a populated `warning` means a limit was applied (FR-030).
 `isDemonstrationData` is always `true` in this deployment and is rendered wherever
@@ -53,7 +76,9 @@ figures appear (FR-032).
 
 ## `GET /api/v1/parts?q={text}&limit={n}`
 
-Search the catalogue. Answers from the in-memory projection; touches no ERP data.
+Search the catalogue. Matching is answered from the in-memory projection, but each
+result carries its live free-to-sell figure, so this endpoint does reach the ERP —
+once per result returned. That is why `limit` is capped.
 
 **Query**: `q` required, 1–100 characters. `limit` optional, default 20, maximum
 50.
@@ -72,15 +97,16 @@ Search the catalogue. Answers from the in-memory projection; touches no ERP data
       "totalFreeToSell": 265
     }
   ],
-  "isComplete": true,
-  "warning": null,
-  "isDemonstrationData": true,
-  "retrievedAt": "2026-08-28T21:14:07Z"
+  "envelope": {
+    "isComplete": true,
+    "warning": null,
+    "isDemonstrationData": true,
+    "retrievedAt": "2026-08-28T21:14:07Z"
+  }
 }
 ```
 
-`totalFreeToSell` is summed live across branches, so this endpoint does touch the
-ERP for the parts it returns — which is why `limit` is capped.
+`totalFreeToSell` is summed live across branches for each result.
 
 An empty `results` array with `200` means nothing matched (FR-005). It never means
 the ERP was unreachable.
@@ -103,13 +129,13 @@ calls means two chances to show half an answer.
     "unitOfMeasure": "EA",
     "isDiscontinued": false
   },
-  "stockIsKnown": true,
+  "isStockKnown": true,
   "totalFreeToSell": 265,
   "branches": [
     {
       "branchCode": "DEN",
       "branchName": "Denver",
-      "addressLine": "Denver",
+      "city": "Denver",
       "onHand": 142,
       "committed": 40,
       "freeToSell": 102,
@@ -128,10 +154,12 @@ calls means two chances to show half an answer.
       { "termsDescription": "Promotional, expired 2026-06-30", "reason": "Not effective today" }
     ]
   },
-  "isComplete": true,
-  "warning": null,
-  "isDemonstrationData": true,
-  "retrievedAt": "2026-08-28T21:14:07Z"
+  "envelope": {
+    "isComplete": true,
+    "warning": null,
+    "isDemonstrationData": true,
+    "retrievedAt": "2026-08-28T21:14:07Z"
+  }
 }
 ```
 
@@ -139,7 +167,7 @@ calls means two chances to show half an answer.
 boolean, because "we have twelve but they are all spoken for" is a different
 answer to a customer than "we have none" (FR-009).
 
-**`stockIsKnown: false`** means the part exists but has no inventory record. The
+**`isStockKnown: false`** means the part exists but has no inventory record. The
 `branches` array is then empty and the client says stock information is
 unavailable — not that stock is zero.
 
@@ -168,20 +196,28 @@ What is holding the stock at one branch (Story 3).
       "orderNumber": "SO-104882",
       "customerName": "Front Range Electric",
       "quantity": 25,
-      "state": "ALLOCATED",
+      "state": "Allocated",
       "promisedDate": "2026-09-02"
     }
   ],
   "unaccounted": 0,
-  "isComplete": true,
-  "isDemonstrationData": true,
-  "retrievedAt": "2026-08-28T21:14:07Z"
+  "envelope": {
+    "isComplete": true,
+    "warning": null,
+    "isDemonstrationData": true,
+    "retrievedAt": "2026-08-28T21:14:07Z"
+  }
 }
 ```
 
 `unaccounted` is `committedTotal − accountedFor`, and it is in the contract rather
 than hidden because FR-019 requires the listed commitments to account for the
-whole committed quantity. When they do not, the client shows the shortfall as its
+whole committed quantity.
+
+It is only a discrepancy when `isComplete` is `true`. More than five hundred
+orders referencing one part caps the selection, and orders that were not read
+cannot account for anything — so the shortfall would read larger than it is, and
+somebody would ring the branch about a truncated list. The envelope says so. When they do not, the client shows the shortfall as its
 own row. A visible discrepancy is worth more than a tidy screen.
 
 An empty `commitments` array with `committedTotal: 0` means nothing is committed,
@@ -251,9 +287,44 @@ the person acting under it should know about.
 
 ## `PUT /api/v1/session/customer`
 
-The single exception to "no verb but `GET`" — and it writes to the application's
-own session, never to the ERP. Body: `{ "customerAccount": "C-10442" }`. Returns
+One of the two routes that are not `GET` — the other signs a persona in. It writes
+to the application's own session, never to the ERP. Body: `{ "customerAccount": "C-10442" }`. Returns
 the updated session.
+
+---
+
+## `POST /api/v1/session`
+
+Becomes one of the demonstration personas. Body: `{ "subject": "demo|marcus" }`.
+Returns the updated session.
+
+Not a login. There is no password and no credential is sent — it changes whose
+name the activity record carries and which branch leads the grid. The sign-in
+screen says so on the screen, because an interface that looked like
+authentication would be claiming a control this demonstration does not have.
+
+---
+
+## `GET /api/v1/session/personas`
+
+The personas on offer, each with the branch it works from and what it is useful
+for showing.
+
+---
+
+## `GET /health` and `GET /health/live`
+
+Readiness and liveness. `/health` reports whether the catalogue is built, how many
+parts are searchable, which ERP endpoint this instance believes it is using, and
+the request budget in seconds — because "which one is this pointed at" is the
+first question anyone asks when one instance behaves unlike its neighbour.
+
+It answers `503` until the catalogue is readable. The application serves requests
+throughout that window, so a check on the port alone would route traffic to an
+instance whose search returns nothing.
+
+`/health/live` answers without consulting anything. Failing it restarts the
+container, and no failure of the ERP is improved by a restart.
 
 ---
 
@@ -271,7 +342,7 @@ The contract constrains the client too, because these are the rules a well-forme
 response can still be rendered wrongly against:
 
 1. `504` renders as **unreachable with a retry**, never as empty (FR-029, FR-034).
-2. `stockIsKnown: false` renders as **unknown**, never as zero.
+2. `isStockKnown: false` renders as **unknown**, never as zero.
 3. `isComplete: false` renders the `warning` prominently (FR-030).
 4. `unaccounted > 0` renders as its own row (FR-019).
 5. Every screen showing figures shows `isDemonstrationData` (FR-032).

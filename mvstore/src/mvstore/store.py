@@ -135,10 +135,16 @@ class MultiValueStore:
             file_name: MultiValue file name
             record_id: Record key
             fields: One entry per field, in order
+
+        Raises:
+            ValueError: If the key or the record contains a tab or a line break
         """
+        raw = build_record(fields)
+        self._reject_structural_characters(file_name, record_id, raw)
+
         with self._lock:
             records = self._load(file_name)
-            records[record_id] = build_record(fields)
+            records[record_id] = raw
             self._save(file_name, records)
 
     def delete(self, file_name: str, record_id: str) -> None:
@@ -186,13 +192,46 @@ class MultiValueStore:
         for line in path.read_text(encoding=_ENCODING).split("\n"):
             if not line:
                 continue
-            # The key is separated from the record by a tab, which cannot appear
-            # in a MultiValue record: the store rejects one on write.
+            # The key is separated from the record by a tab, and a record is one
+            # line. Neither character can appear in a record, which `write`
+            # enforces -- see `_reject_structural_characters`.
             key, _, body = line.partition("\t")
             records[key] = body
 
         self._file_cache[file_name] = (stamp, records)
         return records
+
+    @staticmethod
+    def _reject_structural_characters(file_name: str, record_id: str, raw: str) -> None:
+        """Refuse a record that would corrupt the file it is written into.
+
+        This storage puts one record per line and separates the key from the body
+        with a tab. A record containing either character does not fail on write --
+        it succeeds, and then reads back as a different record, or as two.
+
+        The failure is silent and permanent, and it looks like a parser bug
+        rather than like bad data. Rejecting the write is the only point at which
+        it is cheap to notice.
+
+        Args:
+            file_name: The file being written, for the message
+            record_id: The key being written, for the message
+            raw: The record in its stored form
+
+        Raises:
+            ValueError: If the key or the record contains a tab or a newline
+        """
+        for name, character in (("a tab", "\t"), ("a newline", "\n"), ("a carriage return", "\r")):
+            if character in record_id:
+                raise ValueError(
+                    f"The key '{record_id!r}' for {file_name} contains {name}, which this "
+                    f"storage uses as a separator. It would read back as a different record."
+                )
+            if character in raw:
+                raise ValueError(
+                    f"Record '{record_id}' in {file_name} contains {name}, which this storage "
+                    f"uses as a separator. It would read back split or truncated."
+                )
 
     def _save(self, file_name: str, records: dict[str, str]) -> None:
         """Persist a file, or hold it in memory while a bulk write is open."""

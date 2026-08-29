@@ -11,7 +11,14 @@
  */
 
 interface Props {
-  /** Whether the session may change anything. False throughout this release. */
+  /**
+   * Whether the session is read-only.
+   *
+   * True for every persona in this release: nothing writes to the ERP. The badge
+   * shows when it is true, which is always -- and the parameter stays rather than
+   * being assumed, so the day something can write, the badge stops appearing on
+   * its own.
+   */
   isReadOnly: boolean;
   /** Whether the database login serves more than one person. */
   isSharedLogin: boolean;

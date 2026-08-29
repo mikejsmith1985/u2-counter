@@ -74,8 +74,11 @@ public sealed class SessionController(
     /// </summary>
     /// <param name="request">The account, or null to clear it.</param>
     /// <remarks>
-    /// The one route in this application that is not a GET, and it writes to the
-    /// application's own session — never to the ERP.
+    /// One of the two routes in this application that are not a GET — the other
+    /// signs a persona in, above. Both write to this application's own session
+    /// and neither touches the ERP, which is the distinction that matters:
+    /// `ReadOnlyRouteTests` permits exactly these two by name, so a third would
+    /// fail the build rather than joining a list.
     /// </remarks>
     /// <response code="200">The updated session.</response>
     [HttpPut("session/customer")]

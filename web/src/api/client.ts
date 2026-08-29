@@ -27,6 +27,8 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 /** What went wrong, in a form the interface can switch on. */
 export type FailureKind =
+  /** A record could not be read without guessing at what it meant. */
+  | "malformed-record"
   /** The system could not reach the stock data. Never "no stock". */
   | "unreachable"
   /** The ERP declined the request. */
@@ -55,9 +57,16 @@ export class ApiFailure extends Error {
     this.status = status;
   }
 
-  /** Whether trying again could plausibly succeed. */
+  /**
+   * Whether trying again could plausibly succeed.
+   *
+   * Read by the failure states to decide whether to offer a retry. A malformed
+   * request and a malformed record both produce the same answer however many
+   * times they are asked, and a button that changes nothing is worse than no
+   * button — it makes the person press it twice before they believe you.
+   */
   get isWorthRetrying(): boolean {
-    return this.kind === "unreachable" || this.kind === "unknown";
+    return this.kind === "unreachable" || this.kind === "refused" || this.kind === "unknown";
   }
 }
 
@@ -71,6 +80,12 @@ interface ProblemDetails {
 /** Map a problem response onto the kind the interface switches on. */
 function kindFrom(status: number, problem: ProblemDetails): FailureKind {
   if (problem.type === "erp-unreachable" || status === 504) return "unreachable";
+
+  // Before the status, because a malformed record also arrives as 502 and
+  // "the system declined that request" is the wrong thing to tell somebody
+  // about a record the system could not make sense of.
+  if (problem.type === "erp-malformed-record") return "malformed-record";
+
   if (problem.type === "erp-refused" || status === 502) return "refused";
   if (problem.type === "not-found" || status === 404) return "not-found";
   if (status === 400) return "invalid";

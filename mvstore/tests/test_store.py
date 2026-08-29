@@ -204,3 +204,61 @@ class TestDurability:
         MultiValueStore(tmp_path).write("PRODUCT", "P1", ["persisted"])
 
         assert MultiValueStore(tmp_path).read("PRODUCT", "P1") == ["persisted"]
+
+
+class TestStructuralCharactersAreRefused:
+    """A record that would corrupt the file it goes into is not written.
+
+    This storage puts one record per line and separates the key from the body
+    with a tab. A record containing either character does not fail on write --
+    it succeeds, and reads back as a different record, or as two.
+
+    The failure is silent, permanent, and looks like a parser bug rather than
+    bad data. A comment in the loader claimed this was already rejected on
+    write, and for a long time it was not.
+    """
+
+    def test_a_tab_in_a_record_is_refused(self, tmp_path) -> None:
+        store = MultiValueStore(tmp_path)
+
+        with pytest.raises(ValueError, match="tab"):
+            store.write("PRODUCT", "P-1", ["Widget\tBrand", "EA"])
+
+    def test_a_newline_in_a_record_is_refused(self, tmp_path) -> None:
+        store = MultiValueStore(tmp_path)
+
+        with pytest.raises(ValueError, match="newline"):
+            store.write("PRODUCT", "P-1", ["Widget\nBrand", "EA"])
+
+    def test_a_tab_in_a_key_is_refused(self, tmp_path) -> None:
+        # A key is what the tab separates from, so one there is the same defect
+        # from the other side.
+        store = MultiValueStore(tmp_path)
+
+        with pytest.raises(ValueError, match="tab"):
+            store.write("PRODUCT", "P\t1", ["Widget", "EA"])
+
+    def test_a_carriage_return_is_refused(self, tmp_path) -> None:
+        # Windows editors and pasted text bring these in without anyone meaning
+        # to, and the file is split on newline alone.
+        store = MultiValueStore(tmp_path)
+
+        with pytest.raises(ValueError, match="carriage return"):
+            store.write("PRODUCT", "P-1", ["Widget\r", "EA"])
+
+    def test_a_refused_write_leaves_the_file_untouched(self, tmp_path) -> None:
+        # Refusing after a partial write would be worse than not checking.
+        store = MultiValueStore(tmp_path)
+        store.write("PRODUCT", "P-1", ["Widget", "EA"])
+
+        with pytest.raises(ValueError):
+            store.write("PRODUCT", "P-2", ["Bad\tRecord", "EA"])
+
+        assert store.keys("PRODUCT") == ["P-1"]
+
+    def test_the_marks_themselves_are_still_allowed(self, tmp_path) -> None:
+        # The check must not reject the separators the format is made of.
+        store = MultiValueStore(tmp_path)
+        store.write("INVENTORY", "P-1", [["DEN", "AUR"], ["10", "5"]])
+
+        assert "DEN" in store.raw("INVENTORY", "P-1")

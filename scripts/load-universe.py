@@ -13,10 +13,14 @@ through the server, so the server keeps its property of having no write path at
 all — a loader that went through it would be an argument for adding one.
 
 Usage:
-    python scripts/load-universe.py --account /data/counter
+    python scripts/load-universe.py
+    python scripts/load-universe.py --drop --i-mean-it
 
     U2_HOST, U2_USER, U2_PASSWORD and U2_ACCOUNT are read from the environment,
     the same names the MCP server uses. The password is never printed.
+
+    --data names where the demonstration store's files are, and defaults to
+    mvstore/data beside this script.
 """
 
 from __future__ import annotations

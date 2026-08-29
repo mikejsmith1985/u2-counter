@@ -25,8 +25,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 // The durable store is optional, and its absence is a supported configuration
 // rather than a degraded one: everything except surviving a restart behaves
-// identically. What changes is stated on the governance strip rather than left
-// to be discovered.
+// identically. What is lost is written to the log at startup, plainly enough for
+// an operator to read.
 //
 // SQLite rather than a database server, and the reason is the deployment shape.
 // This runs in a container that scales to zero when nobody is using it, so a

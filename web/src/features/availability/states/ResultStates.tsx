@@ -44,6 +44,57 @@ export function RefusedState({ failure, onRetry }: FailureProps): React.JSX.Elem
   );
 }
 
+/**
+ * A record could not be read without guessing at what it means.
+ *
+ * The one failure where refusing is the feature. An INVENTORY record whose
+ * quantity field is longer than its branch field describes stock at a branch it
+ * does not name, and there is no safe way to decide which branch that was --
+ * every option invents an answer a representative would then repeat.
+ *
+ * So the screen says what happened and who can fix it, and shows no figures at
+ * all. Nothing here is retryable: the record will parse the same way next time.
+ */
+export function MalformedRecordState({
+  failure,
+  partNumber,
+}: {
+  failure: ApiFailure;
+  partNumber: string;
+}): React.JSX.Element {
+  return (
+    <div className="state" role="alert">
+      <p className="state__title">The record for {partNumber} could not be read</p>
+      <p className="state__detail">{failure.message}</p>
+      <p className="state__detail">
+        No figures are shown, because reading this record would mean guessing at
+        what it says. Someone with access to the ERP will need to look at it.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The request itself was wrong.
+ *
+ * Its own state because it used to fall through to "the system could not be
+ * reached", which sent a representative chasing an outage that was not
+ * happening — and told them nothing about the thing they could actually fix.
+ *
+ * No retry button: repeating a malformed request produces the same answer.
+ */
+export function InvalidRequestState({ failure }: { failure: ApiFailure }): React.JSX.Element {
+  return (
+    <div className="state" role="alert">
+      <p className="state__title">That request could not be understood</p>
+      <p className="state__detail">{failure.message}</p>
+      <p className="state__detail">
+        The system is working. Try searching again from the box above.
+      </p>
+    </div>
+  );
+}
+
 /** The part does not exist. */
 export function NotFoundState({ partNumber }: { partNumber: string }): React.JSX.Element {
   return (
@@ -140,5 +191,16 @@ export function FailureState({
     return <RefusedState failure={failure} onRetry={onRetry} />;
   }
 
+  if (failure.kind === "invalid") {
+    return <InvalidRequestState failure={failure} />;
+  }
+
+  if (failure.kind === "malformed-record") {
+    return <MalformedRecordState failure={failure} partNumber={partNumber} />;
+  }
+
+  // Everything left is a failure to reach the data, which includes the network
+  // being down. Unreachable is the honest default: it is the answer that makes a
+  // representative ring the customer back rather than quote them a figure.
   return <UnreachableState failure={failure} onRetry={onRetry} />;
 }

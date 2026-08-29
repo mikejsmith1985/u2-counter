@@ -144,7 +144,10 @@ public sealed class ActivityRecorder(
 /// reviewer needs to know when the database could not tell callers apart.
 /// </param>
 /// <param name="DurationMs">How long it took.</param>
-/// <param name="Outcome">Success, NotFound, Unreachable, Refused or Failed.</param>
+/// <param name="Outcome">
+/// Success, NotFound, Unreachable, Refused, MalformedRecord or Failed. The set is
+/// produced by <c>ActivityRecordingFilter.DescribeOutcome</c> and nowhere else.
+/// </param>
 public sealed record ActivityEntry(
     DateTimeOffset OccurredAt,
     string UserSubject,

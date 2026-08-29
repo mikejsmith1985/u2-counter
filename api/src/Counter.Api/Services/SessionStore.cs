@@ -17,8 +17,13 @@ using Microsoft.EntityFrameworkCore;
 /// mid-call. Reads never touch the database — the store is the recovery path, not
 /// the request path.
 ///
-/// No credential is held. A session names a persona and a customer; the database
-/// login is configuration, and its password never reaches this process.
+/// No credential is held here. A session names a persona and a customer, and
+/// neither is secret.
+///
+/// The database password does reach this process, in configuration, where
+/// `SecretRedactor` reads it in order to keep it out of anything written down. A
+/// comment here once said it never arrives at all, which would have been a
+/// better arrangement and was not the one in place.
 /// </remarks>
 /// <param name="contexts">The durable store, absent when none is configured.</param>
 /// <param name="logger">For reporting a write-through that could not be made.</param>
