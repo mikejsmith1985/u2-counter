@@ -8,6 +8,33 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Two paths on the "use your own data" panel, and the second one is the point.**
+  The page used to describe one setup and leave the reader to work out whether it
+  applied to them. It now separates looking at the hosted demonstration — my data,
+  my API key, capped to Claude Haiku — from running it against your own database,
+  which is the only version that proves anything about *your* files. Both
+  repositories are linked, every command has a copy button, and three boxes for
+  host, user and account rewrite the commands as you type. Nothing typed there
+  leaves the page, and there is deliberately no password box: a password belongs
+  in the environment, not somewhere a screenshot or a browser's saved form data
+  can reach it.
+
+- **The setup, written as an instruction for somebody else's coding agent.** One
+  button copies a paragraph that names both repositories, the four variables, the
+  verification command and the two things that make the setup safe — do not guess
+  at credentials, and stop at the first step that misbehaves rather than working
+  around it. The setup is only four variables and one command, and it is still
+  where most evaluations stop; this removes the gap between reading about a tool
+  and having one running.
+
+### Fixed
+
+- **Both pickers stayed open at once.** Each had a container ref and neither used
+  it, so opening the parts list over the customers list left the one behind still
+  catching the mouse. Closing now watches pointer and focus both — a keyboard user
+  tabs away without ever generating a click, and a list left open behind them is
+  one their next Enter might select from.
+
 - **Find, review, update — the write half, kept where it cannot weaken the read
   half.** Clicking a value in the explore screen offers to change it: it names the
   record and the position, asks for confirmation, writes one value in place, then

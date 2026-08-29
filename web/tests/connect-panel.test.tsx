@@ -49,7 +49,10 @@ describe("the connect panel", () => {
     render(<ConnectPanel onClose={() => {}} />);
 
     expect(document.body.textContent).toContain("U2_READ_ONLY");
-    expect(screen.getByText(/refused by default/i)).toBeTruthy();
+    // Scoped to the note. The phrase also appears inside the setup prompt, which
+    // is correct -- the agent doing the setup needs telling too.
+    const note = document.querySelector(".connect__note--good");
+    expect(note?.textContent).toMatch(/writes are refused by default/i);
   });
 
   it("does not overstate what fits an unfamiliar schema", () => {
@@ -62,6 +65,66 @@ describe("the connect panel", () => {
 
     expect(shown).toContain("Need a mapping");
     expect(shown).toContain("ErpFiles.cs");
+  });
+
+  it("offers both paths and does not pretend they are equivalent", () => {
+    // The old page blurred these. Looking at a hosted demonstration proves the
+    // thing runs; running it against your own database is the only version that
+    // proves anything about your data, and the page has to say so.
+    render(<ConnectPanel onClose={() => {}} />);
+
+    const shown = document.body.textContent ?? "";
+
+    expect(shown).toContain("Look at it here");
+    expect(shown).toContain("Run it yourself");
+    expect(shown).toContain("github.com/mikejsmith1985/u2-mcp");
+    expect(shown).toContain("github.com/mikejsmith1985/u2-counter");
+  });
+
+  it("rewrites the commands with whatever values are typed", async () => {
+    // The point of the form. If the boxes take input and the commands below
+    // still show placeholders, somebody pastes a command naming a machine that
+    // is not theirs -- which fails in a way that reads like our bug.
+    render(<ConnectPanel onClose={() => {}} />);
+
+    await userEvent.type(screen.getByLabelText("Host"), "uv.acme.internal");
+    await userEvent.type(screen.getByLabelText("Account"), "LIVE.WHOLESALE");
+
+    const shown = document.body.textContent ?? "";
+
+    expect(shown).toContain("uv.acme.internal");
+    expect(shown).toContain("LIVE.WHOLESALE");
+    expect(shown).not.toContain("uv.internal.example.com");
+  });
+
+  it("never asks for a password in the page", () => {
+    // A password belongs in the environment. A box for one on a web page invites
+    // it into a screenshot, a bug report, or a browser's saved form data.
+    render(<ConnectPanel onClose={() => {}} />);
+
+    for (const field of screen.getAllByRole("textbox")) {
+      expect(field.getAttribute("type")).not.toBe("password");
+      expect((field.getAttribute("aria-label") ?? "").toLowerCase()).not.toContain("password");
+    }
+
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+  });
+
+  it("hands the whole setup to somebody else's agent, including the refusals", async () => {
+    // The prompt is only useful if it carries the parts that make the setup
+    // safe: no guessing at credentials, and stop rather than work around a
+    // failed step. A prompt that omits those is worse than none.
+    render(<ConnectPanel onClose={() => {}} />);
+
+    await userEvent.click(screen.getByText(/Read it first/i));
+
+    const prompt = document.querySelector(".connect__prompt pre")?.textContent ?? "";
+
+    expect(prompt).toContain("try-it-here.py");
+    expect(prompt).toContain("do not guess");
+    expect(prompt).toContain("stop at the first step");
+    expect(prompt).toContain("restored copy");
+    expect(prompt).not.toMatch(/sk-ant-[A-Za-z0-9]/);
   });
 
   it("closes on Escape", async () => {
