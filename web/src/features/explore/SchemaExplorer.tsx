@@ -21,6 +21,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { DictionaryField } from "../../api/types";
+import { UpdateValue } from "./UpdateValue";
 
 /** How many characters of a value to show before trimming it. */
 const VALUE_WIDTH = 28;
@@ -33,6 +34,13 @@ export function SchemaExplorer(): React.JSX.Element {
     position: 0,
     value: "",
   });
+
+  // Which cell is being edited, if any. Held here rather than in the row so that
+  // only one can be open at a time -- two half-finished edits on the same record
+  // is a way to write the wrong one.
+  const [editing, setEditing] = useState<
+    { recordId: string; field: DictionaryField; index: number; current: string } | null
+  >(null);
 
   const { data: files } = useQuery({
     queryKey: ["schema", "files"],
@@ -156,7 +164,25 @@ export function SchemaExplorer(): React.JSX.Element {
                     </th>
                     {columns.map((field) => (
                       <td key={field.name} className="explore__value">
-                        {trim(row.fields[field.position - 1] ?? "")}
+                        <button
+                          type="button"
+                          className="explore__cell"
+                          title={`Change ${field.heading} for ${row.key}`}
+                          onClick={() =>
+                            setEditing({
+                              recordId: row.key,
+                              field,
+                              // The first value of the field. A multi-valued
+                              // field holds one per branch, and choosing which
+                              // is a decision the editor makes plain rather than
+                              // one this table guesses.
+                              index: 0,
+                              current: firstValue(row.fields[field.position - 1] ?? ""),
+                            })
+                          }
+                        >
+                          {trim(row.fields[field.position - 1] ?? "")}
+                        </button>
                       </td>
                     ))}
                   </tr>
@@ -164,6 +190,18 @@ export function SchemaExplorer(): React.JSX.Element {
               </tbody>
             </table>
           </div>
+
+          {editing && (
+            <UpdateValue
+              file={chosen}
+              recordId={editing.recordId}
+              field={editing.field}
+              index={editing.index}
+              current={editing.current}
+              onClose={() => setEditing(null)}
+              onChanged={() => setApplied({ ...applied })}
+            />
+          )}
 
           <p className="explore__selection">
             {/* Said out loud, because a screen that shows what it asked is one
@@ -174,6 +212,21 @@ export function SchemaExplorer(): React.JSX.Element {
       )}
     </section>
   );
+}
+
+/**
+ * The first value of a field.
+ *
+ * @param raw The field, which may hold many values.
+ * @returns The value at position one.
+ *
+ * @remarks
+ * A multi-valued field holds one value per branch, so "the field's value" is not
+ * a thing that exists. The editor is given a specific position and says which it
+ * is; this picks the first because a table cell has to start somewhere.
+ */
+function firstValue(raw: string): string {
+  return raw.split("ý")[0] ?? "";
 }
 
 /** What a field's dictionary entry says about it, for a column's tooltip. */

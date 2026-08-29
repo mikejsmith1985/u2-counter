@@ -8,6 +8,22 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Find, review, update — the write half, kept where it cannot weaken the read
+  half.** Clicking a value in the explore screen offers to change it: it names the
+  record and the position, asks for confirmation, writes one value in place, then
+  reads the record back and shows how many values each field held before and
+  after. If any of those numbers changed, a parallel field has moved and the panel
+  says so as a failure rather than reporting "written" — which would be a true
+  statement that misleads, because the record is still valid and every later read
+  agrees with it.
+
+  The write lives on `IErpWriter`, never on `IErpReader`, with its own one-tool
+  allowlist. That is what keeps "the reader has no write path" true of the reader
+  rather than true of a condition somebody wrote carefully — a test asserts it
+  against the type. `IErpWriter` is registered only when `Erp:Writable` says so;
+  the deployment does not, so the endpoint answers 501 with a reason and the
+  screen offers no editor at all rather than a disabled one.
+
 - **A write path, in a module of its own.** `mvstore/driver.py` still refuses
   every write unconditionally and is unchanged; `mvstore/writable_driver.py`
   subclasses it and adds one. A deployment picks by name — `U2_DRIVER=demo` or

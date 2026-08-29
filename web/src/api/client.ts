@@ -13,7 +13,9 @@ import type {
   AskStatus,
   BrowseResponse,
   FilesResponse,
+  RecordChange,
   RecordsResponse,
+  UpdateStatus,
   CommitmentsResponse,
   CustomerSearchResponse,
   CustomerSummary,
@@ -174,6 +176,29 @@ export const api = {
   /** Read the stored record beside its parsed form. */
   record: (partNumber: string, signal?: AbortSignal) =>
     request<RecordResponse>(`/parts/${encodeURIComponent(partNumber)}/record`, signal),
+
+  /** Whether this deployment has a write path at all. */
+  updateStatus: (signal?: AbortSignal) =>
+    request<UpdateStatus>("/records/status", signal),
+
+  /** Change one value of one field, and get the record before and after. */
+  updateValue: (
+    file: string,
+    recordId: string,
+    position: number,
+    index: number,
+    value: string,
+    signal?: AbortSignal,
+  ) =>
+    request<RecordChange>(
+      `/records/${encodeURIComponent(file)}/${encodeURIComponent(recordId)}/value`,
+      signal,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position, index, value }),
+      },
+    ),
 
   /** The files in the account, as the database reports them. */
   schemaFiles: (signal?: AbortSignal) =>

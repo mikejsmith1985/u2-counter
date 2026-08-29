@@ -278,3 +278,24 @@ export interface RecordsResponse {
   /** The selection that ran, so the answer can be checked. */
   selection: string;
 }
+
+/** Whether this deployment can change anything. */
+export interface UpdateStatus {
+  canWrite: boolean;
+}
+
+/**
+ * A record before and after a change, as the database returned it both times.
+ *
+ * The field lengths are the evidence. MultiValue has no constraints to break, so
+ * a record that is now wrong is still a valid record — the only way to see that a
+ * write moved a value onto a different branch is that a field changed length.
+ */
+export interface RecordChange {
+  recordId: string;
+  before: string;
+  after: string;
+  fieldLengthsBefore: number[];
+  fieldLengthsAfter: number[];
+  isAlignmentPreserved: boolean;
+}

@@ -47,6 +47,21 @@ public sealed class ReadOnlyRouteTests(CounterFixture fixture)
         // Listed rather than exempted, because this test exists to make somebody
         // write that paragraph before adding a POST.
         "api/v1/ask",
+
+        // The one route in this application that changes ERP data, and the only
+        // one that ever should.
+        //
+        // It writes nothing on this deployment: IErpWriter is registered only
+        // when Erp:Writable says so, the demonstration does not, and the endpoint
+        // answers 501 with a reason. The route exists because "can it write?" is
+        // a fair question about a database tool, and answering it with a refusal
+        // proves only that the refusal works.
+        //
+        // What keeps the read-only claim intact is not this list. It is that the
+        // write lives on its own interface with its own allowlist -- IErpReader
+        // still has no write method on it, which WritePathTests asserts against
+        // the type rather than against anybody's care.
+        "api/v1/records/{fileName}/{recordId}/value",
     ];
 
     private static readonly string[] MutatingVerbs = ["POST", "PUT", "PATCH", "DELETE"];

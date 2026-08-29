@@ -1129,3 +1129,64 @@ kbd {
   color: var(--text-muted);
   max-width: 62ch;
 }
+
+/* --- changing a value ------------------------------------------------------- */
+
+/* A cell is a control when writing is possible. It looks like text until
+   hovered, because a table of buttons reads as a form rather than as data. */
+.explore__cell {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-bottom: 1px dotted transparent;
+}
+
+.explore__cell:hover,
+.explore__cell:focus-visible { border-bottom-color: var(--accent); color: var(--accent); }
+
+.update {
+  margin-top: 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  padding: 0.7rem 0.8rem;
+  font-size: 12px;
+}
+
+.update--absent { color: var(--text-muted); }
+.update__what { margin: 0 0 0.6rem; }
+.update__edit { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.update__edit label { display: grid; gap: 0.2rem; font-size: 11px; color: var(--text-muted); }
+
+.update__edit input {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.update__edit input[readonly] { color: var(--text-muted); background: var(--surface-sunken); }
+
+.update__actions { display: flex; gap: 0.4rem; }
+.update__confirm { margin: 0.5rem 0; }
+.update__failure { color: var(--stock-none); margin: 0.5rem 0 0; }
+
+.update__verdict { margin: 0 0 0.6rem; font-weight: 600; }
+.update__verdict--good { color: var(--stock-available); }
+.update__verdict--bad { color: var(--stock-none); }
+
+.update__lengths { border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+.update__lengths caption { text-align: left; color: var(--text-muted); padding-bottom: 0.3rem; }
+.update__lengths th,
+.update__lengths td { padding: 0.2rem 0.6rem 0.2rem 0; border-bottom: 1px solid var(--line); text-align: left; }
+
+/* A field whose length changed is the whole failure, so it is marked rather
+   than left for somebody to spot by comparing two rows of numbers. */
+.update__moved { color: var(--stock-none); font-weight: 700; }

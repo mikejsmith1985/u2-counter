@@ -115,7 +115,7 @@ public sealed class ActivityAttributionTests(CounterFixture fixture)
     }
 
     [Fact]
-    public async Task Recording_cannot_be_cancelled_by_the_caller()
+    public void Recording_cannot_be_cancelled_by_the_caller()
     {
         // The audit trail's weakest point, asserted where it is decided.
         //

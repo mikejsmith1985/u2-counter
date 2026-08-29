@@ -87,6 +87,22 @@ builder.Services.AddSingleton(new AskOptions { IsConfigured = hasApiKey });
 builder.Services.AddSingleton<SpendLedger>();
 builder.Services.AddScoped<AskService>();
 
+// The write path, only when a deployment asks for one.
+//
+// Registered against its own interface, never against IErpReader. That is what
+// keeps "the reader has no write path" true of the reader rather than true of a
+// condition somebody wrote carefully: anything holding a reader cannot acquire a
+// write, because the type does not have one.
+//
+// The demonstration leaves Erp:Writable unset, so IErpWriter is not registered,
+// the update endpoint reports that it has no write path, and the screen does not
+// offer an edit control. A write endpoint that exists and refuses everything
+// invites the question of what else is switched off.
+if (builder.Configuration.GetValue<bool>("Erp:Writable"))
+{
+    builder.Services.AddSingleton<IErpWriter, ErpWriter>();
+}
+
 builder.Services.AddScoped<AvailabilityReader>();
 builder.Services.AddScoped<PricingReader>();
 builder.Services.AddScoped<CommitmentReader>();
