@@ -39,6 +39,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# UTF-8, before anything calls the Azure CLI.
+#
+# The CLI streams build logs through a library that writes directly to the
+# console encoding. On a Windows console defaulting to cp1252 that throws the
+# moment a build prints a tick or a box-drawing character -- which every
+# successful Docker build does. The build carries on server-side; what dies is
+# this script's ability to watch it, and it then races ahead to deploy images
+# that do not exist yet.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$env:PYTHONIOENCODING = 'utf-8'
+
 $repositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $environmentFile = Join-Path $PSScriptRoot 'environment.json'
 
@@ -130,12 +142,47 @@ if (-not (Test-Path $forkRoot)) {
     throw "The hardened fork was not found at $forkRoot. Set U2_MCP_ROOT."
 }
 
+function Assert-ImageExists {
+    <#
+        Confirms the tag this deploy is about to use is really in the registry.
+
+        Waits, because the build may still be running: the CLI can lose its log
+        stream and return while the build continues server-side, and a tag that
+        is not there yet is not the same as one that will never be there.
+    #>
+    param([string] $Repository)
+
+    $deadline = (Get-Date).AddMinutes(20)
+
+    while ((Get-Date) -lt $deadline) {
+        $tags = az acr repository show-tags `
+            --name $registry `
+            --repository $Repository `
+            --output tsv 2>$null
+
+        if ($tags -contains $Tag) {
+            Write-Step "$Repository`:$Tag is in the registry"
+            return
+        }
+
+        Start-Sleep -Seconds 15
+    }
+
+    throw "$Repository`:$Tag never appeared in $registry. Check: az acr task list-runs --registry $registry"
+}
+
 Write-Step "Building $apiImage"
 az acr build `
     --registry $registry `
     --image "counter-api:$Tag" `
     --file (Join-Path $repositoryRoot 'deploy\api.Dockerfile') `
     $repositoryRoot | Out-Null
+
+# Checked, because a failing `az` does not stop PowerShell on its own.
+# ErrorActionPreference governs cmdlets; a native command that exits non-zero
+# simply returns, and the script would go on to deploy an image that was never
+# built -- reporting success while the app fails to pull.
+Assert-ImageExists -Repository 'counter-api'
 
 # Staged into a directory of its own rather than built from the shared parent.
 #
@@ -192,6 +239,8 @@ try {
 finally {
     Remove-Item $mcpContext -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+Assert-ImageExists -Repository 'counter-mcp'
 
 $registryServer = "$registry.azurecr.io"
 $registryPassword = az acr credential show --name $registry --query 'passwords[0].value' --output tsv

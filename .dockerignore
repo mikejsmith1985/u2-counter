@@ -4,40 +4,64 @@
 # listed here is the difference between a fast build and one that sends hundreds
 # of megabytes of dependencies to be discarded on arrival.
 #
-# The image installs its own dependencies from the lockfiles. Anything already
-# installed here is for a different operating system anyway.
+# The image installs its own dependencies from the lockfiles, and anything
+# already installed here was built for a different operating system anyway.
+#
+# Both forms of each pattern. The `**/` glob is not honoured identically by every
+# builder, and a pattern that silently fails to match costs a hundred megabytes
+# per deploy without ever reporting anything -- so the paths that actually exist
+# are named as well.
 
+# -- dependencies -------------------------------------------------------------
 **/node_modules/
-**/bin/
-**/obj/
-**/dist/
+web/node_modules/
+
 **/.venv/
 **/venv/
+mvstore/.venv/
+
+# -- build output -------------------------------------------------------------
+**/bin/
+**/obj/
+api/src/Counter.Api/bin/
+api/src/Counter.Api/obj/
+api/src/Counter.Domain/bin/
+api/src/Counter.Domain/obj/
+api/src/Counter.Infrastructure/bin/
+api/src/Counter.Infrastructure/obj/
+api/tests/Counter.UnitTests/bin/
+api/tests/Counter.UnitTests/obj/
+api/tests/Counter.IntegrationTests/bin/
+api/tests/Counter.IntegrationTests/obj/
+web/dist/
+
+# -- caches -------------------------------------------------------------------
 **/__pycache__/
 **/*.pyc
 **/.pytest_cache/
 **/.mypy_cache/
 **/.ruff_cache/
+coverage/
 
-# History, not source.
+# -- history, not source ------------------------------------------------------
 .git/
 .github/
 
-# Local run state and its logs.
+# -- local run state ----------------------------------------------------------
 .run/
 
-# Test artefacts.
+# -- test artefacts -----------------------------------------------------------
 web/cypress/videos/
 web/cypress/screenshots/
 web/cypress/downloads/
-coverage/
 
-# Secrets, and the file naming what a previous provision created.
+# -- secrets, and what a previous provision created ---------------------------
 .env
 .env.*
 !.env.example
 deploy/azure/environment.json
 
-# The deployment's own definitions. The image is built from a Dockerfile that
-# is passed in by path; it does not need to contain its siblings.
+# -- the deployment's own definitions -----------------------------------------
+# The image is built from a Dockerfile passed in by path; it does not need to
+# contain its siblings.
 deploy/
