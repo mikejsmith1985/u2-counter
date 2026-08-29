@@ -130,6 +130,18 @@ source of truth for what changed (Article VI). Format follows
   reintroduce by deployment the connection multiplication the fork was hardened
   against.
 
+### Changed
+
+- **A cold start is 22 seconds rather than 52.** Measured against the deployment
+  after seven minutes idle, which is how a first visitor arrives. The whole
+  difference is the thirty seconds the failing audit migration spent waiting on a
+  lock it could never take: it blocked start-up, so the platform logged thirty
+  consecutive failed start-up probes and held the container out of rotation while
+  it waited. The page is served by the same container that scales to zero, so
+  this is time a visitor spends looking at an empty browser tab before the
+  application's own waking screen can render — which is why it was worth chasing
+  rather than accepting.
+
 ### Fixed
 
 - **The audit share's mount options could be set once and never changed.** The
