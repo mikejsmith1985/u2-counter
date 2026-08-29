@@ -130,6 +130,23 @@ class MultiValueStore:
         """
         return parse_record(self.raw(file_name, record_id))
 
+    def file_names(self) -> list[str]:
+        """Return the names of every file this store holds.
+
+        Returns:
+            File names, without the storage suffix, in no particular order
+
+        Remarks:
+            How a caller who knows nothing about this account finds out what is
+            in it. A MultiValue database is explored rather than documented:
+            list the files, read their dictionaries, then read records. This is
+            the first of those three steps.
+        """
+        if not self.root.exists():
+            return []
+
+        return [path.stem for path in self.root.glob("*.mv")]
+
     def keys(self, file_name: str) -> list[str]:
         """Return every key in a file, or an empty list if the file is absent."""
         return list(self._load(file_name))

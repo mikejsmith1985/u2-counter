@@ -30,10 +30,15 @@ from .store import MultiValueStore
 # warnings nobody should act on is a log nobody reads when something is wrong.
 #
 # It is a read in every sense that matters: it names the account and nothing else.
-READ_VERBS = frozenset({"LIST", "SELECT", "SSELECT", "COUNT", "WHO"})
+READ_VERBS = frozenset({"LIST", "SELECT", "SSELECT", "COUNT", "WHO", "LISTFILES"})
 
 # Verbs that answer about the session rather than about a file.
-SESSION_VERBS = frozenset({"WHO"})
+# Verbs that answer about the account rather than about a file.
+#
+# LISTFILES is how a stranger finds out what is here at all -- the first thing
+# anyone pointing this server at an unfamiliar account runs. The store refused
+# it, so the very first step of that path failed.
+SESSION_VERBS = frozenset({"WHO", "LISTFILES"})
 
 # `F3` names field 3. Universe uses dictionary names; this store uses positions,
 # because it has no dictionary and inventing one would be a second thing to keep
@@ -78,15 +83,39 @@ class _Criterion:
     accepted_values: list[str]
 
 
-def _answer_session_verb(verb: str) -> QueryResult:
-    """Answer a verb that describes the session rather than a file.
+def _answer_session_verb(verb: str, store: MultiValueStore) -> QueryResult:
+    """Answer a verb that describes the account rather than a file.
 
     Args:
         verb: The verb, already upper-cased and known to be a session verb
+        store: The store, for verbs that report what it holds
 
     Returns:
-        A result naming the session rather than any file
+        A result describing the account rather than any one file
     """
+    if verb == "LISTFILES":
+        # How a stranger finds out what is here at all, and the first thing
+        # anyone pointing this server at an unfamiliar account runs. The store
+        # refused it, so the first step of that path failed before it began.
+        #
+        # Data files only. A dictionary is the other half of the file it
+        # describes rather than a file in its own right, which is how Universe
+        # lists them too.
+        names = sorted(
+            name for name in store.file_names() if not name.startswith("DICT.")
+        )
+        # Names, not records -- so the listing prints them and reads nothing.
+        # Without this the formatter tried to read each file name as a record
+        # key out of a file called "", which is a stranger's first command
+        # failing on an error about an empty file name.
+        return QueryResult(
+            verb=verb,
+            file_name="",
+            record_ids=names,
+            count=len(names),
+            is_keys_only=True,
+        )
+
     account = os.environ.get("U2_ACCOUNT", "DEMO")
 
     # No file, and no records. The caller wants to know the session is alive;
@@ -119,7 +148,7 @@ def run_query(store: MultiValueStore, query: str) -> QueryResult:
         )
 
     if verb in SESSION_VERBS:
-        return _answer_session_verb(verb)
+        return _answer_session_verb(verb, store)
 
     if len(tokens) < 2:
         raise QueryError(f"'{verb}' names no file to act on")
