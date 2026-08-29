@@ -7,7 +7,6 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Testcontainers.MsSql;
 
 /// <summary>
 /// Everything the integration tests run against, started once for the suite.
@@ -31,11 +30,9 @@ public sealed class CounterFixture : IAsyncLifetime
     /// <summary>How often to check whether it has.</summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(200);
 
-    private readonly MsSqlContainer _sql =
-        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
-
     private Process? _mcpServer;
     private string _dataDirectory = string.Empty;
+    private string _databasePath = string.Empty;
 
     /// <summary>The application under test, wired to the started services.</summary>
     public WebApplicationFactory<Program> Application { get; private set; } = null!;
@@ -48,6 +45,20 @@ public sealed class CounterFixture : IAsyncLifetime
 
     /// <summary>Where the repository keeps this feature's files.</summary>
     public static string RepositoryRoot { get; } = FindRepositoryRoot();
+
+    /// <summary>
+    /// The ERP password this run is configured with.
+    /// </summary>
+    /// <remarks>
+    /// Not a credential. Nothing authenticates against it — the demonstration
+    /// driver reads files and never opens a connection. It exists so the
+    /// redaction tests have something the application genuinely holds as a
+    /// secret, rather than a string they invented and then found.
+    ///
+    /// Distinctive on purpose: a value that could occur in the data would make a
+    /// passing redaction test indistinguishable from a lucky one.
+    /// </remarks>
+    public const string ErpPasswordUnderTest = "zQ7-not-a-real-universe-password-4Kx";
 
     /// <summary>
     /// A hash of every ERP file as it was before any test ran.
@@ -66,7 +77,13 @@ public sealed class CounterFixture : IAsyncLifetime
         _dataDirectory = CopyErpData();
         BaselineHashes = HashErpData();
 
-        await _sql.StartAsync();
+        // The same database engine the application ships with, in a file of its
+        // own. There was a SQL Server container here; it was replaced because the
+        // application no longer uses one, and a suite that tests against an
+        // engine production does not run is a suite proving the wrong thing --
+        // while costing two minutes of every run to start.
+        _databasePath = Path.Combine(
+            Path.GetTempPath(), $"counter-tests-{Guid.NewGuid():N}.db");
 
         // Set on the process rather than passed to the factory, because the
         // application reads its connection string while building the host and a
@@ -74,7 +91,16 @@ public sealed class CounterFixture : IAsyncLifetime
         // environment variable is in place before the entry point runs, which is
         // the only thing that is.
         Environment.SetEnvironmentVariable(
-            "ConnectionStrings__Counter", _sql.GetConnectionString());
+            "ConnectionStrings__Counter", $"Data Source={_databasePath}");
+
+        // A configured ERP password, so the redaction tests have a real secret to
+        // look for rather than a string invented inside the test.
+        //
+        // This is the credential that matters. A SQLite connection string carries
+        // no password at all, and a deployment reaching a real Universe puts this
+        // one in configuration -- so it is what has to be kept out of the audit
+        // trail when somebody pastes it into a search box by mistake.
+        Environment.SetEnvironmentVariable("Erp__DatabasePassword", ErpPasswordUnderTest);
 
         int mcpPort = FindFreePort();
         _mcpServer = StartMcpServer(mcpPort, _dataDirectory);
@@ -110,10 +136,10 @@ public sealed class CounterFixture : IAsyncLifetime
         StopMcpServer();
 
         Environment.SetEnvironmentVariable("ConnectionStrings__Counter", null);
-
-        await _sql.DisposeAsync();
+        Environment.SetEnvironmentVariable("Erp__DatabasePassword", null);
 
         TryDeleteDataDirectory();
+        TryDeleteDatabase();
     }
 
     /// <summary>
@@ -329,6 +355,43 @@ public sealed class CounterFixture : IAsyncLifetime
         {
             _mcpServer.Dispose();
             _mcpServer = null;
+        }
+    }
+
+    /// <summary>Remove the test database, tolerating a connection still open.</summary>
+    /// <remarks>
+    /// SQLite pools connections, so the file can still be held briefly after the
+    /// last context is disposed. A leftover file in the temporary directory is
+    /// untidy rather than a failure, and failing a suite that otherwise passed
+    /// over one would teach whoever reads the run nothing.
+    /// </remarks>
+    private void TryDeleteDatabase()
+    {
+        if (string.IsNullOrEmpty(_databasePath))
+        {
+            return;
+        }
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        foreach (string path in new[]
+        {
+            _databasePath,
+            _databasePath + "-wal",
+            _databasePath + "-shm",
+        })
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (IOException)
+            {
+                // Still held. It is in the temporary directory and will go.
+            }
         }
     }
 

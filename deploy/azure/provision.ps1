@@ -10,19 +10,27 @@
 
     The shape is deliberate and is most of what this script is for:
 
-      internet ──▶ counter-api      (external ingress, HTTPS)
+      internet ──▶ counter-api      external ingress, scales to zero
                         │
                         ▼  private network only
-                   counter-mcp      (internal ingress, no public address)
+                   counter-mcp      internal ingress, scales to zero, one replica
                         │
                         ▼
-                   Azure SQL        (the audit trail; no ERP data)
+                   Azure Files      the audit trail, as a SQLite file
 
-    The MCP server holds the database session and enforces the read-only rules.
-    Giving it a public address would mean those rules were the only thing
-    standing between the internet and a Universe account, and a rule enforced in
-    one place is a rule with one way to be wrong. Internal ingress means the only
-    thing that can reach it is the API in the same environment.
+    Two decisions worth knowing about.
+
+    **The MCP server has no public address.** It holds the database session and
+    enforces the read-only rules. A public address would put those rules between
+    the internet and a Universe account, and a rule enforced in one place has
+    exactly one way to be wrong.
+
+    **There is no database server.** Both apps scale to zero when nobody is using
+    them, and a database server is the one component that could not scale down
+    with them -- it would sit there costing money to hold a few thousand audit
+    rows nobody is reading. The audit trail is a SQLite file on an Azure Files
+    share, which costs pennies while idle and is still there when the container
+    comes back.
 
     Nothing here is a hosted pipeline. Article VIII: releases run from a local
     script, so what deployed is what was on the machine that deployed it.
@@ -36,28 +44,25 @@
 .PARAMETER NamePrefix
     Prefix for every resource name, so two people can each have their own.
 
-.PARAMETER SqlAdminUser
-    The Azure SQL administrator login.
-
 .EXAMPLE
-    ./deploy/azure/provision.ps1 -ResourceGroup counter-demo -SqlAdminUser counteradmin
+    ./deploy/azure/provision.ps1 -ResourceGroup counter-demo
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string] $ResourceGroup,
     [string] $Location = 'eastus',
-    [string] $NamePrefix = 'counter',
-    [Parameter(Mandatory)] [string] $SqlAdminUser
+    [string] $NamePrefix = 'counter'
 )
 
 $ErrorActionPreference = 'Stop'
 
-$registryName = "$($NamePrefix)acr$(Get-Random -Minimum 1000 -Maximum 9999)"
+$suffix = Get-Random -Minimum 10000 -Maximum 99999
+$registryName = "$($NamePrefix)acr$suffix"
 $environmentName = "$NamePrefix-env"
-$sqlServerName = "$NamePrefix-sql-$(Get-Random -Minimum 1000 -Maximum 9999)"
-$sqlDatabaseName = 'Counter'
-$vaultName = "$NamePrefix-kv-$(Get-Random -Minimum 1000 -Maximum 9999)"
+$storageAccountName = "$($NamePrefix)st$suffix"
+$shareName = 'audit'
+$storageLinkName = 'audit-share'
 
 function Write-Step {
     param([string] $Message)
@@ -84,7 +89,7 @@ function Assert-AzureCli {
 
 Assert-AzureCli
 
-Write-Step 'Registering the Container Apps provider'
+Write-Step 'Registering the providers this needs'
 az provider register --namespace Microsoft.App --wait | Out-Null
 az provider register --namespace Microsoft.OperationalInsights --wait | Out-Null
 
@@ -104,54 +109,45 @@ az containerapp env create `
     --name $environmentName `
     --location $Location | Out-Null
 
-# -- the audit trail's database ----------------------------------------------
-# No ERP data reaches this. It holds who asked what, which is the record the
-# shared database login cannot produce on its own.
+# -- where the audit trail lives ----------------------------------------------
+# A file share rather than a database server, because this deployment scales to
+# zero and a server cannot. No ERP data goes here: what is stored is the record
+# of who asked what, which is the record the shared database login cannot
+# produce on its own.
 
-Write-Step "Creating SQL server $sqlServerName"
-Write-Host ''
-Write-Host '  The SQL administrator password is read directly by the Azure CLI.' -ForegroundColor Yellow
-Write-Host '  It is not stored in this script, echoed, or written to a file.' -ForegroundColor Yellow
-
-az sql server create `
+Write-Step "Creating storage account $storageAccountName"
+az storage account create `
     --resource-group $ResourceGroup `
-    --name $sqlServerName `
+    --name $storageAccountName `
     --location $Location `
-    --admin-user $SqlAdminUser | Out-Null
+    --sku Standard_LRS `
+    --kind StorageV2 `
+    --min-tls-version TLS1_2 `
+    --allow-blob-public-access false | Out-Null
 
-Write-Step "Creating database $sqlDatabaseName"
-az sql db create `
+$storageKey = az storage account keys list `
     --resource-group $ResourceGroup `
-    --server $sqlServerName `
-    --name $sqlDatabaseName `
-    --service-objective Basic | Out-Null
+    --account-name $storageAccountName `
+    --query '[0].value' `
+    --output tsv
 
-# Azure services only. There is no rule admitting an arbitrary address, because
-# nothing outside this environment has a reason to reach the audit trail.
-Write-Step 'Allowing Azure services to reach the database'
-az sql server firewall-rule create `
+Write-Step "Creating file share $shareName"
+az storage share-rm create `
     --resource-group $ResourceGroup `
-    --server $sqlServerName `
-    --name AllowAzureServices `
-    --start-ip-address 0.0.0.0 `
-    --end-ip-address 0.0.0.0 | Out-Null
+    --storage-account $storageAccountName `
+    --name $shareName `
+    --quota 1 | Out-Null
 
-# -- secrets ------------------------------------------------------------------
-# The connection string is placed in Key Vault by whoever provisions, and read
-# from there by the container app. It does not pass through this script's output,
-# its variables, or the shell history.
-
-Write-Step "Creating key vault $vaultName"
-az keyvault create `
+# The environment holds the share definition; the app mounts it by this name.
+Write-Step "Linking the share to the environment as $storageLinkName"
+az containerapp env storage set `
     --resource-group $ResourceGroup `
-    --name $vaultName `
-    --location $Location `
-    --enable-rbac-authorization false | Out-Null
-
-Write-Host ''
-Write-Host '  Store the connection string yourself, so this script never sees it:' -ForegroundColor Yellow
-Write-Host "    az keyvault secret set --vault-name $vaultName --name counter-sql --value '<connection string>'" -ForegroundColor Yellow
-Write-Host ''
+    --name $environmentName `
+    --storage-name $storageLinkName `
+    --azure-file-account-name $storageAccountName `
+    --azure-file-account-key $storageKey `
+    --azure-file-share-name $shareName `
+    --access-mode ReadWrite | Out-Null
 
 # -- the record of what was made ----------------------------------------------
 # Written to a file rather than printed, because deploy.ps1 reads it. Deriving
@@ -161,18 +157,22 @@ Write-Host ''
 $environmentFile = Join-Path $PSScriptRoot 'environment.json'
 
 [pscustomobject]@{
-    ResourceGroup   = $ResourceGroup
-    Location        = $Location
-    Registry        = $registryName
-    Environment     = $environmentName
-    SqlServer       = $sqlServerName
-    SqlDatabase     = $sqlDatabaseName
-    KeyVault        = $vaultName
-    ApiApp          = "$NamePrefix-api"
-    McpApp          = "$NamePrefix-mcp"
-    ProvisionedAt   = (Get-Date).ToUniversalTime().ToString('o')
+    ResourceGroup  = $ResourceGroup
+    Location       = $Location
+    Registry       = $registryName
+    Environment    = $environmentName
+    StorageAccount = $storageAccountName
+    ShareName      = $shareName
+    StorageLink    = $storageLinkName
+    ApiApp         = "$NamePrefix-api"
+    McpApp         = "$NamePrefix-mcp"
+    ProvisionedAt  = (Get-Date).ToUniversalTime().ToString('o')
 } | ConvertTo-Json -Depth 3 | Set-Content -Path $environmentFile -Encoding UTF8
 
+Write-Host ''
 Write-Host 'Provisioned.' -ForegroundColor Green
 Write-Host "  Names recorded in $environmentFile"
-Write-Host '  Next: store the connection string above, then run deploy/azure/deploy.ps1'
+Write-Host '  No database server, and nothing running yet: both apps scale to'
+Write-Host '  zero, so this costs almost nothing until someone opens the link.'
+Write-Host ''
+Write-Host '  Next: ./deploy/azure/deploy.ps1'

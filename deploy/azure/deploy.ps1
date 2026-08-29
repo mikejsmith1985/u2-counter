@@ -16,6 +16,9 @@
     ships is the same suite the author was running a minute ago, on the same
     machine, against the same code.
 
+    Both apps scale to zero. See the comments at each app for what that costs and
+    what was done about it.
+
 .PARAMETER SkipTests
     Deploy without running the suite. For a demonstration being fixed live, in
     front of someone. Every other use of it is a mistake.
@@ -55,8 +58,7 @@ if (-not $Tag) {
 
     # A dirty tree tagged with a commit hash is a lie: the hash names code that
     # is not what is being deployed. Saying so beats a revision nobody can trace.
-    $isDirty = (git -C $repositoryRoot status --porcelain) -ne $null
-    if ($isDirty) {
+    if ((git -C $repositoryRoot status --porcelain)) {
         $Tag = "$Tag-dirty"
         Write-Warning 'The working tree has uncommitted changes; the tag is marked dirty.'
     }
@@ -133,66 +135,137 @@ az acr build `
     --file (Join-Path $repositoryRoot 'deploy\mcp.Dockerfile') `
     (Split-Path -Parent $repositoryRoot) | Out-Null
 
+$registryServer = "$registry.azurecr.io"
+$registryPassword = az acr credential show --name $registry --query 'passwords[0].value' --output tsv
+
+function Test-AppExists {
+    param([string] $Name)
+
+    $existing = az containerapp show `
+        --resource-group $environment.ResourceGroup `
+        --name $Name `
+        --query 'name' `
+        --output tsv 2>$null
+
+    return -not [string]::IsNullOrWhiteSpace($existing)
+}
+
 # -- the MCP server, private ---------------------------------------------------
 # Internal ingress. This process holds the database session and enforces the
 # read-only rules; a public address on it would put those rules between the
 # internet and a Universe account, and one rule in one place has one way to be
 # wrong.
+#
+# One replica at most, deliberately. The server holds a single database session,
+# and a second replica would hold a second -- the connection multiplication the
+# fork was hardened against, reintroduced by the deployment rather than by the
+# code.
+#
+# Zero replicas at rest. It wakes when the API calls it, which adds a few seconds
+# to the first request after a quiet period and nothing after that.
 
-$registryServer = "$registry.azurecr.io"
-$registryPassword = az acr credential show --name $registry --query 'passwords[0].value' --output tsv
+Write-Step "Deploying $($environment.McpApp) (internal, scales to zero)"
 
-Write-Step "Deploying $($environment.McpApp) (internal ingress only)"
-az containerapp create `
-    --resource-group $environment.ResourceGroup `
-    --name $environment.McpApp `
-    --environment $environment.Environment `
-    --image $mcpImage `
-    --registry-server $registryServer `
-    --registry-username $registry `
-    --registry-password $registryPassword `
-    --target-port 5081 `
-    --ingress internal `
-    --min-replicas 1 `
-    --max-replicas 1 `
-    --cpu 0.5 --memory 1.0Gi `
-    --env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' | Out-Null
-
-# One replica, deliberately. The server holds a single database session, and a
-# second replica would hold a second -- which is the connection multiplication
-# the fork was hardened against, reintroduced by the deployment rather than by
-# the code.
+if (Test-AppExists $environment.McpApp) {
+    az containerapp update `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.McpApp `
+        --image $mcpImage `
+        --min-replicas 0 `
+        --max-replicas 1 | Out-Null
+}
+else {
+    az containerapp create `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.McpApp `
+        --environment $environment.Environment `
+        --image $mcpImage `
+        --registry-server $registryServer `
+        --registry-username $registry `
+        --registry-password $registryPassword `
+        --target-port 5081 `
+        --ingress internal `
+        --transport http `
+        --min-replicas 0 `
+        --max-replicas 1 `
+        --cpu 0.5 --memory 1.0Gi `
+        --env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' | Out-Null
+}
 
 $mcpEndpoint = "http://$($environment.McpApp)"
 
 # -- the API, public -----------------------------------------------------------
+# One replica at most as well, because the audit trail is a SQLite file on an SMB
+# share and SQLite's locking is only safe there with a single writer. For a
+# demonstration that is no constraint at all; for anything larger the audit trail
+# would move to a database server and this cap would go with it.
 
-Write-Step "Deploying $($environment.ApiApp)"
-az containerapp create `
-    --resource-group $environment.ResourceGroup `
-    --name $environment.ApiApp `
-    --environment $environment.Environment `
-    --image $apiImage `
-    --registry-server $registryServer `
-    --registry-username $registry `
-    --registry-password $registryPassword `
-    --target-port 8080 `
-    --ingress external `
-    --min-replicas 1 `
-    --max-replicas 3 `
-    --cpu 1.0 --memory 2.0Gi `
-    --secrets "counter-sql=keyvaultref:https://$($environment.KeyVault).vault.azure.net/secrets/counter-sql,identityref:system" `
-    --env-vars "Erp__Endpoint=$mcpEndpoint/" 'ConnectionStrings__Counter=secretref:counter-sql' | Out-Null
+Write-Step "Deploying $($environment.ApiApp) (public, scales to zero)"
 
-# The connection string is a Key Vault reference resolved by the container app's
-# own identity. It does not pass through this script, its variables, or the shell
-# history -- the script names where the secret goes and the platform delivers it.
+$auditConnection = 'Data Source=/audit/counter.db'
 
-Write-Step 'Setting the health probes'
-az containerapp update `
-    --resource-group $environment.ResourceGroup `
-    --name $environment.ApiApp `
-    --min-replicas 1 | Out-Null
+if (Test-AppExists $environment.ApiApp) {
+    az containerapp update `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.ApiApp `
+        --image $apiImage `
+        --min-replicas 0 `
+        --max-replicas 1 | Out-Null
+}
+else {
+    az containerapp create `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.ApiApp `
+        --environment $environment.Environment `
+        --image $apiImage `
+        --registry-server $registryServer `
+        --registry-username $registry `
+        --registry-password $registryPassword `
+        --target-port 8080 `
+        --ingress external `
+        --min-replicas 0 `
+        --max-replicas 1 `
+        --cpu 1.0 --memory 2.0Gi `
+        --env-vars "Erp__Endpoint=$mcpEndpoint/" "ConnectionStrings__Counter=$auditConnection" | Out-Null
+
+    # The share is attached by editing the app's YAML, because the CLI has no
+    # flag for a volume mount on create. Done once, at creation, so a routine
+    # redeploy never has to touch it.
+    Write-Step 'Mounting the audit share'
+
+    $yamlPath = Join-Path ([System.IO.Path]::GetTempPath()) "counter-api-$Tag.yaml"
+
+    az containerapp show `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.ApiApp `
+        --output yaml > $yamlPath
+
+    $definition = Get-Content $yamlPath -Raw
+
+    # Appended to the template rather than rewritten, so nothing the CLI put
+    # there is lost. The two blocks are the volume and the mount that uses it.
+    $definition = $definition -replace '(?m)^(\s*)volumes: null\s*$', @"
+`$1volumes:
+`$1- name: audit
+`$1  storageName: $($environment.StorageLink)
+`$1  storageType: AzureFile
+"@
+
+    $definition = $definition -replace '(?m)^(\s*)volumeMounts: null\s*$', @"
+`$1volumeMounts:
+`$1- volumeName: audit
+`$1  mountPath: /audit
+"@
+
+    Set-Content -Path $yamlPath -Value $definition -Encoding UTF8
+
+    az containerapp update `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.ApiApp `
+        --yaml $yamlPath | Out-Null
+
+    Remove-Item $yamlPath -Force -ErrorAction SilentlyContinue
+}
 
 $url = az containerapp show `
     --resource-group $environment.ResourceGroup `
@@ -204,6 +277,10 @@ Write-Host ''
 Write-Host 'Deployed.' -ForegroundColor Green
 Write-Host "  https://$url"
 Write-Host "  Tag $Tag"
+Write-Host ''
+Write-Host '  Both apps scale to zero when idle. The first request after a quiet'
+Write-Host '  period wakes them, which the screen says plainly rather than'
+Write-Host '  appearing to be broken.'
 Write-Host ''
 Write-Host '  The MCP server has no public address. Nothing outside the'
 Write-Host '  environment can reach the database session it holds.'

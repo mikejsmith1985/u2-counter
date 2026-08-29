@@ -15,6 +15,13 @@ export default defineConfig({
         target: "http://127.0.0.1:5080",
         changeOrigin: false,
       },
+      // The readiness check lives beside the API, not on this server. Without
+      // this the front end asks Vite whether the catalogue is loaded, gets the
+      // single-page app's own index.html back, and concludes it never is.
+      "/health": {
+        target: "http://127.0.0.1:5080",
+        changeOrigin: false,
+      },
     },
   },
   build: {

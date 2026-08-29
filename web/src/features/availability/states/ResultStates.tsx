@@ -8,6 +8,7 @@
  */
 
 import type { ApiFailure } from "../../../api/client";
+import { useReadiness } from "../../../api/readiness";
 
 interface FailureProps {
   failure: ApiFailure;
@@ -84,6 +85,24 @@ export function LoadingState(): React.JSX.Element {
 
 /** Nothing chosen yet. */
 export function EmptyState(): React.JSX.Element {
+  const { isReady, catalogueCount } = useReadiness();
+
+  if (!isReady) {
+    // The waking state. This application scales to zero, so the first arrival
+    // after a quiet period is looking at a container that is still starting.
+    // Saying so is the difference between a system that is starting and one that
+    // appears to be broken.
+    return (
+      <div className="state">
+        <p className="state__title">Waking up</p>
+        <p className="state__detail">
+          Nobody has used this for a while, so it powered itself down. Reading the
+          catalogue now — this takes a few seconds.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="state">
       <p className="state__title">Search for a part</p>
@@ -91,6 +110,12 @@ export function EmptyState(): React.JSX.Element {
         Type a part number, a description or a manufacturer. Press <kbd>/</kbd> to
         jump to the search box at any time.
       </p>
+      {catalogueCount > 0 && (
+        <p className="state__detail">
+          <span className="figures">{catalogueCount.toLocaleString()}</span> parts
+          searchable.
+        </p>
+      )}
     </div>
   );
 }

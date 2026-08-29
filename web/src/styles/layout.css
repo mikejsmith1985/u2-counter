@@ -691,3 +691,32 @@ kbd {
   margin-left: auto;
   margin-right: 0.75rem;
 }
+
+/*
+ * The waking indicator. A quiet pulse rather than a spinner: the wait is a few
+ * seconds and something spinning implies work being done on the user's behalf,
+ * where this is a machine turning itself back on.
+ */
+
+.search__waking {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: waking 1.4s ease-in-out infinite;
+}
+
+@keyframes waking {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+/* Anyone who has asked not to be shown motion is not shown any. */
+@media (prefers-reduced-motion: reduce) {
+  .search__waking {
+    animation: none;
+    opacity: 0.7;
+  }
+}

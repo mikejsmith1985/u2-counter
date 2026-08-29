@@ -27,7 +27,7 @@ public sealed class ActivityRedactionTests(CounterFixture fixture)
     [Fact]
     public async Task A_password_typed_into_the_search_box_is_not_stored()
     {
-        string secret = SqlPasswordInUse();
+        string secret = ErpPasswordInUse();
 
         using HttpClient browser = _fixture.Application.CreateClient();
 
@@ -47,7 +47,7 @@ public sealed class ActivityRedactionTests(CounterFixture fixture)
     {
         // A partial match is the case a naive equality check misses, and it is
         // the more likely one: a paste lands beside whatever was already typed.
-        string secret = SqlPasswordInUse();
+        string secret = ErpPasswordInUse();
         string typed = $"breaker {secret} 100a";
 
         using HttpClient browser = _fixture.Application.CreateClient();
@@ -69,8 +69,8 @@ public sealed class ActivityRedactionTests(CounterFixture fixture)
 
         string[] secrets =
         [
+            configuration["Erp:DatabasePassword"] ?? string.Empty,
             configuration.GetConnectionString("Counter") ?? string.Empty,
-            SqlPasswordInUse(),
         ];
 
         IDbContextFactory<CounterContext> contexts = _fixture.Application.Services
@@ -107,30 +107,21 @@ public sealed class ActivityRedactionTests(CounterFixture fixture)
     }
 
     /// <summary>
-    /// The password the container was started with, taken from the live setting.
+    /// The ERP password this instance is configured with.
     /// </summary>
     /// <remarks>
-    /// Read from configuration rather than written down here, so the test cannot
-    /// drift into checking for a password nothing uses — which would pass forever
-    /// while the real one leaked.
+    /// Read back from the running application's own configuration rather than
+    /// written down here, so the test cannot drift into checking for a password
+    /// nothing uses — which would pass forever while the real one leaked.
     /// </remarks>
-    private string SqlPasswordInUse()
+    private string ErpPasswordInUse()
     {
         IConfiguration configuration =
             _fixture.Application.Services.GetRequiredService<IConfiguration>();
 
-        string connection = configuration.GetConnectionString("Counter")
-            ?? throw new InvalidOperationException("No connection string is configured.");
-
-        string password = connection
-            .Split(';', StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => part.Split('=', 2))
-            .Where(pair => pair.Length == 2 && pair[0].Trim().Equals("Password", StringComparison.OrdinalIgnoreCase))
-            .Select(pair => pair[1].Trim())
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException("The connection string carries no password.");
-
-        return password;
+        return configuration["Erp:DatabasePassword"]
+            ?? throw new InvalidOperationException(
+                "No ERP password is configured, so this test would prove nothing.");
     }
 
     /// <summary>Read every stored target, waiting for writes still in flight.</summary>

@@ -24,9 +24,20 @@ builder.Services.AddSingleton<SecretRedactor>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 // The durable store is optional, and its absence is a supported configuration
-// rather than a degraded one: the demonstration runs on a laptop with no SQL
-// Server, and everything except surviving a restart behaves identically. What
-// changes is stated on the governance strip rather than left to be discovered.
+// rather than a degraded one: everything except surviving a restart behaves
+// identically. What changes is stated on the governance strip rather than left
+// to be discovered.
+//
+// SQLite rather than a database server, and the reason is the deployment shape.
+// This runs in a container that scales to zero when nobody is using it, so a
+// database server would be the one thing that could not scale down with it --
+// costing money continuously to hold a few thousand rows nobody is reading. A
+// file on a mounted share costs nothing while idle and is there when the
+// container comes back.
+//
+// The audit trail is the only durable thing here. No ERP data is stored, which
+// is what lets the read-only claim be checked by comparing the ERP's own files
+// before and after a run.
 string? counterConnection = builder.Configuration.GetConnectionString("Counter");
 
 if (!string.IsNullOrWhiteSpace(counterConnection))
@@ -35,7 +46,7 @@ if (!string.IsNullOrWhiteSpace(counterConnection))
     // that outlives the action's scope, and a context resolved per request would
     // already be disposed by the time the row is added.
     builder.Services.AddDbContextFactory<CounterContext>(options =>
-        options.UseSqlServer(counterConnection, sql => sql.EnableRetryOnFailure()));
+        options.UseSqlite(counterConnection));
 }
 
 builder.Services.AddScoped<AvailabilityReader>();
@@ -110,6 +121,15 @@ using (IServiceScope scope = app.Services.CreateScope())
     if (contexts is not null)
     {
         await using CounterContext context = await contexts.CreateDbContextAsync();
+
+        // The directory, not just the file. On a freshly mounted share the path
+        // the connection string names may not exist yet, and SQLite reports that
+        // as "unable to open database file" -- which reads like a permissions
+        // problem and is not one.
+        CounterDatabase.EnsureDirectoryExists(
+            context.Database.GetConnectionString(),
+            app.Services.GetRequiredService<ILogger<Program>>());
+
         await context.Database.MigrateAsync();
 
         await app.Services.GetRequiredService<SessionStore>()

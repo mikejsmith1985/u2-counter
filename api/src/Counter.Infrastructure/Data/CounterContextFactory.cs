@@ -7,13 +7,12 @@ using Microsoft.EntityFrameworkCore.Design;
 /// Builds a context for the migration tools, which have no running application.
 /// </summary>
 /// <remarks>
-/// The connection string here is never used to reach a server. Creating a
-/// migration needs only the provider, so that it can generate SQL Server syntax;
-/// applying one is the application's job at startup, against the connection it
-/// was actually configured with.
+/// The connection string here never reaches a database. Creating a migration
+/// needs only the provider, so that it can generate SQLite syntax; applying one
+/// is the application's job at startup, against the file it was configured with.
 ///
-/// A placeholder is used deliberately rather than a real address, so nothing a
-/// developer runs locally can touch a real database by accident.
+/// A file that cannot exist is named deliberately, so nothing a developer runs
+/// locally can touch a real database by accident.
 /// </remarks>
 public sealed class CounterContextFactory : IDesignTimeDbContextFactory<CounterContext>
 {
@@ -21,7 +20,7 @@ public sealed class CounterContextFactory : IDesignTimeDbContextFactory<CounterC
     public CounterContext CreateDbContext(string[] args)
     {
         DbContextOptionsBuilder<CounterContext> options = new();
-        options.UseSqlServer("Server=(design-time);Database=Counter;Trusted_Connection=True;");
+        options.UseSqlite("Data Source=:design-time:");
 
         return new CounterContext(options.Options);
     }

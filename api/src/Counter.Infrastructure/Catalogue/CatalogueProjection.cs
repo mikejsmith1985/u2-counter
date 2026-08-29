@@ -27,10 +27,19 @@ public sealed class CatalogueProjection(IErpReader erp, ILogger<CatalogueProject
     private const int MaximumParts = 50_000;
 
     /// <summary>
-    /// Records read per call. Large enough that three thousand parts take a few
-    /// round trips, small enough that one response stays a manageable size.
+    /// Records read per call.
     /// </summary>
-    private const int BatchSize = 250;
+    /// <remarks>
+    /// The round trip dominates, not the payload. At 250 this took twelve calls
+    /// and about eighteen seconds, which is eighteen seconds where search returns
+    /// nothing after a cold start -- and a cold start is exactly when somebody is
+    /// looking at this for the first time.
+    ///
+    /// The MCP server permits ten thousand records per call, so a thousand leaves
+    /// room while keeping any single response small enough to hold in memory
+    /// twice: once as JSON and once parsed.
+    /// </remarks>
+    private const int BatchSize = 1_000;
 
     private readonly IErpReader _erp = erp;
     private readonly ILogger<CatalogueProjection> _logger = logger;

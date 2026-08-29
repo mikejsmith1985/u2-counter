@@ -10,6 +10,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../../api/client";
+import { useReadiness } from "../../api/readiness";
 import type { SearchResult } from "../../api/types";
 
 /** Wait after the last keystroke before asking the API. */
@@ -57,12 +58,20 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
     return () => window.removeEventListener("keydown", onSlash);
   }, []);
 
+  // This application scales to zero, so the first person after a quiet period
+  // wakes a container and the catalogue takes a few seconds to read. Searching
+  // before then returns nothing, which looks exactly like a broken search.
+  const { isReady } = useReadiness();
+
   const isSearchable = settled.length >= MINIMUM_QUERY_LENGTH;
 
   const { data, error, isFetching } = useQuery({
     queryKey: ["parts", settled],
     queryFn: ({ signal }) => api.searchParts(settled, RESULT_LIMIT, signal),
-    enabled: isSearchable,
+    // Not asked until the catalogue exists. An empty answer cached against a
+    // term would outlive the waking, and the person who typed during it would
+    // keep being told nothing matched.
+    enabled: isSearchable && isReady,
     staleTime: 30_000,
   });
 
@@ -119,7 +128,11 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
         aria-controls={listId}
         aria-autocomplete="list"
         aria-label="Search for a part by number, description or manufacturer"
-        placeholder="Part number, description or manufacturer…"
+        placeholder={
+          isReady
+            ? "Part number, description or manufacturer…"
+            : "Waking up — one moment…"
+        }
         value={text}
         onChange={(event) => {
           setText(event.target.value);
@@ -132,12 +145,23 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
 
       {/* Announced rather than shown: sighted users can see the list change. */}
       <div className="visually-hidden" role="status" aria-live="polite">
-        {isSearchable && !isFetching
-          ? `${results.length} ${results.length === 1 ? "part" : "parts"} found`
-          : ""}
+        {!isReady
+          ? "Loading the catalogue. Search will be available in a few seconds."
+          : isSearchable && !isFetching
+            ? `${results.length} ${results.length === 1 ? "part" : "parts"} found`
+            : ""}
       </div>
 
-      {isOpen && isSearchable && (
+      {isOpen && isSearchable && !isReady && (
+        <ul className="search__results" aria-label="Loading">
+          <li className="search__empty">
+            <span className="search__waking" aria-hidden="true" /> Loading the
+            catalogue — search will work in a few seconds.
+          </li>
+        </ul>
+      )}
+
+      {isOpen && isSearchable && isReady && (
         <ul className="search__results" id={listId} role="listbox" aria-label="Matching parts">
           {failure && (
             <li className="search__empty">

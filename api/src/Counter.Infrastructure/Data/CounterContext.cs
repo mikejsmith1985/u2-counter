@@ -28,6 +28,11 @@ public sealed class CounterContext(DbContextOptions<CounterContext> options) : D
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
+        // Applied to every instant in the model rather than to each one by hand.
+        // A column that missed this would compare and order wrongly, and would do
+        // it silently -- which is the failure worth removing the opportunity for.
+        InstantConverter instants = new();
+
         modelBuilder.Entity<UserSessionRow>(entity =>
         {
             entity.ToTable("UserSession");
@@ -41,6 +46,9 @@ public sealed class CounterContext(DbContextOptions<CounterContext> options) : D
             // Expiry is queried on every request to sweep dead sessions, and a
             // scan of the table to find them would grow with the demonstration.
             entity.HasIndex(row => row.ExpiresAt);
+
+            entity.Property(row => row.StartedAt).HasConversion(instants);
+            entity.Property(row => row.ExpiresAt).HasConversion(instants);
         });
 
         modelBuilder.Entity<ActivityRow>(entity =>
@@ -58,6 +66,11 @@ public sealed class CounterContext(DbContextOptions<CounterContext> options) : D
             // most recent first -- so the index answers exactly that question.
             entity.HasIndex(row => new { row.UserSubject, row.OccurredAt })
                 .IsDescending(false, true);
+
+            // The index above only means anything if the database can order the
+            // column. SQLite stores an offset as text in a format it refuses to
+            // compare, so the text is chosen here instead -- see InstantConverter.
+            entity.Property(row => row.OccurredAt).HasConversion(instants);
         });
     }
 }
