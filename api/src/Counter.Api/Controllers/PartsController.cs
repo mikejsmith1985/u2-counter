@@ -177,28 +177,18 @@ public sealed class PartsController(
     }
 
     /// <summary>
-    /// Describe the separators actually present, so the client can label them.
+    /// Describe the separators present, in the shape the contract promises.
     /// </summary>
     /// <remarks>
-    /// Only the marks the record contains are described. Listing a subvalue mark
-    /// for a record that has none would invite the client to explain a structure
-    /// that is not there.
+    /// Which marks a record holds is a fact about the record format, so it is
+    /// answered by <see cref="RecordMarks"/>. This turns that answer into the
+    /// contract's shape and does nothing else.
     /// </remarks>
-    private static IReadOnlyList<MarkDescription> DescribeMarksIn(string raw)
-    {
-        (char Character, int Code, string Name, string Separates)[] all =
-        [
-            (MultiValueRecord.AttributeMark, 254, "Attribute mark", "Fields"),
-            (MultiValueRecord.ValueMark, 253, "Value mark", "Values within a field"),
-            (MultiValueRecord.SubvalueMark, 252, "Subvalue mark", "Sub-items within a value"),
-        ];
-
-        return all
-            .Where(mark => raw.Contains(mark.Character, StringComparison.Ordinal))
+    private static IReadOnlyList<MarkDescription> DescribeMarksIn(string raw) =>
+        RecordMarks.PresentIn(raw)
             .Select(mark => new MarkDescription(
                 mark.Character.ToString(), mark.Code, mark.Name, mark.Separates))
             .ToList();
-    }
 
     /// <summary>Build a problem detail with a type the client switches on.</summary>
     private ProblemDetails Problem(string type, string detail) => new()

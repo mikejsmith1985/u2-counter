@@ -166,12 +166,19 @@ public sealed record RecordResponse(
 /// <summary>A customer, for the selector.</summary>
 /// <param name="AccountNumber">The key.</param>
 /// <param name="Name">Trading name.</param>
-/// <param name="City">Where they are.</param>
+/// <param name="AddressLine">
+/// The first line of their address, which is what tells two customers of the
+/// same name apart in the selector.
+///
+/// Not a city: the CUSTOMER file holds address lines and no city field, and
+/// calling this one a city would put a street address under a heading that says
+/// otherwise -- an interface stating something the record does not.
+/// </param>
 /// <param name="PriceClass">Empty when they pay list.</param>
 public sealed record CustomerSummary(
     string AccountNumber,
     string Name,
-    string City,
+    string AddressLine,
     string PriceClass);
 
 /// <summary>What customers matched.</summary>

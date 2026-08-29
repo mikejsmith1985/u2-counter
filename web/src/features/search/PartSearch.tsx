@@ -69,12 +69,26 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
   const results: SearchResult[] = data?.results ?? [];
   const failure = error instanceof ApiFailure ? error : null;
 
+  /**
+   * Select a part and let go of the search box.
+   *
+   * The blur is load-bearing. The shortcuts printed in the header are ignored
+   * while a text field has focus -- correctly, or typing an R into a part number
+   * would open a drawer -- so leaving focus in the box after a selection makes
+   * every one of them do nothing. The person has just been shown a hint that
+   * says "R record", presses R, and the interface ignores them.
+   *
+   * Focus moves to the answer instead, which is also what a screen-reader user
+   * needs: without it, choosing a result announces nothing and the reader is
+   * left in a search box whose list has silently vanished.
+   */
   function choose(index: number): void {
     const chosen = results[index];
     if (chosen) {
       onSelect(chosen.partNumber);
       setIsOpen(false);
       setText("");
+      inputRef.current?.blur();
     }
   }
 

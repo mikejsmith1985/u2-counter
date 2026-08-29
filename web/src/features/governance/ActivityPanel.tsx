@@ -9,6 +9,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
+import { useReturnFocus } from "../../components/useReturnFocus";
 
 const RECENT_ENTRIES = 20;
 
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export function ActivityPanel({ onClose }: Props): React.JSX.Element {
+  useReturnFocus();
+
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {

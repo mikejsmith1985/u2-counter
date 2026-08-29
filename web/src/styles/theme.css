@@ -23,7 +23,12 @@
 
   --text: #1c1917;
   --text-muted: #6b6259;
-  --text-faint: #948b80;
+  /* Faint, not unreadable. This was two shades lighter and failed AA against
+     the surface at 3.2:1 -- and the text it was used for is the keyboard hints,
+     which is to say the part of the interface that tells a keyboard user how to
+     drive it. Faintness is a way of ranking things on a page, not a licence to
+     put text below the threshold at which people can read it. */
+  --text-faint: #776e64;
 
   /* One accent, spent on what the eye should find first. */
   --accent: #b45309;
@@ -60,7 +65,9 @@
 
     --text: #f2efea;
     --text-muted: #a89f92;
-    --text-faint: #7d746a;
+    /* Raised for the same reason as its light counterpart: at #7d746a this
+       measured 3.6:1 on the raised surface, below AA. */
+    --text-faint: #9a9186;
 
     --accent: #f59e0b;
     --accent-text: #17150f;
@@ -89,7 +96,7 @@
 
   --text: #f2efea;
   --text-muted: #a89f92;
-  --text-faint: #7d746a;
+  --text-faint: #9a9186;
 
   --accent: #f59e0b;
   --accent-text: #17150f;

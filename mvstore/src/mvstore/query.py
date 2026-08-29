@@ -14,13 +14,24 @@ record that mentions Aurora at any position.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 
 from .store import MultiValueStore
 
 # The only verbs this store answers.
-READ_VERBS = frozenset({"LIST", "SELECT", "SSELECT", "COUNT"})
+#
+# WHO is here because the MCP server asks it every thirty seconds to check the
+# connection is alive. A store that refuses it makes the server log a health
+# check failure on a connection that is perfectly healthy -- and a log full of
+# warnings nobody should act on is a log nobody reads when something is wrong.
+#
+# It is a read in every sense that matters: it names the account and nothing else.
+READ_VERBS = frozenset({"LIST", "SELECT", "SSELECT", "COUNT", "WHO"})
+
+# Verbs that answer about the session rather than about a file.
+SESSION_VERBS = frozenset({"WHO"})
 
 # Verbs that return records rather than a figure.
 RECORD_VERBS = frozenset({"LIST", "SELECT", "SSELECT"})
@@ -65,6 +76,22 @@ class _Criterion:
     accepted_values: list[str]
 
 
+def _answer_session_verb(verb: str) -> QueryResult:
+    """Answer a verb that describes the session rather than a file.
+
+    Args:
+        verb: The verb, already upper-cased and known to be a session verb
+
+    Returns:
+        A result naming the session rather than any file
+    """
+    account = os.environ.get("U2_ACCOUNT", "DEMO")
+
+    # No file, and no records. The caller wants to know the session is alive;
+    # naming the account is the whole of the answer.
+    return QueryResult(verb=verb, file_name=account, record_ids=[], count=1)
+
+
 def run_query(store: MultiValueStore, query: str) -> QueryResult:
     """Run a read query against the store.
 
@@ -88,6 +115,9 @@ def run_query(store: MultiValueStore, query: str) -> QueryResult:
             f"'{verb}' is not a read verb this store answers. "
             f"Permitted: {', '.join(sorted(READ_VERBS))}"
         )
+
+    if verb in SESSION_VERBS:
+        return _answer_session_verb(verb)
 
     if len(tokens) < 2:
         raise QueryError(f"'{verb}' names no file to act on")

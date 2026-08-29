@@ -193,9 +193,20 @@
   border-left-color: var(--stock-committed);
 }
 
+/*
+ * A branch with nothing free recedes, but stays readable.
+ *
+ * It did this with opacity, which dropped its figures to 3.4:1 -- below AA. The
+ * rows that say a branch has nothing are exactly the rows a representative reads
+ * to confirm there is genuinely none before telling a customer so, and dimming
+ * them to the edge of legibility gets that answer wrong in the direction that
+ * costs an order.
+ *
+ * Receding is now done by the surface and the border, which carry no text.
+ */
 .branch--none {
   border-left-color: var(--line-strong);
-  opacity: 0.72;
+  background: var(--surface-sunken);
 }
 
 .branch__name {
@@ -550,4 +561,133 @@ kbd {
   border-bottom-width: 2px;
   border-radius: 3px;
   background: var(--surface-sunken);
+}
+
+/*
+ * Signing in, and the boundary this release does not cross.
+ *
+ * The persona button in the governance strip is styled as text rather than as a
+ * button: it is a name that happens to be changeable, and dressing it as a
+ * control would give it more weight on the strip than the read-only badge beside
+ * it deserves less.
+ */
+
+.governance__identity {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-bottom: 1px dashed var(--line-strong);
+}
+
+.governance__identity:hover {
+  border-bottom-color: var(--accent);
+}
+
+/* Narrower than the record drawer, which needs the width for two panes. This
+   panel is a short list and a paragraph, and a wide column of short rows reads
+   worse than a narrow one. */
+.drawer--narrow {
+  width: min(34rem, 100%);
+}
+
+.drawer__note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 0.6rem;
+  max-width: 60ch;
+}
+
+.persona-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+
+.persona {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.8rem;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.persona:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.persona--current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.persona__name {
+  font-weight: 600;
+}
+
+.persona__detail {
+  grid-column: 1;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.persona__marker {
+  grid-row: 1;
+  grid-column: 2;
+  align-self: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/*
+ * A control this release deliberately does not offer, shown where the working
+ * one would be. The reason sits beside it rather than in a tooltip, because a
+ * tooltip is not there for anyone reading with a keyboard or a screen reader.
+ */
+
+.read-only-gate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.read-only-gate__reason {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.read-only-notice {
+  max-width: 70ch;
+  margin: 0.8rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/*
+ * The provenance badges in a drawer header. The strip they normally live on is
+ * covered while a drawer is open, and this is the screen most worth
+ * photographing -- so they say the same thing here.
+ */
+
+.drawer__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  margin-right: 0.75rem;
 }

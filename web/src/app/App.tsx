@@ -7,7 +7,7 @@
  * one hand.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../api/client";
 import { PartSearch } from "../features/search/PartSearch";
@@ -17,6 +17,8 @@ import { BranchCommitments } from "../features/commitments/BranchCommitments";
 import { RecordDrawer } from "../features/record/RecordDrawer";
 import { GovernanceStrip } from "../features/governance/GovernanceStrip";
 import { ActivityPanel } from "../features/governance/ActivityPanel";
+import { SignIn } from "../features/governance/SignIn";
+import { ReadOnlyGate } from "../components/ReadOnlyGate";
 import { CustomerSelector } from "../features/pricing/CustomerSelector";
 import { buildSummary } from "../features/availability/copySummary";
 import {
@@ -31,9 +33,15 @@ export function App(): React.JSX.Element {
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
   const [customerAccount, setCustomerAccount] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
+  // Where focus goes when a part is chosen. Somewhere in the answer rather than
+  // in the search box, so the shortcuts work and a screen reader announces what
+  // was selected.
+  const headingRef = useRef<HTMLDivElement>(null);
 
   const { data: session } = useQuery({
     queryKey: ["session"],
@@ -74,6 +82,26 @@ export function App(): React.JSX.Element {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [partNumber]);
+
+  // Which part the heading has already been focused for. Without this, focus
+  // moves on every refresh of the availability query -- and one of those happens
+  // when a customer is chosen. Someone who selects a customer and immediately
+  // starts typing a part number would have their first keystrokes land on a
+  // heading instead of in the search box, silently.
+  const focusedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!availability) {
+      return;
+    }
+
+    const answered = availability.part.partNumber;
+
+    if (focusedFor.current !== answered) {
+      focusedFor.current = answered;
+      headingRef.current?.focus();
+    }
+  }, [availability]);
 
   const selectPart = useCallback((chosen: string) => {
     setPartNumber(chosen);
@@ -147,7 +175,16 @@ export function App(): React.JSX.Element {
               </p>
             )}
 
-            <div className="part-heading">
+            <div
+              className="part-heading"
+              ref={headingRef}
+              // Focusable by script but not in the tab order: nobody tabbing
+              // through the page should have to stop on a heading.
+              tabIndex={-1}
+              // Read out when focus lands here, which is how someone using a
+              // screen reader learns that their selection took effect.
+              aria-live="polite"
+            >
               <span className="part-heading__number">{availability.part.partNumber}</span>
               <span className="part-heading__description">
                 {availability.part.description}
@@ -193,6 +230,20 @@ export function App(): React.JSX.Element {
                   >
                     Show the record
                   </button>
+
+                  {/*
+                    Reserving stock is the obvious next thing to want from this
+                    screen, and it is the thing this release deliberately does
+                    not do. Shown disabled, in the place the working control
+                    would sit, so the boundary reads as a decision rather than
+                    as something nobody got to.
+                  */}
+                  <ReadOnlyGate
+                    canWrite={session?.isReadOnly === false}
+                    action="Reserve stock"
+                  >
+                    <span />
+                  </ReadOnlyGate>
                 </div>
 
                 <BranchGrid
@@ -219,13 +270,24 @@ export function App(): React.JSX.Element {
         )}
       </main>
 
-      <GovernanceStrip session={session ?? null} onShowActivity={() => setIsActivityOpen(true)} />
+      <GovernanceStrip
+        session={session ?? null}
+        onShowActivity={() => setIsActivityOpen(true)}
+        onChangeIdentity={() => setIsSignInOpen(true)}
+      />
 
       {isRecordOpen && partNumber && (
         <RecordDrawer partNumber={partNumber} onClose={() => setIsRecordOpen(false)} />
       )}
 
       {isActivityOpen && <ActivityPanel onClose={() => setIsActivityOpen(false)} />}
+
+      {isSignInOpen && (
+        <SignIn
+          currentSubject={session?.userSubject ?? null}
+          onClose={() => setIsSignInOpen(false)}
+        />
+      )}
     </div>
   );
 }

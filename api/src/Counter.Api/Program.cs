@@ -43,6 +43,21 @@ builder.Services.AddScoped<PricingReader>();
 builder.Services.AddScoped<CommitmentReader>();
 builder.Services.AddScoped<AvailabilityService>();
 
+// The request budget is enforced by ErpReader and nowhere else.
+//
+// There was a filter here that installed a budget as the request's cancellation
+// token. It was removed because it did not work and could not: a resource filter
+// wraps result execution, so its token was still the response's abort token
+// while the response was being written -- and any request that legitimately took
+// longer than the budget had its answer truncated. Measured, an unreachable ERP
+// produced 200 with an empty body where it had produced a typed 504 before.
+//
+// An empty 200 is the single worst answer this application can give: the screen
+// reads it as "no stock" and a representative repeats that to a customer. A
+// filter meant to protect that distinction was destroying it.
+//
+// The reader races each ERP call against the budget and drops the connection
+// when it expires, which bounds the wait without touching the response.
 builder.Services.AddControllers(options =>
 {
     // Registered globally so no controller can forget it. An ERP failure
@@ -54,10 +69,6 @@ builder.Services.AddControllers(options =>
     // ones that fail: a failure nobody recorded is indistinguishable from a
     // request nobody made.
     options.Filters.Add<ActivityRecordingFilter>();
-
-    // Innermost, so the budget it imposes covers the action alone and the two
-    // filters above still see -- and record -- the failure it raises.
-    options.Filters.Add<ErpTimeoutFilter>();
 });
 
 builder.Services.AddProblemDetails();

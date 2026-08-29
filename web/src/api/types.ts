@@ -134,7 +134,8 @@ export interface RecordResponse {
 export interface CustomerSummary {
   accountNumber: string;
   name: string;
-  city: string;
+  /** First line of their address. Not a city -- the record holds no city. */
+  addressLine: string;
   priceClass: string;
 }
 
@@ -153,6 +154,23 @@ export interface SessionResponse {
   /** Surfaced to the user: a shared login is a limitation they should know about. */
   databaseLoginIsShared: boolean;
   isDemonstrationData: boolean;
+}
+
+/**
+ * A demonstration identity.
+ *
+ * Not an account. There is no password behind it, and choosing one proves
+ * nothing -- it exists so the activity record has a person to name and the
+ * branch grid has a home branch to lead with.
+ */
+export interface Persona {
+  subject: string;
+  displayName: string;
+  homeBranchCode: string;
+  /** True for every persona: this release answers questions and changes nothing. */
+  isReadOnly: boolean;
+  /** What this persona is useful for showing. */
+  description: string;
 }
 
 export interface ActivityEntry {

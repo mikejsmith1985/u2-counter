@@ -109,7 +109,7 @@ calls means two chances to show half an answer.
     {
       "branchCode": "DEN",
       "branchName": "Denver",
-      "city": "Denver",
+      "addressLine": "Denver",
       "onHand": 142,
       "committed": 40,
       "freeToSell": 102,

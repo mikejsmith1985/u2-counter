@@ -99,6 +99,36 @@ function Test-ProcessIsOurs {
     return ([math]::Abs(($actual - $recorded).TotalSeconds) -lt 1)
 }
 
+function Stop-PortHolder {
+    <#
+        Stops whatever is listening on one of the ports this script assigns.
+
+        This exists because several of these services are not the process we
+        started. `dotnet run` builds, launches Counter.Api as a child and exits;
+        npm.cmd launches node and exits. The recorded id is then gone while the
+        service it started is still holding the port -- and the next run fails to
+        bind, with an error that says nothing about why.
+
+        Resolving the owner of a known port is still targeting one specific id.
+        It is not a name pattern, and Article II's prohibition is on name
+        patterns for a concrete reason: this agent may itself be running inside a
+        process called dotnet or node, and `Stop-Process -Name node` would end
+        the session issuing it. The port is ours because this script assigned it.
+    #>
+    param([int] $Port, [string] $Name)
+
+    $owners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess -Unique
+
+    foreach ($processId in $owners) {
+        $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+        if ($process) {
+            Write-Step "Stopping $Name on port $Port ($($process.ProcessName), pid $processId)"
+            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Stop-RecordedProcesses {
     $records = Get-RecordedProcesses
     if ($records.Count -eq 0) {
@@ -108,10 +138,19 @@ function Stop-RecordedProcesses {
     foreach ($record in $records) {
         if (Test-ProcessIsOurs -ProcessId $record.ProcessId -RecordedStartTime $record.StartedAt) {
             Write-Step "Stopping $($record.Name) (pid $($record.ProcessId))"
-            Stop-Process -Id $record.ProcessId -Force -ErrorAction SilentlyContinue
+
+            # /T stops the tree. The recorded id is often a launcher whose child
+            # is the actual service, and stopping the parent alone orphans it.
+            & taskkill.exe /PID $record.ProcessId /T /F 2>&1 | Out-Null
         }
         else {
-            Write-Step "Skipping $($record.Name) (pid $($record.ProcessId)) - no longer ours"
+            Write-Step "Skipping $($record.Name) (pid $($record.ProcessId)) - already gone"
+        }
+
+        # Whether or not the recorded id was still ours, the port it was given
+        # may still be held by something it started.
+        if ($record.Port) {
+            Stop-PortHolder -Port ([int] $record.Port) -Name $record.Name
         }
     }
 
@@ -141,7 +180,8 @@ function Start-Service {
         [string] $FilePath,
         [string[]] $ArgumentList,
         [string] $WorkingDirectory,
-        [hashtable] $Environment = @{}
+        [hashtable] $Environment = @{},
+        [int] $Port = 0
     )
 
     $previousValues = @{}
@@ -171,6 +211,9 @@ function Start-Service {
         Name        = $Name
         ProcessId   = $process.Id
         StartedAt   = $process.StartTime.ToUniversalTime().ToString('o')
+        # Recorded so the service can still be stopped when the process we
+        # started has exited and left a child holding the port.
+        Port        = $Port
         LogPath     = $standardOut
     }
 }
@@ -188,6 +231,36 @@ if (-not (Test-Path $mcpExecutable)) {
     throw "The hardened MCP server was not found at $mcpExecutable. Set U2_MCP_ROOT to where the fork is checked out."
 }
 
+function Resolve-DotnetExecutable {
+    <#
+        Returns a dotnet that has an SDK behind it.
+
+        The dotnet on PATH is frequently the shared host alone -- enough to run a
+        published application, not enough to build one. It fails with "No .NET
+        SDKs were found", which reads like dotnet being absent rather than like
+        the wrong one being first on the path, and costs whoever hits it an
+        afternoon.
+    #>
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe'),
+        (Join-Path $env:USERPROFILE '.dotnet\dotnet.exe'),
+        'C:\Program Files\dotnet\dotnet.exe'
+    )
+
+    foreach ($candidate in $candidates) {
+        $sdkDirectory = Join-Path (Split-Path -Parent $candidate) 'sdk'
+        if ((Test-Path $candidate) -and (Test-Path $sdkDirectory) -and
+            (Get-ChildItem $sdkDirectory -Directory -ErrorAction SilentlyContinue)) {
+            return $candidate
+        }
+    }
+
+    throw 'No dotnet with an SDK was found. Install the .NET 9 SDK, or put one earlier on PATH.'
+}
+
+$dotnetExecutable = Resolve-DotnetExecutable
+$dotnetRoot = Split-Path -Parent $dotnetExecutable
+
 # -- entry point --------------------------------------------------------------
 
 if ($Stop) {
@@ -201,7 +274,19 @@ Stop-RecordedProcesses
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 
+# Recorded as each one starts rather than all at the end. A failure partway
+# through otherwise leaves the services that did start with nothing recording
+# them: -Stop cannot find them, the next run collides with the ports they hold,
+# and the only way out is to hunt process ids by hand -- which is exactly the
+# situation Article II forbids resolving with a name pattern.
 $started = @()
+
+function Register-Started {
+    param([object] $Record)
+
+    $script:started += $Record
+    Save-RecordedProcesses -Records $script:started
+}
 
 if (-not $SkipSql) {
     Write-Step 'Starting SQL Server container'
@@ -217,7 +302,7 @@ if (-not $SkipSql) {
 # process, presenting the same objects uopy does, so the server runs the code it
 # would run against a real Universe rather than a second path written for the
 # demonstration.
-$started += Start-Service -Name 'mcp' `
+Register-Started (Start-Service -Name 'mcp' `
     -FilePath $mcpExecutable `
     -ArgumentList @('--streamable-http', '--host', '127.0.0.1', '--port', '5081') `
     -WorkingDirectory $repositoryRoot `
@@ -234,19 +319,24 @@ $started += Start-Service -Name 'mcp' `
         'U2_USER'           = 'u2demo'
         'U2_PASSWORD'       = 'demo-no-database-behind-this'
         'U2_ACCOUNT'        = 'DEMO'
-    }
+    } `
+    -Port 5081)
 
-$started += Start-Service -Name 'api' `
-    -FilePath 'dotnet' `
+Register-Started (Start-Service -Name 'api' `
+    -FilePath $dotnetExecutable `
     -ArgumentList @('run', '--project', 'src/Counter.Api', '--urls', 'http://127.0.0.1:5080') `
-    -WorkingDirectory (Join-Path $repositoryRoot 'api')
+    -WorkingDirectory (Join-Path $repositoryRoot 'api') `
+    -Environment @{ 'DOTNET_ROOT' = $dotnetRoot } `
+    -Port 5080)
 
-$started += Start-Service -Name 'web' `
-    -FilePath 'npm' `
+# npm.cmd, not npm: the bare name resolves to a shell script that
+# Start-Process cannot launch, and the error it gives ("not a valid Win32
+# application") says nothing about which of several things went wrong.
+Register-Started (Start-Service -Name 'web' `
+    -FilePath 'npm.cmd' `
     -ArgumentList @('run', 'dev') `
-    -WorkingDirectory (Join-Path $repositoryRoot 'web')
-
-Save-RecordedProcesses -Records $started
+    -WorkingDirectory (Join-Path $repositoryRoot 'web') `
+    -Port 5173)
 
 Write-Host ''
 Write-Host 'Running:' -ForegroundColor Green

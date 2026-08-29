@@ -137,6 +137,75 @@ public sealed class CounterFixture : IAsyncLifetime
         return hashes;
     }
 
+    /// <summary>
+    /// Start a second MCP server that can be made slow while it is running.
+    /// </summary>
+    /// <returns>
+    /// Something to dispose, the port it listens on, and the path of the file
+    /// whose presence turns the delay on.
+    /// </returns>
+    /// <remarks>
+    /// A second server rather than reconfiguring the shared one: slowing that one
+    /// would slow every other test in the collection and make the order they run
+    /// in matter. It reads the same copied data, which is safe because nothing
+    /// writes.
+    ///
+    /// The switch is a file rather than an environment variable because a
+    /// variable is fixed at startup, and a store that is slow from startup is one
+    /// the application never finishes loading its catalogue against -- which
+    /// measures a state no user is ever in.
+    /// </remarks>
+    public async Task<(IDisposable Server, int Port, string SwitchPath)> StartSwitchableServerAsync()
+    {
+        int port = FindFreePort();
+
+        string switchPath = Path.Combine(
+            Path.GetTempPath(), $"counter-delay-{Guid.NewGuid():N}.txt");
+
+        Process server = StartMcpServer(
+            port,
+            _dataDirectory,
+            extraEnvironment: new Dictionary<string, string>
+            {
+                ["MVSTORE_DELAY_FILE"] = switchPath,
+            });
+
+        await WaitForListenerAsync(port);
+
+        return (new ProcessHandle(server, switchPath), port, switchPath);
+    }
+
+    /// <summary>
+    /// Build an application configured against a particular server and budget.
+    /// </summary>
+    /// <param name="mcpPort">Which MCP server it should reach.</param>
+    /// <param name="budget">How long it should wait before giving up.</param>
+    /// <remarks>
+    /// The endpoint and the budget are supplied through configuration rather than
+    /// through the environment because both are bound as options, which are read
+    /// when they are resolved rather than when the host is built.
+    /// </remarks>
+    public (IAsyncDisposable Application, HttpClient Client) ApplicationAgainst(
+        int mcpPort,
+        TimeSpan budget)
+    {
+        // A fresh factory rather than one derived from the suite's. Deriving
+        // keeps the suite's own configuration source, and configuration is
+        // last-one-wins in ways that are easy to get subtly wrong -- a budget
+        // that silently stayed at ten seconds would make a two-second test pass
+        // by waiting ten.
+        WebApplicationFactory<Program> application = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Erp:Endpoint"] = $"http://127.0.0.1:{mcpPort}/",
+                    ["Erp:RequestBudget"] = budget.ToString("c", CultureInfo.InvariantCulture),
+                })));
+
+        return (application, application.CreateClient());
+    }
+
     /// <summary>Copy the ERP files somewhere a test run cannot damage them.</summary>
     private static string CopyErpData()
     {
@@ -170,7 +239,10 @@ public sealed class CounterFixture : IAsyncLifetime
     /// host. What is being demonstrated is a server someone can run; running it
     /// any other way here would prove something else.
     /// </remarks>
-    private static Process StartMcpServer(int port, string dataDirectory)
+    private static Process StartMcpServer(
+        int port,
+        string dataDirectory,
+        IReadOnlyDictionary<string, string>? extraEnvironment = null)
     {
         string forkRoot = Environment.GetEnvironmentVariable("U2_MCP_ROOT")
             ?? Path.Combine(Path.GetDirectoryName(RepositoryRoot)!, "u2-mcp");
@@ -210,6 +282,11 @@ public sealed class CounterFixture : IAsyncLifetime
         start.Environment["U2_USER"] = "u2demo";
         start.Environment["U2_PASSWORD"] = "demo-no-database-behind-this";
         start.Environment["U2_ACCOUNT"] = "DEMO";
+
+        foreach ((string name, string value) in extraEnvironment ?? new Dictionary<string, string>())
+        {
+            start.Environment[name] = value;
+        }
 
         Process process = Process.Start(start)
             ?? throw new InvalidOperationException("The MCP server did not start.");
@@ -355,6 +432,46 @@ public sealed class CounterFixture : IAsyncLifetime
 
         throw new DirectoryNotFoundException(
             "The repository root was not found above the test assembly.");
+    }
+}
+
+/// <summary>
+/// Stops one started process when it is disposed.
+/// </summary>
+/// <remarks>
+/// By its own process id and its tree, never by name. Article II: a name pattern
+/// here would end unrelated Python processes, including ones belonging to whoever
+/// is running the suite.
+/// </remarks>
+internal sealed class ProcessHandle(Process process, string? alsoDelete = null) : IDisposable
+{
+    private readonly Process _process = process;
+    private readonly string? _alsoDelete = alsoDelete;
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_alsoDelete is not null && File.Exists(_alsoDelete))
+        {
+            File.Delete(_alsoDelete);
+        }
+
+        try
+        {
+            if (!_process.HasExited)
+            {
+                _process.Kill(entireProcessTree: true);
+                _process.WaitForExit((int)TimeSpan.FromSeconds(10).TotalMilliseconds);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Already gone, which is the outcome wanted.
+        }
+        finally
+        {
+            _process.Dispose();
+        }
     }
 }
 

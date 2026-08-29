@@ -15,6 +15,7 @@ import type {
   SearchResponse,
   SessionResponse,
   ActivityResponse,
+  Persona,
 } from "./types";
 
 /*
@@ -153,6 +154,30 @@ export const api = {
   /** Recent activity for the current user. */
   activity: (limit: number, signal?: AbortSignal) =>
     request<ActivityResponse>(`/activity?limit=${limit}`, signal),
+
+  /** The demonstration identities on offer. */
+  personas: (signal?: AbortSignal) => request<Persona[]>("/session/personas", signal),
+
+  /**
+   * Become one of the demonstration personas.
+   *
+   * Not a login. No credential is sent, because there is none: this changes
+   * whose name the activity record carries and which branch leads the grid.
+   */
+  signIn: async (subject: string): Promise<SessionResponse> => {
+    const response = await fetch(`${API_BASE}/session`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ subject }),
+    });
+
+    if (!response.ok) {
+      throw new ApiFailure("unknown", response.status, "That identity could not be selected.");
+    }
+
+    return (await response.json()) as SessionResponse;
+  },
 
   /** Choose the customer being served. */
   selectCustomer: async (customerAccount: string | null): Promise<SessionResponse> => {

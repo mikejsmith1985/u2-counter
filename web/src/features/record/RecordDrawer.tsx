@@ -11,6 +11,8 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../../api/client";
 import type { MarkDescription } from "../../api/types";
+import { useReturnFocus } from "../../components/useReturnFocus";
+import { ProvenanceBadges } from "../../components/ProvenanceBadges";
 
 interface Props {
   partNumber: string;
@@ -32,12 +34,22 @@ const MARK_LABEL: Record<number, string> = {
 };
 
 export function RecordDrawer({ partNumber, onClose }: Props): React.JSX.Element {
+  useReturnFocus();
+
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const { data, error, isPending } = useQuery({
     queryKey: ["record", partNumber],
     queryFn: ({ signal }) => api.record(partNumber, signal),
+  });
+
+  // The drawer covers the governance strip, and this is the screen most likely
+  // to be photographed: a MultiValue record on screen, with no badge, is an
+  // image someone can present in good faith as production data.
+  const { data: session } = useQuery({
+    queryKey: ["session"],
+    queryFn: ({ signal }) => api.session(signal),
   });
 
   // Focus moves into the drawer when it opens and Escape closes it. Without
@@ -99,6 +111,16 @@ export function RecordDrawer({ partNumber, onClose }: Props): React.JSX.Element 
           <h2 className="panel__title" id="record-title">
             The record as the system stores it
           </h2>
+          <span className="drawer__badges">
+            {session && (
+              <ProvenanceBadges
+                isReadOnly={session.isReadOnly}
+                isSharedLogin={session.databaseLoginIsShared}
+                isDemonstrationData={session.isDemonstrationData}
+              />
+            )}
+          </span>
+
           <button type="button" className="button button--quiet" onClick={onClose} ref={closeRef}>
             Close (Esc)
           </button>
@@ -157,7 +179,7 @@ export function RecordDrawer({ partNumber, onClose }: Props): React.JSX.Element 
 }
 
 /** Names each separator present, so a reader unfamiliar with them can follow. */
-function MarkLegend({ marks }: { marks: MarkDescription[] }): React.JSX.Element {
+export function MarkLegend({ marks }: { marks: MarkDescription[] }): React.JSX.Element {
   return (
     <div className="record-legend">
       {marks.map((mark) => (
@@ -180,7 +202,7 @@ function MarkLegend({ marks }: { marks: MarkDescription[] }): React.JSX.Element 
  * a badge shows the structure without pretending the record contains something
  * it does not.
  */
-function MarkedRecord({
+export function MarkedRecord({
   raw,
   marks,
 }: {

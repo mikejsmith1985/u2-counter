@@ -83,7 +83,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T033 [P] Implement the application shell, routing and TanStack Query provider in `web/src/app/`
 - [X] T034 [P] Implement the keyboard layer in `web/src/components/keyboard/` — `/` focus search, `Escape` clear, `Enter` open, `R` record drawer
 - [X] T035 [P] Implement the shared response envelope types and the typed API client in `web/src/api/`
-- [ ] T036 Configure Cypress with `cypress-real-events` and `axe-core` in `web/cypress/`, with a smoke test that the shell renders
+- [X] T036 Configure Cypress with `cypress-real-events` and `axe-core` in `web/cypress/`, with a smoke test that the shell renders
 
 **Checkpoint**: Data exists, the API can read it, every request is timed and recorded. User stories can now proceed.
 
@@ -99,7 +99,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 - [X] T037 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/AvailabilityRulesTests.cs` — free-to-sell is on-hand less committed, clamped at zero; on-order never counts toward it
 - [X] T038 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/StockStateTests.cs` — `Available`, `AllCommitted` and `None` are three distinct states, not a boolean
-- [ ] T039 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/PartSearchTests.cs` — matching ignores case, spacing and punctuation; no match returns empty rather than an error
+- [X] T039 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/PartSearchTests.cs` — matching ignores case, spacing and punctuation; no match returns empty rather than an error
 - [X] T040 [P] [US1] Write failing integration tests in `api/tests/Counter.IntegrationTests/AvailabilityEndpointTests.cs` — the contract shape, `stockIsKnown: false` for a part with no inventory record, and a `504` when the store delays
 
 ### Domain and services
@@ -123,7 +123,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Story verification
 
-- [ ] T051 [US1] Write `web/cypress/e2e/us1-availability.cy.ts` — keyboard-only journey from search to branch grid, with `axe-core` assertions
+- [X] T051 [US1] Write `web/cypress/e2e/us1-availability.cy.ts` — keyboard-only journey from search to branch grid, with `axe-core` assertions
 - [X] T052 [US1] Write `api/tests/Counter.IntegrationTests/AvailabilityReconciliationTests.cs` — every parsed branch position matches the raw record, across the whole data set (SC-005)
 
 **Checkpoint**: User Story 1 is independently shippable. This alone answers the phone call.
@@ -154,7 +154,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Story verification
 
-- [ ] T063 [US2] Write `web/cypress/e2e/us2-pricing.cy.ts` — selecting a customer changes the price, the selection survives navigating to another part, and an expired promotion is shown as disregarded
+- [X] T063 [US2] Write `web/cypress/e2e/us2-pricing.cy.ts` — selecting a customer changes the price, the selection survives navigating to another part, and an expired promotion is shown as disregarded
 
 **Checkpoint**: The call can now be answered completely — availability and price.
 
@@ -182,7 +182,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Story verification
 
-- [ ] T072 [US3] Write `web/cypress/e2e/us3-commitments.cy.ts` — expanding a branch by keyboard reveals its commitments; a branch with none says so
+- [X] T072 [US3] Write `web/cypress/e2e/us3-commitments.cy.ts` — expanding a branch by keyboard reveals its commitments; a branch with none says so
 - [X] T073 [US3] Write `api/tests/Counter.IntegrationTests/CommitmentReconciliationTests.cs` — listed commitments plus `unaccounted` equal the committed total, for every branch of every part (SC-014)
 
 **Checkpoint**: "No" has become "not until Thursday".
@@ -198,7 +198,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 ### Tests first
 
 - [X] T074 [P] [US4] Write failing integration tests in `api/tests/Counter.IntegrationTests/RecordEndpointTests.cs` — the response carries delimiters **as stored**, never stripped and never pre-rendered
-- [ ] T075 [P] [US4] Write failing tests in `api/tests/Counter.UnitTests/MarkDescriptionTests.cs` — every mark present in a record is described in the `marks` array
+- [X] T075 [P] [US4] Write failing tests in `api/tests/Counter.UnitTests/MarkDescriptionTests.cs` — every mark present in a record is described in the `marks` array
 
 ### Implementation
 
@@ -210,8 +210,8 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Story verification
 
-- [ ] T081 [US4] Write `web/cypress/e2e/us4-record.cy.ts` — each branch appears in the raw record at the position it occupies in the grid (SC-008)
-- [ ] T082 [US4] Write `web/tests/MarkedRecord.test.tsx` asserting marks are rendered visibly and labelled, never hidden
+- [X] T081 [US4] Write `web/cypress/e2e/us4-record.cy.ts` — each branch appears in the raw record at the position it occupies in the grid (SC-008)
+- [X] T082 [US4] Write `web/tests/MarkedRecord.test.tsx` asserting marks are rendered visibly and labelled, never hidden
 
 **Checkpoint**: The claim that nothing was flattened is now demonstrable rather than asserted.
 
@@ -233,14 +233,14 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T085 [P] [US5] Implement cookie sign-in against the three demonstration personas in `api/src/Counter.Api/Controllers/AuthController.cs`
 - [X] T086 [US5] Implement `GET /api/v1/session` returning identity, read-only state, and whether the database login is shared
 - [X] T087 [US5] Implement `GET /api/v1/activity` in `api/src/Counter.Api/Controllers/ActivityController.cs` — never another user's activity, never a credential
-- [ ] T088 [P] [US5] Implement the sign-in screen in `web/src/features/governance/SignIn.tsx`, stating plainly that the personas are for demonstration
+- [X] T088 [P] [US5] Implement the sign-in screen in `web/src/features/governance/SignIn.tsx`, stating plainly that the personas are for demonstration
 - [X] T089 [P] [US5] Implement the governance strip in `web/src/features/governance/GovernanceStrip.tsx` — identity, database login, shared-login notice, read-only badge
 - [X] T090 [US5] Implement the activity panel in `web/src/features/governance/ActivityPanel.tsx`
 - [X] T091 [US5] Gate every data-changing control behind the read-only flag in `web/src/features/governance/ReadOnlyGate.tsx`, so none is rendered in a read-only session
 
 ### Story verification
 
-- [ ] T092 [US5] Write `web/cypress/e2e/us5-governance.cy.ts` — the strip is visible on every screen and the activity panel lists the actions just performed
+- [X] T092 [US5] Write `web/cypress/e2e/us5-governance.cy.ts` — the strip is visible on every screen and the activity panel lists the actions just performed
 - [X] T093 [US5] Write `api/tests/Counter.IntegrationTests/ErpImmutabilityTests.cs` — every ERP record is byte-identical before and after the full suite. This proves read-only by outcome; T084 only proves intent
 
 **Checkpoint**: All five stories complete.
@@ -250,19 +250,19 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [X] T094 [P] Implement copy-to-clipboard in `web/src/features/availability/CopySummary.ts` — carrying the demonstration marker and the retrieval time (FR-033 to FR-036)
-- [ ] T095 [P] Write `web/tests/CopySummary.test.ts` asserting the copied text contains nothing not on screen
+- [X] T095 [P] Write `web/tests/CopySummary.test.ts` asserting the copied text contains nothing not on screen
 - [X] T096 [P] Write `api/tests/Counter.IntegrationTests/SearchPerformanceTests.cs` — 200 searches against the full catalogue, 95th percentile under one second (SC-003)
 - [X] T097 [P] Write `api/tests/Counter.IntegrationTests/ConcurrentCallerTests.cs` — ten simultaneous sessions each get the single-caller answer (SC-010)
 - [X] T098 [P] Write `api/tests/Counter.IntegrationTests/FailureShapeTests.cs` — every provoked failure returns a typed problem with a readable detail (SC-009)
-- [ ] T099 [P] Add the `axe-core` sweep across every screen to the Cypress suite (SC-012)
-- [ ] T100 [P] Add keyboard-only completion of all five journeys in `web/cypress/e2e/keyboard-journeys.cy.ts` (SC-011)
-- [ ] T101 [P] Implement light and dark themes in `web/src/styles/`, both meeting AA contrast
+- [X] T099 [P] Add the `axe-core` sweep across every screen to the Cypress suite (SC-012)
+- [X] T100 [P] Add keyboard-only completion of all five journeys in `web/cypress/e2e/keyboard-journeys.cy.ts` (SC-011)
+- [X] T101 [P] Implement light and dark themes in `web/src/styles/`, both meeting AA contrast
 - [X] T102 [P] Implement the demonstration-data marker in `web/src/components/DemonstrationBadge.tsx` and place it on every screen showing figures (FR-032)
-- [ ] T103 Write `deploy/api.Dockerfile` — API serving the built front-end assets
-- [ ] T104 Write `deploy/mcp.Dockerfile` — the hardened fork plus `mvstore`, bound to loopback
-- [ ] T105 Write `deploy/azure/provision.ps1` — Container Apps environment, two apps with the MCP server on internal ingress only, and Azure SQL
-- [ ] T106 Write `deploy/azure/deploy.ps1` — build, push and revise; local script only, never a hosted pipeline (Article VIII)
-- [ ] T107 Update `CHANGELOG.md` with everything this feature delivered (Article VI)
+- [X] T103 Write `deploy/api.Dockerfile` — API serving the built front-end assets
+- [X] T104 Write `deploy/mcp.Dockerfile` — the hardened fork plus `mvstore`, bound to loopback
+- [X] T105 Write `deploy/azure/provision.ps1` — Container Apps environment, two apps with the MCP server on internal ingress only, and Azure SQL
+- [X] T106 Write `deploy/azure/deploy.ps1` — build, push and revise; local script only, never a hosted pipeline (Article VIII)
+- [X] T107 Update `CHANGELOG.md` with everything this feature delivered (Article VI)
 - [ ] T108 Run the whole verification table in `quickstart.md` and record the results
 
 ---

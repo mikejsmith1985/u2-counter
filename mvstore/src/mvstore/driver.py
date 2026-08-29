@@ -11,12 +11,16 @@ seam that changes what is being tested.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from .query import QueryError, run_query
 from .store import AM, MultiValueStore, RecordNotFoundError, build_record
+
+logger = logging.getLogger(__name__)
 
 # Where the demonstration data lives, unless told otherwise.
 DEFAULT_DATA_PATH = Path(__file__).resolve().parent.parent.parent / "data"
@@ -30,6 +34,77 @@ def _store_path() -> Path:
     """Return the data directory, from the environment or the default."""
     configured = os.environ.get("MVSTORE_DATA_PATH")
     return Path(configured) if configured else DEFAULT_DATA_PATH
+
+
+def _delay_seconds() -> float:
+    """Return how long each read should pretend to take.
+
+    A real Universe under load answers slowly rather than not at all, and that is
+    the failure the calling application most needs to handle correctly: the
+    difference between "we could not reach the stock data" and "there is none" is
+    the difference between ringing a customer back and telling them something
+    untrue. A store that only ever answers instantly cannot be used to check it.
+
+    Two ways to ask for it, and the second is the one that matters.
+
+    `MVSTORE_DELAY_MS` is fixed at startup and slows everything, including the
+    reads a caller does while starting up. That turns out to measure the wrong
+    thing: an application whose catalogue is still loading is not the application
+    a user meets, and a timeout measured against it is a timeout measured against
+    a state nobody is in.
+
+    `MVSTORE_DELAY_FILE` names a file whose presence turns the delay on and whose
+    contents give it in milliseconds. Nothing is delayed until the file appears,
+    so a caller can start normally, become healthy, and only then meet a database
+    that has stopped answering -- which is how it happens.
+
+    Returns:
+        Seconds to wait before answering; zero when neither is set
+    """
+    switch = os.environ.get("MVSTORE_DELAY_FILE", "").strip()
+
+    if switch:
+        return _delay_from_file(Path(switch))
+
+    return _milliseconds(os.environ.get("MVSTORE_DELAY_MS", ""), "MVSTORE_DELAY_MS")
+
+
+def _delay_from_file(path: Path) -> float:
+    """Read the delay from the switch file, treating its absence as none."""
+    try:
+        contents = path.read_text(encoding="utf-8")
+    except OSError:
+        # Absent, or unreadable. Either way nothing is being asked for: a fault
+        # nobody can turn on is better than a store that refuses to answer
+        # because a diagnostic file has the wrong permissions.
+        return 0.0
+
+    return _milliseconds(contents, str(path))
+
+
+def _milliseconds(configured: str, source: str) -> float:
+    """Read a millisecond figure, refusing to delay on anything unusable."""
+    text = configured.strip()
+
+    if not text:
+        return 0.0
+
+    try:
+        milliseconds = float(text)
+    except ValueError:
+        logger.warning(
+            "%s is '%s', which is not a number. Reads will not be delayed.", source, text
+        )
+        return 0.0
+
+    return max(0.0, milliseconds) / 1000.0
+
+
+def _pause_if_configured() -> None:
+    """Wait, if this store has been asked to answer slowly."""
+    delay = _delay_seconds()
+    if delay > 0:
+        time.sleep(delay)
 
 
 class Session:
@@ -114,6 +189,8 @@ class File:
         if self._is_dictionary:
             raise UOError(f"'{record_id}' is not in '{self.name}'")
 
+        _pause_if_configured()
+
         try:
             return self.session.store.raw(self.name, record_id)
         except RecordNotFoundError as error:
@@ -169,6 +246,8 @@ class Command:
         Raises:
             UOError: If the command is not one the store answers
         """
+        _pause_if_configured()
+
         try:
             result = run_query(self.session.store, self.command_text)
         except QueryError as error:

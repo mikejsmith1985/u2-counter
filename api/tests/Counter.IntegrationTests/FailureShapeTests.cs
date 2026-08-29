@@ -61,23 +61,28 @@ public sealed class FailureShapeTests(CounterFixture fixture)
         // The one that would do real damage. A representative reading an empty
         // result would tell a customer there is no stock; a representative
         // reading "the system could not be reached" would ring them back.
-        using HttpClient client = _fixture.Application.WithWebHostBuilder(builder =>
-            builder.ConfigureAppConfiguration((_, configuration) =>
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    // A port nothing answers on. Refusing is the fast version of
-                    // the same failure a dead ERP produces.
-                    ["Erp:Endpoint"] = "http://127.0.0.1:1/",
-                    ["Erp:RequestBudget"] = "00:00:02",
-                }))).CreateClient();
+        //
+        // Port 1: nothing answers there, and refusing is the fast version of the
+        // same failure a dead ERP produces.
+        //
+        // Built from a fresh application rather than derived from the suite's,
+        // because deriving keeps the suite's own configuration alongside this
+        // one -- and a test whose override silently loses is a test that reports
+        // on the wrong thing.
+        (IAsyncDisposable application, HttpClient client) =
+            _fixture.ApplicationAgainst(mcpPort: 1, budget: TimeSpan.FromSeconds(2));
+
+        await using ConfiguredDisposable _ = new(application, client);
 
         using HttpResponseMessage response =
             await client.GetAsync("/api/v1/parts/S-BRK00000/availability");
 
-        Assert.False(response.IsSuccessStatusCode,
-            "An unreachable ERP returned a success. This is the failure the whole design exists to prevent.");
-
         string body = await response.Content.ReadAsStringAsync();
+
+        Assert.False(
+            response.IsSuccessStatusCode,
+            "An unreachable ERP returned a success, which is the failure the whole " +
+            $"design exists to prevent. It answered {(int)response.StatusCode} with: {body}");
         JsonElement problem = JsonDocument.Parse(body).RootElement;
 
         Assert.Equal(
@@ -116,6 +121,23 @@ public sealed class FailureShapeTests(CounterFixture fixture)
 
         Assert.Equal(type, problem.GetProperty("type").GetString());
         AssertReadableDetail(problem);
+    }
+
+    /// <summary>Disposes an application and its client together.</summary>
+    /// <remarks>
+    /// A small holder so the test can use `await using` on a pair. Disposing the
+    /// application without disposing the client leaks a handler; disposing them
+    /// in two statements makes the test read as though the pairing were optional.
+    /// </remarks>
+    private sealed class ConfiguredDisposable(IAsyncDisposable application, HttpClient client)
+        : IAsyncDisposable
+    {
+        /// <inheritdoc />
+        public async ValueTask DisposeAsync()
+        {
+            client.Dispose();
+            await application.DisposeAsync();
+        }
     }
 
     /// <summary>Assert the detail is something a person could say out loud.</summary>

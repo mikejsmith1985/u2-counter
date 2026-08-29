@@ -144,3 +144,29 @@ class TestRefusedVerbs:
         """A verb alone names nothing to act on."""
         with pytest.raises(QueryError):
             run_query(store, "LIST")
+
+
+def test_who_is_answered_because_the_server_uses_it_as_a_health_check(store) -> None:
+    """The MCP server asks WHO every thirty seconds to check the session is alive.
+
+    A store that refuses it makes the server log a health-check failure against a
+    connection that is perfectly healthy, and a log full of warnings nobody should
+    act on is a log nobody reads when something is actually wrong.
+    """
+    result = run_query(store, "WHO")
+
+    assert result.verb == "WHO"
+    assert result.count == 1
+
+
+def test_who_needs_no_file(store) -> None:
+    # Every other verb names a file. This one describes the session, so requiring
+    # a file would make the health check impossible to phrase.
+    assert run_query(store, "WHO").record_ids == []
+
+
+def test_a_verb_that_is_still_not_answered_says_which_ones_are(store) -> None:
+    with pytest.raises(QueryError) as raised:
+        run_query(store, "DELETE INVENTORY")
+
+    assert "WHO" in str(raised.value)

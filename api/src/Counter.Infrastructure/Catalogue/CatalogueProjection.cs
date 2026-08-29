@@ -6,6 +6,7 @@ using Counter.Domain.Catalogue;
 using Counter.Infrastructure.Erp;
 using Counter.Infrastructure.Mcp;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 /// <summary>
 /// The catalogue held in memory, so that search answers instantly.
@@ -36,6 +37,33 @@ public sealed class CatalogueProjection(IErpReader erp, ILogger<CatalogueProject
     private readonly SemaphoreSlim _buildGate = new(1, 1);
 
     private IReadOnlyList<CatalogueEntry> _entries = [];
+
+    /// <summary>
+    /// Build a projection over parts already in hand, reading nothing.
+    /// </summary>
+    /// <param name="parts">The catalogue.</param>
+    /// <returns>A projection that can be searched immediately.</returns>
+    /// <remarks>
+    /// The matching rules are the part of this class most worth testing and the
+    /// part least related to reading: which spellings of a part number find it,
+    /// and how an exact match outranks a mention. Reaching an ERP to ask those
+    /// questions would make the answers slow and the failures ambiguous.
+    ///
+    /// This is not a test-only door. Anything holding a catalogue can search it
+    /// without a connection, and the projection built this way behaves in every
+    /// respect like one that read its parts.
+    /// </remarks>
+    public static CatalogueProjection Over(IReadOnlyList<Part> parts)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+
+        CatalogueProjection projection = new(
+            NullErpReader.Instance, NullLogger<CatalogueProjection>.Instance);
+
+        projection._entries = parts.Select(part => new CatalogueEntry(part)).ToList();
+
+        return projection;
+    }
 
     /// <summary>How many parts are searchable.</summary>
     public int Count => _entries.Count;
@@ -185,6 +213,45 @@ public sealed class CatalogueProjection(IErpReader erp, ILogger<CatalogueProject
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(word => word.ToUpperInvariant())
             .ToArray();
+}
+
+/// <summary>
+/// A reader that refuses every call.
+/// </summary>
+/// <remarks>
+/// Held by a projection built over parts already in hand. A null reference would
+/// fail at the point of use with nothing to say; this fails with a sentence
+/// explaining that such a projection has nothing to read from, which is the thing
+/// whoever hit it needs to know.
+/// </remarks>
+internal sealed class NullErpReader : IErpReader
+{
+    /// <summary>The one instance; it holds nothing.</summary>
+    public static readonly NullErpReader Instance = new();
+
+    private NullErpReader()
+    {
+    }
+
+    /// <inheritdoc />
+    public Task<string> ReadRecordAsync(string fileName, string recordId, CancellationToken cancellationToken) =>
+        throw Refuse();
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<string>> SelectKeysAsync(string query, int maxKeys, CancellationToken cancellationToken) =>
+        throw Refuse();
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, string>> ReadRecordsAsync(
+        string fileName, IReadOnlyList<string> recordIds, CancellationToken cancellationToken) =>
+        throw Refuse();
+
+    /// <inheritdoc />
+    public Task<ErpQueryResult> QueryAsync(string query, int maxRows, CancellationToken cancellationToken) =>
+        throw Refuse();
+
+    private static InvalidOperationException Refuse() => new(
+        "This catalogue was built over parts already in hand and has nothing to read from.");
 }
 
 /// <summary>

@@ -8,13 +8,20 @@
  */
 
 import type { SessionResponse } from "../../api/types";
+import { ProvenanceBadges } from "../../components/ProvenanceBadges";
 
 interface Props {
   session: SessionResponse | null;
   onShowActivity: () => void;
+  /** Open the persona picker. Named for what it does, not for a login. */
+  onChangeIdentity: () => void;
 }
 
-export function GovernanceStrip({ session, onShowActivity }: Props): React.JSX.Element {
+export function GovernanceStrip({
+  session,
+  onShowActivity,
+  onChangeIdentity,
+}: Props): React.JSX.Element {
   if (!session) {
     return (
       <footer className="governance">
@@ -26,7 +33,10 @@ export function GovernanceStrip({ session, onShowActivity }: Props): React.JSX.E
   return (
     <footer className="governance" aria-label="Session and data status">
       <span>
-        Signed in as <strong>{session.displayName}</strong>
+        Signed in as{" "}
+        <button type="button" className="governance__identity" onClick={onChangeIdentity}>
+          <strong>{session.displayName}</strong>
+        </button>
       </span>
 
       <span>
@@ -37,22 +47,11 @@ export function GovernanceStrip({ session, onShowActivity }: Props): React.JSX.E
         Database login <span className="governance__mono">{session.databaseLogin}</span>
       </span>
 
-      {session.databaseLoginIsShared && (
-        <span
-          className="governance__badge governance__badge--shared"
-          title="Several people use this database account, so the database cannot tell them apart"
-        >
-          SHARED LOGIN
-        </span>
-      )}
-
-      {session.isReadOnly && (
-        <span className="governance__badge governance__badge--readonly">READ ONLY</span>
-      )}
-
-      {session.isDemonstrationData && (
-        <span className="governance__badge governance__badge--demo">DEMONSTRATION DATA</span>
-      )}
+      <ProvenanceBadges
+        isReadOnly={session.isReadOnly}
+        isSharedLogin={session.databaseLoginIsShared}
+        isDemonstrationData={session.isDemonstrationData}
+      />
 
       <span className="header__spacer" />
 

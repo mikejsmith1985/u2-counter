@@ -150,12 +150,52 @@ public sealed class ErpReader : IErpReader, IAsyncDisposable
 
         try
         {
-            CallToolResult result = await client.CallToolAsync(
+            // AsTask because the call has to be awaited twice: once by the race
+            // below and again for its result. A ValueTask may only be awaited
+            // once, and doing so twice is undefined rather than merely wrong.
+            Task<CallToolResult> call = client.CallToolAsync(
                 toolName,
                 arguments.ToDictionary(pair => pair.Key, pair => pair.Value),
-                cancellationToken: budget.Token);
+                cancellationToken: budget.Token).AsTask();
 
-            return ErpResponse.PayloadFrom(result);
+            // Raced against the budget rather than left to the token alone.
+            //
+            // Cancelling the token stops the *next* call; it does not reliably
+            // end one already in flight, because the transport is waiting on a
+            // response the server has not sent and has no way to un-ask for it.
+            // Measured, a ten-second query against a two-second budget took the
+            // full ten seconds and then failed — the budget bounded nothing that
+            // the person waiting could feel.
+            //
+            // So the wait is bounded here, and the connection is discarded when
+            // it expires. Discarding is not tidiness: a session with a response
+            // still coming cannot be reused, because the next caller would read
+            // the abandoned answer as their own.
+            Task finished = await Task.WhenAny(
+                call, Task.Delay(_options.RequestBudget, cancellationToken));
+
+            if (finished != call)
+            {
+                _logger.LogWarning(
+                    "The ERP did not answer {Tool} within {Budget}; the connection was dropped",
+                    toolName,
+                    _options.RequestBudget);
+
+                await DiscardConnectionAsync();
+
+                // Observed so an eventual failure on the abandoned call does not
+                // surface later as an unhandled task exception.
+                _ = call.ContinueWith(
+                    abandoned => _ = abandoned.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
+
+                throw new ErpUnreachableException(
+                    $"The ERP did not answer within {_options.RequestBudget.TotalSeconds:0} seconds.");
+            }
+
+            return ErpResponse.PayloadFrom(await call);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -214,29 +254,48 @@ public sealed class ErpReader : IErpReader, IAsyncDisposable
     /// </remarks>
     private async Task DiscardConnectionAsync()
     {
+        McpClient? dead;
+
         await _connectionGate.WaitAsync();
         try
         {
-            McpClient? dead = _client;
+            dead = _client;
             _client = null;
-
-            if (dead is not null)
-            {
-                await dead.DisposeAsync();
-            }
-        }
-#pragma warning disable CA1031 // Disposing a broken connection must not raise.
-        catch (Exception)
-#pragma warning restore CA1031
-        {
-            // Whatever went wrong closing a connection already known to be
-            // broken, the useful outcome -- that nobody will reuse it -- has
-            // already happened.
         }
         finally
         {
             _connectionGate.Release();
         }
+
+        if (dead is null)
+        {
+            return;
+        }
+
+        // Disposed without waiting, and that is the whole point of separating
+        // the two steps.
+        //
+        // Disposing an MCP client blocks until its outstanding call completes,
+        // so awaiting it here would make a two-second budget take however long
+        // the query was always going to take. Measured, a fifteen-second read
+        // against a two-second budget returned after fifteen seconds -- the
+        // budget fired on time and then the caller waited for the cleanup.
+        //
+        // What the caller needs is that nobody reuses this connection, and that
+        // has already happened above.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await dead.DisposeAsync();
+            }
+#pragma warning disable CA1031 // Closing a connection already known broken must not raise.
+            catch (Exception error)
+#pragma warning restore CA1031
+            {
+                _logger.LogDebug(error, "An abandoned MCP connection did not close cleanly");
+            }
+        });
     }
 
     /// <summary>
