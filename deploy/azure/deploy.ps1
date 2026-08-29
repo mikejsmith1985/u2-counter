@@ -449,6 +449,26 @@ else {
 
 $mcpEndpoint = "http://$($environment.McpApp)"
 
+# The assistant's key, if this machine has one injected.
+#
+# Read from the environment and handed straight to Azure as a secret, so the
+# value is never written into this script, into a file, or into the app's
+# environment variables where `az containerapp show` would print it back.
+#
+# Absent is a supported state and the deployment says so rather than failing: the
+# application runs without an assistant, and the panel that would offer one
+# simply does not render.
+$assistantKey = $env:SMITHBROS_CLAUDE_API_KEY
+
+if ($assistantKey) {
+    Write-Host '  an assistant key was found and will be deployed as a secret' -ForegroundColor DarkGray
+    $assistantSetting = 'ANTHROPIC_API_KEY=secretref:anthropic-api-key'
+}
+else {
+    Write-Host '  no assistant key in the environment; deploying without one' -ForegroundColor Yellow
+    $assistantSetting = ''
+}
+
 # -- the API, public -----------------------------------------------------------
 # One replica at most as well, because the audit trail is a SQLite file on an SMB
 # share and SQLite's locking is only safe there with a single writer. For a
@@ -459,6 +479,15 @@ Write-Step "Deploying $($environment.ApiApp) (public, scales to zero)"
 
 $auditConnection = 'Data Source=/audit/counter.db'
 
+# Set before the environment variable that references it, because a secretref
+# naming a secret the app does not have is accepted and then fails at start-up.
+if ($assistantKey -and (Test-AppExists $environment.ApiApp)) {
+    az containerapp secret set `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.ApiApp `
+        --secrets "anthropic-api-key=$assistantKey" | Out-Null
+}
+
 if (Test-AppExists $environment.ApiApp) {
     az containerapp update `
         --resource-group $environment.ResourceGroup `
@@ -467,7 +496,8 @@ if (Test-AppExists $environment.ApiApp) {
         --min-replicas 0 `
         --max-replicas 1 `
         --set-env-vars "Erp__Endpoint=$mcpEndpoint/" `
-                       "ConnectionStrings__Counter=$auditConnection" | Out-Null
+                       "ConnectionStrings__Counter=$auditConnection" `
+                       $assistantSetting | Out-Null
 }
 else {
     az containerapp create `
@@ -483,7 +513,9 @@ else {
         --min-replicas 0 `
         --max-replicas 1 `
         --cpu 1.0 --memory 2.0Gi `
-        --env-vars "Erp__Endpoint=$mcpEndpoint/" "ConnectionStrings__Counter=$auditConnection" | Out-Null
+        --secrets "anthropic-api-key=$assistantKey" `
+        --env-vars "Erp__Endpoint=$mcpEndpoint/" "ConnectionStrings__Counter=$auditConnection" `
+                   $assistantSetting | Out-Null
 
 }
 
