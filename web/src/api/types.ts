@@ -216,3 +216,31 @@ export interface BrowseResponse<TItem> {
   totalCount: number;
   envelope: ResponseEnvelope;
 }
+
+/** One call the assistant made to the database, and what came back. */
+export interface AskStep {
+  tool: string;
+  arguments: string;
+  file: string;
+  recordId: string;
+  /** The record as the database returned it, separators intact. Empty for calls that read no record. */
+  rawRecord: string;
+  summary: string;
+  durationMs: number;
+}
+
+/** An answer, with the working shown. */
+export interface AskResult {
+  answer: string;
+  steps: AskStep[];
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  questionsLeft: number;
+}
+
+/** Whether there is an assistant on this deployment at all. */
+export interface AskStatus {
+  isConfigured: boolean;
+  model: string;
+}

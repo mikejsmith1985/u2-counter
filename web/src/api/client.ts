@@ -9,6 +9,8 @@
 
 import type {
   AvailabilityResponse,
+  AskResult,
+  AskStatus,
   BrowseResponse,
   CommitmentsResponse,
   CustomerSearchResponse,
@@ -95,13 +97,22 @@ function kindFrom(status: number, problem: ProblemDetails): FailureKind {
   return "unknown";
 }
 
-async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+async function request<T>(
+  path: string,
+  signal?: AbortSignal,
+  // Extra request options, for the one call that is not a GET. Routed through
+  // here rather than given its own fetch so that a failed question reports
+  // itself exactly like every other failed call -- one place decides what an
+  // unreachable API looks like.
+  init?: RequestInit,
+): Promise<T> {
   let response: Response;
 
   try {
     response = await fetch(`${API_BASE}${path}`, {
       credentials: "include",
-      headers: { Accept: "application/json" },
+      ...init,
+      headers: { Accept: "application/json", ...(init?.headers ?? {}) },
       signal,
     });
   } catch (error) {
@@ -161,6 +172,17 @@ export const api = {
   /** Read the stored record beside its parsed form. */
   record: (partNumber: string, signal?: AbortSignal) =>
     request<RecordResponse>(`/parts/${encodeURIComponent(partNumber)}/record`, signal),
+
+  /** Whether an assistant is configured, and which model answers. */
+  askStatus: (signal?: AbortSignal) => request<AskStatus>("/ask/status", signal),
+
+  /** Ask a question in words, and get the answer with every call it took. */
+  ask: (question: string, signal?: AbortSignal) =>
+    request<AskResult>("/ask", signal, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }),
 
   /** List the catalogue, for somebody who has not got a part number yet. */
   browseParts: (limit: number, signal?: AbortSignal) =>

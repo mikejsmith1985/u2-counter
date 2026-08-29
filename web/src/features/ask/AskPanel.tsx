@@ -1,0 +1,156 @@
+/**
+ * Ask in words, and see exactly what was asked of the database.
+ *
+ * The answer is the smaller half of this. A sentence saying "299 free to sell at
+ * Grand Junction" is worth no more than the reader's willingness to believe it,
+ * and somebody evaluating this has no reason to believe anything yet.
+ *
+ * So every call the model made is shown underneath: which tool, which file,
+ * which key, how long it took, and — for a record read — the bytes that came
+ * back with their separators marked. A relational row cannot produce attribute
+ * and value marks at the byte level, which makes the transcript the one part of
+ * this screen that proves what the data actually is.
+ */
+
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { api, ApiFailure } from "../../api/client";
+import type { AskResult, AskStep } from "../../api/types";
+import { MarkedRecord } from "./MarkedRecord";
+
+/** Questions offered when the box is empty, so nobody has to invent one. */
+const SUGGESTIONS = [
+  "Which branch has the most 15A AFCI breakers free to sell?",
+  "Do we have any Southwire THHN wire, and where?",
+  "Show me the stored INVENTORY record for E-BRK00008",
+];
+
+export function AskPanel(): React.JSX.Element | null {
+  const [question, setQuestion] = useState("");
+
+  // Asked once. A deployment without a key has no assistant, and the honest
+  // thing is to render nothing rather than a box that takes somebody's typing
+  // and then tells them what it knew before they started.
+  const { data: status } = useQuery({
+    queryKey: ["ask-status"],
+    queryFn: ({ signal }) => api.askStatus(signal),
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  const ask = useMutation<AskResult, Error, string>({
+    mutationFn: (asked: string) => api.ask(asked),
+  });
+
+  if (!status?.isConfigured) {
+    return null;
+  }
+
+  const failure = ask.error instanceof ApiFailure ? ask.error : null;
+  const answer = ask.data;
+
+  function submit(asked: string): void {
+    const trimmed = asked.trim();
+    if (trimmed.length > 0 && !ask.isPending) {
+      setQuestion(trimmed);
+      ask.mutate(trimmed);
+    }
+  }
+
+  return (
+    <section className="ask" data-tour="ask" aria-label="Ask a question">
+      <form
+        className="ask__form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit(question);
+        }}
+      >
+        <input
+          className="ask__input"
+          type="text"
+          value={question}
+          placeholder="Ask in words — “which branch can cover 20 of these today?”"
+          aria-label="Ask a question about stock"
+          onChange={(event) => setQuestion(event.target.value)}
+          disabled={ask.isPending}
+        />
+        <button type="submit" className="button" disabled={ask.isPending || !question.trim()}>
+          {ask.isPending ? "Asking…" : "Ask"}
+        </button>
+      </form>
+
+      {!answer && !ask.isPending && !failure && (
+        <ul className="ask__suggestions">
+          {SUGGESTIONS.map((suggestion) => (
+            <li key={suggestion}>
+              <button
+                type="button"
+                className="button button--quiet"
+                onClick={() => submit(suggestion)}
+              >
+                {suggestion}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {ask.isPending && (
+        <p className="ask__working">Reading the database…</p>
+      )}
+
+      {failure && (
+        <p className="ask__failure" role="status">
+          {failure.message}
+        </p>
+      )}
+
+      {answer && !ask.isPending && (
+        <div className="ask__answer">
+          <p className="ask__said">{answer.answer}</p>
+
+          <details className="ask__working-out" open>
+            <summary>
+              What it asked the database
+              <span className="ask__meta">
+                {answer.steps.length} call{answer.steps.length === 1 ? "" : "s"} ·{" "}
+                {answer.model} · {answer.inputTokens + answer.outputTokens} tokens ·{" "}
+                {answer.questionsLeft} question{answer.questionsLeft === 1 ? "" : "s"} left
+              </span>
+            </summary>
+
+            <ol className="ask__steps">
+              {answer.steps.map((step, index) => (
+                <Step key={`${step.tool}-${index}`} step={step} />
+              ))}
+            </ol>
+          </details>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * One call, and what it returned.
+ *
+ * @param step What the assistant asked for.
+ */
+function Step({ step }: { step: AskStep }): React.JSX.Element {
+  return (
+    <li className="ask__step">
+      <div className="ask__step-head">
+        <code className="ask__tool">{step.tool}</code>
+        {step.file && <span className="ask__file">{step.file}</span>}
+        {step.recordId && <span className="ask__key">{step.recordId}</span>}
+        <span className="header__spacer" />
+        <span className="ask__duration figures">{step.durationMs}ms</span>
+      </div>
+
+      <p className="ask__step-summary">{step.summary}</p>
+
+      {step.rawRecord && <MarkedRecord raw={step.rawRecord} />}
+    </li>
+  );
+}

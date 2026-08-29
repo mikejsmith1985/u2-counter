@@ -16,6 +16,7 @@ import { PricingPanel } from "../features/pricing/PricingPanel";
 import { BranchCommitments } from "../features/commitments/BranchCommitments";
 import { RecordDrawer } from "../features/record/RecordDrawer";
 import { GovernanceStrip } from "../features/governance/GovernanceStrip";
+import { AskPanel } from "../features/ask/AskPanel";
 import { GuidedTour } from "../features/tour/GuidedTour";
 import { TOUR_PART_NUMBER, type TourStep } from "../features/tour/steps";
 import { ActivityPanel } from "../features/governance/ActivityPanel";
@@ -214,6 +215,8 @@ export function App(): React.JSX.Element {
       </header>
 
       <main className="main">
+        <AskPanel />
+
         {partNumber === null && <EmptyState />}
 
         {partNumber !== null && isPending && <LoadingState />}
