@@ -190,6 +190,18 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **`run-dev-clean.ps1 -Stop` could stop a process it never started.** The port
+  sweep assumed "the port is ours because this script assigned it", which holds
+  only while the port was free. Vite falls back to the next port when its own is
+  taken, so on a machine already running another project the script reported
+  5173, bound 5174, and then stopped whatever else was listening on 5173 — which
+  it did, to an unrelated development server. The sweep now leaves any process
+  that started before this session, the same start-time test the recorded
+  processes already used and for the same reason: an id alone is not identity.
+  Starting also refuses outright when a port it needs is taken, rather than
+  moving to another one and printing an address that answers with somebody
+  else's application.
+
 - **A listing of a dictionary read the wrong file, and said so by returning
   nothing.** `LIST DICT INVENTORY` was parsed by taking the second word, which is
   right for `LIST PRODUCT` and wrong here — it read the file as `DICT`, found no

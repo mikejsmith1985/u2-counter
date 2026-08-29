@@ -100,6 +100,40 @@ function Test-ProcessIsOurs {
     return ([math]::Abs(($actual - $recorded).TotalSeconds) -lt 1)
 }
 
+function Assert-PortIsFree {
+    <#
+    .SYNOPSIS
+        Refuse to start when a port this script needs is already taken.
+    .DESCRIPTION
+        Because the alternative is worse than failing. Vite falls back to the
+        next free port when its own is busy, so on a machine already running
+        another project this script printed one address and the application
+        answered on another -- and the person following the printed address got
+        somebody else's app.
+
+        Failing here says which port and what holds it, which is a thing somebody
+        can act on in seconds.
+    #>
+    param([int] $Port, [string] $Name)
+
+    $owner = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -First 1 -ExpandProperty OwningProcess
+
+    if (-not $owner) {
+        return
+    }
+
+    $process = Get-Process -Id $owner -ErrorAction SilentlyContinue
+    $description = if ($process) { "$($process.ProcessName), pid $owner" } else { "pid $owner" }
+
+    throw @"
+Port $Port is already in use by $description, and $Name needs it.
+
+Stop that process, or free the port, and run this again. It is not stopped
+for you: it was running before this script, so it is not this script's to stop.
+"@
+}
+
 function Stop-PortHolder {
     <#
         Stops whatever is listening on one of the ports this script assigns.
@@ -116,17 +150,41 @@ function Stop-PortHolder {
         process called dotnet or node, and `Stop-Process -Name node` would end
         the session issuing it. The port is ours because this script assigned it.
     #>
-    param([int] $Port, [string] $Name)
+    param(
+        [int] $Port,
+        [string] $Name,
+        # When this session began. Anything listening from before then belongs to
+        # somebody else.
+        [DateTime] $SessionStartedAt
+    )
 
     $owners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique
 
     foreach ($processId in $owners) {
         $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-        if ($process) {
-            Write-Step "Stopping $Name on port $Port ($($process.ProcessName), pid $processId)"
-            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+        if (-not $process) {
+            continue
         }
+
+        # Started before we did, so it is not ours.
+        #
+        # This guard exists because the comment above it used to be wrong. It
+        # said the port was ours because this script assigned it, and that holds
+        # only while the port was free. Vite falls back to the next port when its
+        # own is taken, so on a machine already running another project this
+        # script would report 5173, bind 5174, and then stop whatever else was
+        # listening on 5173. It did exactly that, to an unrelated dev server.
+        #
+        # Start time is the same test the recorded processes use, and for the
+        # same reason: an id alone is not identity.
+        if ($process.StartTime.ToUniversalTime() -lt $SessionStartedAt) {
+            Write-Step "Leaving $($process.ProcessName) (pid $processId) on port $Port - it was already running"
+            continue
+        }
+
+        Write-Step "Stopping $Name on port $Port ($($process.ProcessName), pid $processId)"
+        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -149,9 +207,14 @@ function Stop-RecordedProcesses {
         }
 
         # Whether or not the recorded id was still ours, the port it was given
-        # may still be held by something it started.
+        # may still be held by something it started. Only something that started
+        # after we did: anything older was already listening, and is not ours to
+        # stop however inconvenient its port is.
         if ($record.Port) {
-            Stop-PortHolder -Port ([int] $record.Port) -Name $record.Name
+            Stop-PortHolder `
+                -Port ([int] $record.Port) `
+                -Name $record.Name `
+                -SessionStartedAt ([DateTime]::Parse($record.StartedAt).ToUniversalTime())
         }
     }
 
@@ -295,6 +358,13 @@ $auditDatabase = Join-Path $runDirectory 'counter.db'
 # loads in process, presenting the same objects uopy does, so the server runs the
 # code it would run against a real Universe rather than a second path written for
 # the demonstration.
+# Checked before anything starts, so a busy port is reported rather than worked
+# around. A dev server that quietly moves to another port makes every printed
+# address wrong.
+Assert-PortIsFree -Port 5081 -Name 'the MCP server'
+Assert-PortIsFree -Port 5080 -Name 'the API'
+Assert-PortIsFree -Port 5173 -Name 'the front end'
+
 Register-Started (Start-Service -Name 'mcp' `
     -FilePath $mcpExecutable `
     -ArgumentList @('--streamable-http', '--host', '127.0.0.1', '--port', '5081') `
