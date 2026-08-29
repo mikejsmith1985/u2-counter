@@ -14,6 +14,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TOUR_STEPS, type TourStep } from "./steps";
 
+/**
+ * How long to let the application paint before deciding which steps to show.
+ *
+ * The optional panels fetch before they render, so their anchors do not exist on
+ * the tour's first frame. Long enough for that, short enough that nobody reads
+ * it as a delay.
+ */
+const SETTLE_MS = 350;
+
 /** Space left between the spotlight and the element it surrounds. */
 const SPOTLIGHT_PADDING = 6;
 
@@ -44,9 +53,37 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
   const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const step = TOUR_STEPS[index];
+  // Only the steps whose target is actually on the page.
+  //
+  // Two are conditional. The assistant is absent when no key is configured, and
+  // the explorer is absent once a part has been selected. A tour that stopped on
+  // either would dim the screen and point at nothing, which reads as broken --
+  // and on a deployment without a key it would advertise a feature that is not
+  // there.
+  //
+  // Decided after the application has painted, not during the tour's first
+  // render. Computing it at mount ran before the panels had rendered their
+  // anchors, so every optional step was judged missing and the tour offered one
+  // step of eight. The panels also fetch before they appear, which is why this
+  // waits rather than reading on the next tick.
+  //
+  // Decided once, because the tour itself selects a part partway through, and a
+  // list recomputed after that would renumber the steps behind somebody midway.
+  //
+  // Only steps the tour cannot conjure are tested this way -- see canBeShown.
+  const [steps, setSteps] = useState<TourStep[] | null>(null);
+
+  useEffect(() => {
+    const settle = setTimeout(() => {
+      setSteps(TOUR_STEPS.filter(canBeShown));
+    }, SETTLE_MS);
+
+    return () => clearTimeout(settle);
+  }, []);
+
+  const step = steps?.[index];
   const isFirst = index === 0;
-  const isLast = index === TOUR_STEPS.length - 1;
+  const isLast = steps !== null && index === steps.length - 1;
 
   // Put the application into the state this step needs before measuring, so the
   // element a step points at exists by the time we look for it.
@@ -141,7 +178,9 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [advance, retreat, onClose]);
 
-  if (!step) {
+  // Nothing is drawn until the page has settled and the steps are known. A card
+  // that appeared and then renumbered itself would be worse than a short pause.
+  if (steps === null || !step) {
     return null;
   }
 
@@ -156,7 +195,7 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
         tabIndex={-1}
       >
         <p className="tour__count">
-          Step {index + 1} of {TOUR_STEPS.length}
+          Step {index + 1} of {steps.length}
         </p>
 
         <h2 className="tour__title" id="tour-title">
@@ -185,6 +224,36 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
       </div>
     </div>
   );
+}
+
+/**
+ * Whether a step can be shown at all.
+ *
+ * @param step The step being considered.
+ * @returns True when it has something to point at, now or later.
+ *
+ * @remarks
+ * The distinction is which absences the tour can fix. A step that declares it
+ * needs a part, a record or the activity panel is a step whose target the tour
+ * creates itself when it gets there, so its target is legitimately missing at
+ * the start and must not be filtered out. Filtering on presence alone dropped
+ * exactly those steps -- the branch grid and the stored record, two of the most
+ * worth showing -- because the tour had not yet selected the part that makes
+ * them exist.
+ *
+ * Everything else is absent for a reason the tour cannot change: no API key
+ * means no assistant, and a selected part means no explorer.
+ */
+function canBeShown(step: TourStep): boolean {
+  if (step.target === undefined) {
+    return true;
+  }
+
+  if (step.needsPart || step.needsRecord || step.needsActivity) {
+    return true;
+  }
+
+  return document.querySelector(step.target) !== null;
 }
 
 /**

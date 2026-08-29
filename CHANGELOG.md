@@ -218,6 +218,15 @@ source of truth for what changed (Article VI). Format follows
 
 ### Changed
 
+- **The tour now covers the assistant and the dictionary-driven screen**, and
+  skips a step whose target is genuinely absent. The distinction is which
+  absences the tour can fix: a step declaring it needs a part is one whose target
+  the tour creates itself when it gets there, so it must never be filtered —
+  doing so dropped the branch grid and the stored record, two of the steps most
+  worth showing. Absences it cannot fix are skipped: no API key means no
+  assistant, and on such a deployment the tour would otherwise dim the screen and
+  advertise a feature that is not there.
+
 - **A cold start is 22 seconds rather than 52.** Measured against the deployment
   after seven minutes idle, which is how a first visitor arrives. The whole
   difference is the thirty seconds the failing audit migration spent waiting on a
@@ -229,6 +238,10 @@ source of truth for what changed (Article VI). Format follows
   rather than accepting.
 
 ### Fixed
+
+- **The tour's record step spotlit a twelve-pixel strip.** It pointed at the
+  element wrapping the drawer, and the drawer is positioned fixed — so the
+  wrapper had almost no height. It now points at the panel, which has one.
 
 - **A test was coupled to a part number the data generator happened to produce.**
   Regenerating the demonstration data broke it: it asked for `S-BRK00000`, which

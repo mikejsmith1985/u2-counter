@@ -54,7 +54,28 @@ export const TOUR_STEPS: TourStep[] = [
     body:
       "This answers one question a trade counter asks all day: can I promise this " +
       "part to this customer today? The data behind it is a MultiValue database — " +
-      "the kind that still runs distribution. Two minutes, six stops.",
+      "the kind that still runs distribution. Two minutes, and you can leave at " +
+      "any point with Escape.",
+  },
+  {
+    id: "ask",
+    title: "Ask it in words",
+    body:
+      "Claude answers from the database, not from memory — and every call it makes " +
+      "is listed underneath, down to the raw record with its separators marked. " +
+      "That transcript is the point: it is how you tell a real MultiValue record " +
+      "from a convincing imitation of one.",
+    target: "[data-tour='ask']",
+  },
+  {
+    id: "explore",
+    title: "The screen is built from your dictionary",
+    body:
+      "No field names are written into this page. The files come from the account, " +
+      "the fields and headings from each file's own dictionary. Point it at a " +
+      "different database and it shows that one — there is no mapping to write, " +
+      "because a MultiValue file already carries it.",
+    target: "[data-tour='explore']",
   },
   {
     id: "parts",
@@ -91,7 +112,10 @@ export const TOUR_STEPS: TourStep[] = [
       "Attribute, value and subvalue marks — the real separators, not JSON dressed " +
       "up. Position n of every field belongs to the same branch, which is the trap " +
       "this kind of data sets for anyone who has only met SQL.",
-    target: "[data-tour='record-drawer']",
+    // The panel, not the wrapper around it. The drawer is positioned fixed, so
+    // the element containing it has almost no height -- spotlighting that drew a
+    // two-thousand-pixel strip twelve pixels tall across the screen.
+    target: ".drawer__panel",
     needsPart: true,
     needsRecord: true,
   },

@@ -348,9 +348,7 @@ export function App(): React.JSX.Element {
       </div>
 
       {isRecordOpen && partNumber && (
-        <div data-tour="record-drawer">
-          <RecordDrawer partNumber={partNumber} onClose={() => setIsRecordOpen(false)} />
-        </div>
+        <RecordDrawer partNumber={partNumber} onClose={() => setIsRecordOpen(false)} />
       )}
 
       {isTourOpen && (
