@@ -720,3 +720,31 @@ kbd {
     opacity: 0.7;
   }
 }
+
+/*
+ * A disabled control has to look disabled.
+ *
+ * There was no rule for this, so the one deliberately-disabled button on the
+ * screen -- "Reserve stock", which exists to show where this release stops --
+ * rendered identically to the two working buttons beside it. Someone would press
+ * it, nothing would happen, and the honest boundary would read as a broken
+ * button instead.
+ *
+ * The cursor changes too, because that is the feedback that arrives before the
+ * click rather than after it.
+ */
+
+.button:disabled,
+.button[aria-disabled="true"] {
+  background: transparent;
+  color: var(--text-faint);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+.button--quiet:disabled,
+.button--quiet[aria-disabled="true"] {
+  background: transparent;
+  color: var(--text-faint);
+  border-style: dashed;
+}

@@ -34,7 +34,19 @@ export function GovernanceStrip({
     <footer className="governance" aria-label="Session and data status">
       <span>
         Signed in as{" "}
-        <button type="button" className="governance__identity" onClick={onChangeIdentity}>
+        {/*
+          Labelled explicitly. The visible text is a person's name, which tells a
+          screen-reader user who is signed in and nothing about the fact that
+          activating it changes that -- and a control whose purpose has to be
+          inferred from its surroundings has no purpose to someone reading it on
+          its own.
+        */}
+        <button
+          type="button"
+          className="governance__identity"
+          onClick={onChangeIdentity}
+          aria-label={`Signed in as ${session.displayName}. Activate to sign in as someone else.`}
+        >
           <strong>{session.displayName}</strong>
         </button>
       </span>
