@@ -132,6 +132,19 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **The audit share's mount options could be set once and never changed.** The
+  block that configures them ran only when the app was created, with a comment
+  saying a routine redeploy never had to touch it. That made the setting
+  write-once: adding `nobrl` changed the script, reported success, and left the
+  deployment exactly as it was, because the patch looked for `volumes: null` and
+  there was no longer a null to replace. A second attempt then matched nothing
+  because the CLI renders the volume as a list item — `- mountOptions:` — and the
+  pattern was anchored on whitespace alone. Both failures were silent, which is
+  the same shape as the defect they were trying to fix. The mount is now
+  reconciled on every deployment, written only when it differs, and **read back
+  afterwards** — a configuration change that reports success and does nothing is
+  the thing this is guarding against.
+
 - **The deployed application reported an audit trail it did not have.** Found by
   reading the running container's logs rather than by any test. `/health` said
   `isAuditDurable: true` while every write failed with "no such table:

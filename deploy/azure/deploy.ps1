@@ -39,6 +39,20 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# The Azure CLI is asked not to print warnings, and this is load-bearing rather
+# than tidiness.
+#
+# PowerShell surfaces a native command's stderr as an error record, and with
+# ErrorActionPreference set to Stop a warning on stderr ends the script. The CLI
+# emits one whenever a command is altered by an installed extension -- which the
+# containerapp extension does on every call -- so a deployment could fail after
+# both images had been built and pushed, at the point of actually deploying them,
+# because a tool mentioned an extension.
+#
+# It surfaced intermittently, which is worse than always: several deployments
+# passed straight through it before one did not.
+$env:AZURE_CORE_ONLY_SHOW_ERRORS = 'true'
+
 # UTF-8, before anything calls the Azure CLI. It does not appear to be enough.
 #
 # The CLI streams build logs through a library that writes directly to the
@@ -471,68 +485,124 @@ else {
         --cpu 1.0 --memory 2.0Gi `
         --env-vars "Erp__Endpoint=$mcpEndpoint/" "ConnectionStrings__Counter=$auditConnection" | Out-Null
 
-    # The share is attached by editing the app's YAML, because the CLI has no
-    # flag for a volume mount on create. Done once, at creation, so a routine
-    # redeploy never has to touch it.
-    Write-Step 'Mounting the audit share'
-
-    $yamlPath = Join-Path ([System.IO.Path]::GetTempPath()) "counter-api-$Tag.yaml"
-
-    az containerapp show `
-        --resource-group $environment.ResourceGroup `
-        --name $environment.ApiApp `
-        --output yaml > $yamlPath
-
-    $definition = Get-Content $yamlPath -Raw
-
-    # Appended to the template rather than rewritten, so nothing the CLI put
-    # there is lost. The two blocks are the volume and the mount that uses it.
-    # The mount options are not decoration. An Azure Files share mounts as root
-    # with restrictive permissions, and the .NET images run as a non-root user
-    # (uid 1654) -- so without these the application cannot create its own
-    # database file and the audit trail silently does not exist.
-    #
-    # `nobrl` is load-bearing for the same reason and was learnt the same way.
-    # SQLite coordinates writers with byte-range locks, and the SMB server behind
-    # an Azure Files share does not honour them, so the audit schema could not be
-    # created at all: `CREATE TABLE __EFMigrationsLock` waited out the command
-    # timeout and failed with "database is locked". Every write afterwards failed
-    # on a table that did not exist, while the health endpoint went on reporting
-    # a durable audit trail. `nobrl` has the SMB client handle those locks
-    # locally, which is safe at the one replica this runs at.
-    #
-    # Setting locking_mode=EXCLUSIVE in the application was tried instead and is
-    # worse: it made every migration wait thirty seconds, reproducing the delay
-    # it was chosen to remove.
-    $definition = $definition -replace '(?m)^(\s*)volumes: null\s*$', @"
-`$1volumes:
-`$1- name: audit
-`$1  storageName: $($environment.StorageLink)
-`$1  storageType: AzureFile
-`$1  mountOptions: uid=1654,gid=1654,dir_mode=0755,file_mode=0644,nobrl
-"@
-
-    $definition = $definition -replace '(?m)^(\s*)volumeMounts: null\s*$', @"
-`$1volumeMounts:
-`$1- volumeName: audit
-`$1  mountPath: /audit
-"@
-
-    Set-Content -Path $yamlPath -Value $definition -Encoding UTF8
-
-    az containerapp update `
-        --resource-group $environment.ResourceGroup `
-        --name $environment.ApiApp `
-        --yaml $yamlPath | Out-Null
-
-    Remove-Item $yamlPath -Force -ErrorAction SilentlyContinue
 }
+
 
 $url = az containerapp show `
     --resource-group $environment.ResourceGroup `
     --name $environment.ApiApp `
     --query 'properties.configuration.ingress.fqdn' `
     --output tsv
+
+# -- the audit share, checked on every deployment ------------------------------
+#
+# This used to run only when the app was created, with a comment saying a routine
+# redeploy never had to touch it. That was wrong in a way that cost a day: it made
+# the mount options unchangeable. Adding `nobrl` to this script changed nothing,
+# reported success, and left the audit trail broken -- because the patch looked
+# for `volumes: null` and there was no longer a null to replace.
+#
+# A setting that can only be applied once is a setting nobody can fix. So this
+# runs every time, compares what is deployed against what is wanted, and only
+# writes when they differ -- which keeps the revision count down without making
+# the configuration write-once.
+function Set-AuditShare {
+    param(
+        [Parameter(Mandatory)] $Environment,
+        [Parameter(Mandatory)] [string] $Tag
+    )
+
+    # `nobrl` is load-bearing rather than tuning. SQLite coordinates writers with
+    # byte-range locks and the SMB server behind an Azure Files share does not
+    # honour them, so the audit schema could not be created at all: CREATE TABLE
+    # __EFMigrationsLock waited out the command timeout and failed with "database
+    # is locked". Every write afterwards failed on a table that did not exist.
+    #
+    # The uid and gid are load-bearing too, for a plainer reason: the share mounts
+    # as root and the .NET images run as uid 1654, so without them the application
+    # cannot create its own database file.
+    $wanted = 'uid=1654,gid=1654,dir_mode=0755,file_mode=0644,nobrl'
+
+    $current = az containerapp show `
+        --resource-group $Environment.ResourceGroup `
+        --name $Environment.ApiApp `
+        --query "properties.template.volumes[?name=='audit'].mountOptions" `
+        --output tsv
+
+    if ($current -eq $wanted) {
+        Write-Host "  the audit share is mounted as it should be" -ForegroundColor DarkGray
+        return
+    }
+
+    Write-Step 'Mounting the audit share'
+
+    if ($current) {
+        Write-Host "  changing: $current" -ForegroundColor Yellow
+        Write-Host "        to: $wanted" -ForegroundColor Yellow
+    }
+
+    $yamlPath = Join-Path ([System.IO.Path]::GetTempPath()) "counter-api-$Tag.yaml"
+
+    az containerapp show `
+        --resource-group $Environment.ResourceGroup `
+        --name $Environment.ApiApp `
+        --output yaml > $yamlPath
+
+    $definition = Get-Content $yamlPath -Raw
+
+    # Two cases, because the app may or may not already have the blocks. On a
+    # freshly created app they are null and the whole block is inserted; on an
+    # existing one only the options line needs to change. Handling just the first
+    # is what made this write-once.
+    if ($definition -match '(?m)^\s*volumes: null\s*$') {
+        $definition = $definition -replace '(?m)^(\s*)volumes: null\s*$', @"
+`$1volumes:
+`$1- name: audit
+`$1  storageName: $($Environment.StorageLink)
+`$1  storageType: AzureFile
+`$1  mountOptions: $wanted
+"@
+    }
+    else {
+        # The dash matters. The CLI renders the volume as a list item, so the
+        # line is "    - mountOptions: ...", and a pattern anchored on whitespace
+        # alone matches nothing -- silently, replacing no text and reporting
+        # success. That is the same shape of failure as the one this function
+        # exists to fix, which is why the result is read back below.
+        $definition = $definition -replace '(?m)^(\s*(?:- )?)mountOptions: .*$', "`$1mountOptions: $wanted"
+    }
+
+    if ($definition -match '(?m)^\s*volumeMounts: null\s*$') {
+        $definition = $definition -replace '(?m)^(\s*)volumeMounts: null\s*$', @"
+`$1volumeMounts:
+`$1- volumeName: audit
+`$1  mountPath: /audit
+"@
+    }
+
+    Set-Content -Path $yamlPath -Value $definition -Encoding UTF8
+
+    az containerapp update `
+        --resource-group $Environment.ResourceGroup `
+        --name $Environment.ApiApp `
+        --yaml $yamlPath | Out-Null
+
+    Remove-Item $yamlPath -Force -ErrorAction SilentlyContinue
+
+    # Read it back. A configuration change that reports success and did nothing is
+    # the defect this function exists because of.
+    $applied = az containerapp show `
+        --resource-group $Environment.ResourceGroup `
+        --name $Environment.ApiApp `
+        --query "properties.template.volumes[?name=='audit'].mountOptions" `
+        --output tsv
+
+    if ($applied -ne $wanted) {
+        throw "The audit share still mounts as '$applied' rather than '$wanted'."
+    }
+
+    Write-Host "  mounted with $wanted" -ForegroundColor Green
+}
 
 # -- prove the deployment, rather than announcing it ---------------------------
 #
@@ -564,10 +634,15 @@ function Assert-DeploymentAnswers {
     $deadline = (Get-Date).AddSeconds(180)
     $health = $null
 
+    # Both conditions in the same loop, and this is not fussiness. A deployment
+    # switches revisions, so for a few seconds the address still answers from the
+    # old one -- which reports its own state, not the new one's. Checking
+    # readiness first and durability afterwards read one answer from each and
+    # failed a deployment that had in fact worked.
     while ((Get-Date) -lt $deadline) {
         try {
             $health = Invoke-RestMethod "https://$Url/health" -TimeoutSec 60
-            if ($health.isReady) { break }
+            if ($health.isReady -and $health.isAuditDurable) { break }
         }
         catch {
             # A refusal here is the container still starting, which is expected
@@ -610,6 +685,8 @@ container log for the reason the schema could not be opened.
 
     Write-Host "  a search answered with $($found.results.Count) parts" -ForegroundColor Green
 }
+
+Set-AuditShare -Environment $environment -Tag $Tag
 
 Assert-DeploymentAnswers -Url $url
 
