@@ -33,9 +33,16 @@ const SPOTLIGHT_PADDING = 6;
 /** How far the card sits from the spotlight. */
 const CARD_GAP = 14;
 
-/** Roughly the card's size, for deciding which side of the target it fits on. */
-const CARD_WIDTH = 340;
-const CARD_HEIGHT = 210;
+/**
+ * The card's size before it has been measured.
+ *
+ * A starting guess only, replaced on the first frame by what the card actually
+ * is. Guessing was enough while the card was one paragraph and stopped being
+ * enough when some steps grew to four lines and others shrank to two: a card
+ * placed by an estimate of its own height overlaps the thing it is pointing at
+ * by however much the estimate was wrong.
+ */
+const CARD_ESTIMATE = { width: 340, height: 210 };
 
 interface Props {
   /** Close the tour, whether it was finished or abandoned. */
@@ -55,6 +62,7 @@ interface Spotlight {
 export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | null {
   const [index, setIndex] = useState(0);
   const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
+  const [card, setCard] = useState(CARD_ESTIMATE);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Which optional features this deployment has, asked of the API rather than
@@ -188,6 +196,26 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
     cardRef.current?.focus();
   }, [index]);
 
+  // The card's own size, measured rather than assumed. Each step's text is a
+  // different length, so a fixed estimate is wrong by a different amount on
+  // every step -- and the amount it is wrong by is how far the card overlaps
+  // whatever the step is pointing at.
+  useLayoutEffect(() => {
+    const measured = cardRef.current?.getBoundingClientRect();
+
+    if (!measured) {
+      return;
+    }
+
+    // oxlint-disable-next-line react/set-state-in-effect
+    setCard((current) =>
+      Math.abs(current.width - measured.width) < 1 &&
+      Math.abs(current.height - measured.height) < 1
+        ? current
+        : { width: measured.width, height: measured.height },
+    );
+  }, [index, steps]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
@@ -219,7 +247,7 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
       <div
         ref={cardRef}
         className="tour__card"
-        style={cardPosition(spotlight)}
+        style={cardPosition(spotlight, card)}
         tabIndex={-1}
       >
         <p className="tour__count">
@@ -280,29 +308,71 @@ function TourBackdrop({ spotlight }: { spotlight: Spotlight | null }): React.JSX
 }
 
 /**
- * Where to put the card so it neither covers the spotlight nor leaves the page.
+ * Where to put the card so it does not cover what the step is pointing at.
  *
  * @param spotlight The hole, or null when the step has no target.
+ * @param card How big the card actually is, measured.
  * @returns Inline position for the card.
+ *
+ * @remarks
+ * The first version tried below the spotlight, then above, then clamped to the
+ * top of the screen. That last fallback is what went wrong: on a step
+ * spotlighting a full-height drawer, neither side fits, so the card was clamped
+ * to the top -- directly over the table headers and the first five rows of the
+ * thing the step exists to show.
+ *
+ * So it now tries all four sides and takes the first that genuinely clears the
+ * spotlight. When none do, because the spotlight fills the viewport, the card
+ * docks to the bottom: a table is read downwards, so the bottom is where it
+ * hides the least, and its headers and first rows stay visible.
  */
-function cardPosition(spotlight: Spotlight | null): React.CSSProperties {
+function cardPosition(
+  spotlight: Spotlight | null,
+  card: { width: number; height: number },
+): React.CSSProperties {
   if (!spotlight) {
     return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
   }
 
+  const view = { width: window.innerWidth, height: window.innerHeight };
+
+  // Horizontally aligned with the spotlight where possible, so the card reads as
+  // belonging to it rather than floating loose.
+  const alignedLeft = clamp(spotlight.left, CARD_GAP, view.width - card.width - CARD_GAP);
+  const alignedTop = clamp(spotlight.top, CARD_GAP, view.height - card.height - CARD_GAP);
+
   const below = spotlight.top + spotlight.height + CARD_GAP;
-  const fitsBelow = below + CARD_HEIGHT < window.innerHeight;
+  const above = spotlight.top - card.height - CARD_GAP;
+  const right = spotlight.left + spotlight.width + CARD_GAP;
+  const left = spotlight.left - card.width - CARD_GAP;
 
-  const top = fitsBelow
-    ? below
-    : Math.max(CARD_GAP, spotlight.top - CARD_HEIGHT - CARD_GAP);
+  const candidates: React.CSSProperties[] = [
+    ...(below + card.height <= view.height - CARD_GAP
+      ? [{ top: below, left: alignedLeft }]
+      : []),
+    ...(above >= CARD_GAP ? [{ top: above, left: alignedLeft }] : []),
+    ...(right + card.width <= view.width - CARD_GAP
+      ? [{ top: alignedTop, left: right }]
+      : []),
+    ...(left >= CARD_GAP ? [{ top: alignedTop, left }] : []),
+  ];
 
-  // Kept fully on screen horizontally. A card half off the right edge is one
-  // whose buttons cannot be reached.
-  const left = Math.min(
-    Math.max(CARD_GAP, spotlight.left),
-    Math.max(CARD_GAP, window.innerWidth - CARD_WIDTH - CARD_GAP),
-  );
+  if (candidates.length > 0) {
+    return candidates[0];
+  }
 
-  return { top, left };
+  // Nothing clears it. Docked at the bottom, where a table hides least.
+  return {
+    top: view.height - card.height - CARD_GAP,
+    left: clamp(
+      (view.width - card.width) / 2,
+      CARD_GAP,
+      view.width - card.width - CARD_GAP,
+    ),
+  };
+}
+
+/** Keep a value inside a range, tolerating a range narrower than the value. */
+function clamp(value: number, lowest: number, highest: number): number {
+  return Math.max(lowest, Math.min(value, Math.max(lowest, highest)));
 }

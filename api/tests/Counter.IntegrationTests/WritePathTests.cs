@@ -10,10 +10,10 @@ using Counter.Infrastructure.Mcp;
 /// The write path exists, is separate, and is off here.
 /// </summary>
 /// <remarks>
-/// The question worth answering is whether this understands CRUD against the underlying
-/// database. The answer has two halves, and the second is the one that takes
-/// work: writes exist, and they are kept where they cannot weaken the read-only
-/// claim the rest of the application makes.
+/// "Can it write?" is a fair question to ask of a database tool. The answer has
+/// two halves, and the second is the one that takes work: writes exist, and they
+/// are kept where they cannot weaken the read-only claim the rest of the
+/// application makes.
 ///
 /// So these assert the separation rather than the writing. That the writing is
 /// correct is asserted where writing happens — in the store's own suite and the

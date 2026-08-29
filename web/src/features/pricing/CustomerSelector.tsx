@@ -178,10 +178,9 @@ export function CustomerSelector({ selectedAccount, onSelect }: Props): React.JS
           {results.map((customer, index) => (
             <li
               key={customer.accountNumber}
-              className="search__result"
+              className="search__result search__result--customer"
               role="option"
               aria-selected={index === highlighted}
-              style={{ gridTemplateColumns: "7rem 1fr auto" }}
               onMouseEnter={() => setHighlighted(index)}
               onClick={() => choose(index)}
             >

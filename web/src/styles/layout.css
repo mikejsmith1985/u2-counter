@@ -52,11 +52,17 @@
   color: var(--text-faint);
 }
 
+/* A dropdown list is as wide as its contents need, not as wide as the closed
+   control. Pinned to both edges of a narrow header control, a row had nowhere to
+   put a description: the part list clipped every one of them to a single letter
+   and grew a horizontal scrollbar instead. */
 .search__results {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  right: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(34rem, calc(100vw - 2rem));
   max-height: 24rem;
   overflow-y: auto;
   background: var(--surface-raised);
@@ -1237,3 +1243,42 @@ kbd {
   overflow-y: auto;
   color: var(--text-muted);
 }
+
+/* A customer row, wide enough to read.
+   The list used to be as narrow as the closed control, and with an account
+   number and a price class either side of it the name collapsed to a single
+   letter -- a picker where every row reads "A." is one nobody can pick from. */
+.search--customer .search__results { min-width: 26rem; }
+
+.search__result--customer {
+  grid-template-columns: 6rem 1fr auto;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.search__result--customer .search__result-description {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The price class sits at the end and must not wrap onto two lines: "list
+   price" breaking in half made the row twice as tall as its neighbours. */
+.search__result--customer .branch__code { white-space: nowrap; }
+
+/* A part row: number, description, then how many are free to sell. The
+   description is the column that tells somebody whether this is the part they
+   meant, so it gets the room and truncates rather than wrapping. */
+.search--part .search__results { min-width: 28rem; }
+
+.search--part .search__result {
+  grid-template-columns: 9rem minmax(10rem, 1fr) auto;
+}
+
+.search--part .search__result-description {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search__hint { white-space: nowrap; }

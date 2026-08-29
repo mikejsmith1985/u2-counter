@@ -103,7 +103,7 @@ public sealed class ConcurrentCallerTests(CounterFixture fixture)
     [Fact]
     public async Task One_persons_customer_selection_never_reaches_another_person()
     {
-        // The failure that would be worst to demonstrate to a reviewer: two
+        // The worst failure this application could have in front of anybody: two
         // representatives on two calls, and one of them quotes the other
         // customer's contract price.
         JsonElement customers = await _fixture.Client.ReadJsonAsync("/api/v1/customers?q=a");

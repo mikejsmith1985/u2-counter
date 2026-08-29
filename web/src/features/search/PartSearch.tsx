@@ -226,7 +226,11 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
         </ul>
       )}
 
-      {isOpen && isSearchable && isReady && (
+      {/* Open when there is something to show, whether it was searched for or
+          browsed to. Gating this on isSearchable meant the browse list was
+          fetched, held, and never rendered -- the caret turned, the box looked
+          open, and nothing appeared. */}
+      {isOpen && isReady && (isSearchable || isBrowsing) && (
         <ul
           className="search__results"
           id={listId}
