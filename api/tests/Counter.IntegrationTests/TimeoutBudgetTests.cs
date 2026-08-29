@@ -119,10 +119,14 @@ public sealed class TimeoutBudgetTests(CounterFixture fixture)
         // it — a far worse outcome than the slowness that caused it.
         await using SlowErp slow = await SlowErp.StartAsync(_fixture, Budget);
 
+        // A part that is actually there, because this test is about recovering
+        // and a missing part would look exactly like a failure to recover.
+        string partNumber = _fixture.AnyPartNumber();
+
         slow.BecomeSlow(StoreDelay);
 
         using (HttpResponseMessage timedOut =
-            await slow.Client.GetAsync("/api/v1/parts/S-BRK00000/availability"))
+            await slow.Client.GetAsync($"/api/v1/parts/{partNumber}/availability"))
         {
             Assert.Equal(HttpStatusCode.GatewayTimeout, timedOut.StatusCode);
         }
@@ -136,7 +140,7 @@ public sealed class TimeoutBudgetTests(CounterFixture fixture)
         // asserting is that the application comes back on its own, not that it
         // comes back instantly.
         bool hasRecovered = await slow.RecoversWithinAsync(
-            StoreDelay + TimeSpan.FromSeconds(15));
+            StoreDelay + TimeSpan.FromSeconds(15), partNumber);
 
         Assert.True(
             hasRecovered,
@@ -227,15 +231,20 @@ internal sealed class SlowErp : IAsyncDisposable
     /// Keep asking until the application answers, or until time runs out.
     /// </summary>
     /// <param name="within">How long to keep trying.</param>
+    /// <param name="partNumber">
+    /// A part that exists. Passed in rather than written down, because a key
+    /// that the data generator stopped producing makes this report a failure to
+    /// recover when what actually happened is that the part went away.
+    /// </param>
     /// <returns>Whether it recovered.</returns>
-    public async Task<bool> RecoversWithinAsync(TimeSpan within)
+    public async Task<bool> RecoversWithinAsync(TimeSpan within, string partNumber)
     {
         DateTime deadline = DateTime.UtcNow + within;
 
         while (DateTime.UtcNow < deadline)
         {
             using HttpResponseMessage response =
-                await _client.GetAsync("/api/v1/parts/S-BRK00000/availability");
+                await _client.GetAsync($"/api/v1/parts/{partNumber}/availability");
 
             if (response.IsSuccessStatusCode)
             {

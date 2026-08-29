@@ -151,6 +151,40 @@ public sealed class CounterFixture : IAsyncLifetime
     /// the same bytes is not a change anyone can observe, and a timestamp that
     /// moved without the bytes moving is not one either.
     /// </remarks>
+    /// <summary>
+    /// A part number that is actually in the copied data.
+    /// </summary>
+    /// <returns>The first key in the product file.</returns>
+    /// <remarks>
+    /// Read from the data rather than written down, because a literal key is a
+    /// test coupled to whichever records the generator happened to produce.
+    /// Regenerating the demonstration data broke a test this way -- it asked for
+    /// a part that no longer existed, and reported that the application had
+    /// failed to recover from a timeout when what had actually happened is that
+    /// the part was gone.
+    ///
+    /// Only tests that need a part to exist should use this. A test about a
+    /// failure path is right to name a key that does not exist, and naming a
+    /// literal one there is clearer than borrowing a real one.
+    /// </remarks>
+    public string AnyPartNumber()
+    {
+        string productFile = Path.Combine(_dataDirectory, "PRODUCT.mv");
+
+        foreach (string line in File.ReadLines(productFile))
+        {
+            int separator = line.IndexOf('	', StringComparison.Ordinal);
+
+            if (separator > 0)
+            {
+                return line[..separator];
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No records were found in {productFile}. The fixture copied no data.");
+    }
+
     public IReadOnlyDictionary<string, string> HashErpData()
     {
         Dictionary<string, string> hashes = new(StringComparer.Ordinal);

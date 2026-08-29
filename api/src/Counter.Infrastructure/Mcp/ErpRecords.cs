@@ -80,6 +80,77 @@ public static class ErpRecords
             .ToList();
     }
 
+    /// <summary>
+    /// Read the fields a dictionary listing describes.
+    /// </summary>
+    /// <param name="payload">The tool's answer.</param>
+    /// <returns>Fields in position order, the key first.</returns>
+    /// <remarks>
+    /// Sorted by position rather than by the order the server happened to return
+    /// them, because position order is the order the record is in — and a screen
+    /// listing a record's fields out of order is describing a different record.
+    /// </remarks>
+    public static IReadOnlyList<Domain.Catalogue.DictionaryField> DictionaryFieldsFrom(
+        JsonElement payload)
+    {
+        if (!payload.TryGetProperty("dictionary_items", out JsonElement items) ||
+            items.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        List<Domain.Catalogue.DictionaryField> fields = [];
+
+        foreach (JsonElement item in items.EnumerateArray())
+        {
+            string name = Text(item, "name");
+
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
+            fields.Add(new Domain.Catalogue.DictionaryField(
+                name,
+                int.TryParse(Text(item, "field_number"), out int position) ? position : -1,
+                Text(item, "heading") is { Length: > 0 } heading ? heading : name,
+                Text(item, "format"),
+                string.Equals(Text(item, "single_multi"), "M", StringComparison.OrdinalIgnoreCase),
+                Text(item, "conversion")));
+        }
+
+        return fields
+            .OrderBy(field => field.Position)
+            .ThenBy(field => field.Name, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Read the file names a listing returned.
+    /// </summary>
+    /// <param name="payload">The tool's answer.</param>
+    /// <returns>The file names, sorted.</returns>
+    public static IReadOnlyList<string> FileNamesFrom(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("files", out JsonElement files) ||
+            files.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return files.EnumerateArray()
+            .Select(file => file.GetString() ?? string.Empty)
+            .Where(file => file.Length > 0)
+            .OrderBy(file => file, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>Read one string property, or empty when it is absent.</summary>
+    private static string Text(JsonElement item, string property) =>
+        item.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
+
     /// <summary>Read each record from a batch response, keyed by its id.</summary>
     public static IReadOnlyDictionary<string, string> RecordsFrom(JsonElement payload)
     {

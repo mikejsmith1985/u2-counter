@@ -17,6 +17,7 @@ import { BranchCommitments } from "../features/commitments/BranchCommitments";
 import { RecordDrawer } from "../features/record/RecordDrawer";
 import { GovernanceStrip } from "../features/governance/GovernanceStrip";
 import { AskPanel } from "../features/ask/AskPanel";
+import { SchemaExplorer } from "../features/explore/SchemaExplorer";
 import { GuidedTour } from "../features/tour/GuidedTour";
 import { TOUR_PART_NUMBER, type TourStep } from "../features/tour/steps";
 import { ActivityPanel } from "../features/governance/ActivityPanel";
@@ -216,6 +217,12 @@ export function App(): React.JSX.Element {
 
       <main className="main">
         <AskPanel />
+
+        {/* Shown when nothing is selected: somebody arriving cold wants to know
+            what is in here before they want a particular part, and this is the
+            only screen that answers that from the database rather than from a
+            layout compiled into the application. */}
+        {partNumber === null && <SchemaExplorer />}
 
         {partNumber === null && <EmptyState />}
 

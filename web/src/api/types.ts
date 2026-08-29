@@ -244,3 +244,37 @@ export interface AskStatus {
   isConfigured: boolean;
   model: string;
 }
+
+/** One field, as the database's own dictionary describes it. */
+export interface DictionaryField {
+  name: string;
+  /** Which field of the record it describes. Zero is the key. */
+  position: number;
+  heading: string;
+  format: string;
+  isMultiValued: boolean;
+  /** How a stored value becomes a displayed one. MD2 is two implied decimals. */
+  conversion: string;
+}
+
+/** The files in the account. */
+export interface FilesResponse {
+  files: string[];
+}
+
+/** One record, raw and split into fields. */
+export interface RecordRow {
+  key: string;
+  raw: string;
+  fields: string[];
+}
+
+/** What a search of a file returned, with the dictionary that labels it. */
+export interface RecordsResponse {
+  file: string;
+  dictionary: DictionaryField[];
+  records: RecordRow[];
+  matchCount: number;
+  /** The selection that ran, so the answer can be checked. */
+  selection: string;
+}

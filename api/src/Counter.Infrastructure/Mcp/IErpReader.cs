@@ -36,6 +36,23 @@ public interface IErpReader
     /// <param name="recordIds">The keys to read.</param>
     /// <param name="cancellationToken">Abandons the read when the caller gives up.</param>
     /// <returns>Each record found, keyed by its id. Missing keys are simply absent.</returns>
+    /// <summary>
+    /// Name every field in a file, from the file's own dictionary.
+    /// </summary>
+    /// <param name="fileName">The MultiValue file to describe.</param>
+    /// <param name="cancellationToken">Abandons the read when the caller gives up.</param>
+    /// <returns>The fields the dictionary describes, in position order.</returns>
+    Task<IReadOnlyList<Domain.Catalogue.DictionaryField>> ListDictionaryAsync(
+        string fileName,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Name the files in the account.
+    /// </summary>
+    /// <param name="cancellationToken">Abandons the read when the caller gives up.</param>
+    /// <returns>The file names, sorted.</returns>
+    Task<IReadOnlyList<string>> ListFilesAsync(CancellationToken cancellationToken);
+
     Task<IReadOnlyDictionary<string, string>> ReadRecordsAsync(
         string fileName, IReadOnlyList<string> recordIds, CancellationToken cancellationToken);
 }

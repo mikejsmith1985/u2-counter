@@ -77,6 +77,30 @@ public sealed class ErpReader : IErpReader, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Domain.Catalogue.DictionaryField>> ListDictionaryAsync(
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        JsonElement result = await CallAsync(
+            ErpTools.ListDictionary,
+            new Dictionary<string, object?> { ["file_name"] = fileName },
+            cancellationToken);
+
+        return ErpRecords.DictionaryFieldsFrom(result);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListFilesAsync(CancellationToken cancellationToken)
+    {
+        JsonElement result = await CallAsync(
+            ErpTools.ListFiles,
+            new Dictionary<string, object?>(),
+            cancellationToken);
+
+        return ErpRecords.FileNamesFrom(result);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyDictionary<string, string>> ReadRecordsAsync(
         string fileName,
         IReadOnlyList<string> recordIds,

@@ -8,6 +8,22 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **A screen with no field names in it, built from the database's own
+  dictionary.** Every other screen here is compiled to one layout, which is right
+  for a counter — the people using it want the same four numbers in the same
+  place every time. It is wrong for anybody evaluating this against their own
+  system: their files are not called PRODUCT and INVENTORY and their fields are
+  not in these positions, so a fixed layout tells them nothing about their own
+  data. This reads the account instead. The file list comes from the account, the
+  field list from each file's dictionary, and the column headings from what that
+  dictionary calls them — including its own warning about which fields are
+  multi-valued. Searching picks a field from the dictionary and matches on the
+  position it reported, so the selection is parameterised rather than composed
+  and nothing typed becomes part of the query's structure. The selection that ran
+  is shown underneath: a screen that says what it asked is one whose answer can
+  be checked. There is no mapping to write, because a MultiValue file already
+  carries one.
+
 - **A question in words, answered from the ERP through the MCP server.** This is
   what makes the MCP server load-bearing rather than decorative: without a model
   in the loop, a protocol designed for a model to call tools does nothing an
@@ -213,6 +229,14 @@ source of truth for what changed (Article VI). Format follows
   rather than accepting.
 
 ### Fixed
+
+- **A test was coupled to a part number the data generator happened to produce.**
+  Regenerating the demonstration data broke it: it asked for `S-BRK00000`, which
+  no longer existed, and reported that the application had failed to recover from
+  a timeout when what had actually happened is that the part was gone. The
+  fixture now reads a key out of the copied data. Tests about failure paths still
+  name a key that does not exist, which is clearer there than borrowing a real
+  one.
 
 - **The post-deploy search check failed on a cold start.** The request
   immediately after a deployment can meet a replica that has not finished

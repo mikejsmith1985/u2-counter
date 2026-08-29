@@ -268,6 +268,16 @@ internal sealed class NullErpReader : IErpReader
         throw Refuse();
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<Domain.Catalogue.DictionaryField>> ListDictionaryAsync(
+        string fileName,
+        CancellationToken cancellationToken) =>
+        throw Refuse();
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<string>> ListFilesAsync(CancellationToken cancellationToken) =>
+        throw Refuse();
+
+    /// <inheritdoc />
     public Task<IReadOnlyDictionary<string, string>> ReadRecordsAsync(
         string fileName, IReadOnlyList<string> recordIds, CancellationToken cancellationToken) =>
         throw Refuse();

@@ -21,6 +21,18 @@ public static class ErpTools
     /// <summary>Read several records from one file.</summary>
     public const string ReadRecords = "read_records";
 
+    /// <summary>Name every field in a file, from the file's own dictionary.</summary>
+    /// <remarks>
+    /// A MultiValue database describes itself. The dictionary says which position
+    /// holds what, how to display it, and whether it is multi-valued — so a
+    /// screen built from it fits whatever account it is pointed at, instead of
+    /// fitting only the one layout somebody compiled into it.
+    /// </remarks>
+    public const string ListDictionary = "list_dictionary";
+
+    /// <summary>Name the files in the account.</summary>
+    public const string ListFiles = "list_files";
+
     /// <summary>Run a selection and return the matching keys.</summary>
     /// <remarks>
     /// Keys come back as structured data. A LIST returns the records formatted
@@ -37,13 +49,16 @@ public static class ErpTools
     /// it later turns out to matter, so the list is kept to what is actually
     /// needed rather than to what might be.
     ///
-    /// Two tools have been removed from this list, and the second one is the
-    /// interesting removal.
+    /// <c>list_dictionary</c> and <c>list_files</c> were both excluded here, and
+    /// the reason has since stopped being true. The stated reason was that the
+    /// demonstration store held no dictionaries, so there was nothing for the
+    /// first to read -- and that was correct until the store gained real ones.
     ///
-    /// <c>list_dictionary</c> would name a file's fields, but the demonstration
-    /// store deliberately holds no dictionaries -- inventing one would be a second
-    /// description of the record layout to keep in step with the first -- so the
-    /// record view names fields by position, exactly as the file contract does.
+    /// They are permitted now because the application asks a question it could
+    /// not ask before: what is in this account, and what do its fields mean? A
+    /// screen built from a file's own dictionary fits whatever account it is
+    /// pointed at. Both are reads, and neither can name anything the account
+    /// does not already contain.
     ///
     /// <c>execute_query</c> ran arbitrary query text. Nothing called it: every
     /// question this application asks is a keyed read or a parameterised
@@ -57,6 +72,8 @@ public static class ErpTools
         ReadRecord,
         ReadRecords,
         GetSelectList,
+        ListDictionary,
+        ListFiles,
     };
 
     /// <summary>

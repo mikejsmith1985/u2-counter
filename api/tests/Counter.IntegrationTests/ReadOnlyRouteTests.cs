@@ -34,6 +34,19 @@ public sealed class ReadOnlyRouteTests(CounterFixture fixture)
     [
         "api/v1/session",
         "api/v1/session/customer",
+
+        // Asking a question is a POST because a question is a body, not a path:
+        // it can be long, it contains whatever somebody typed, and putting that
+        // in a URL would log it in every proxy between here and the browser.
+        //
+        // It writes nothing to the ERP. The tools the assistant is given are
+        // reads and only reads -- there is no write tool in the list for a model
+        // to reach for -- so the verb here describes the shape of the request
+        // rather than its effect on the database.
+        //
+        // Listed rather than exempted, because this test exists to make somebody
+        // write that paragraph before adding a POST.
+        "api/v1/ask",
     ];
 
     private static readonly string[] MutatingVerbs = ["POST", "PUT", "PATCH", "DELETE"];

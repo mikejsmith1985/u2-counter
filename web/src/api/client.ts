@@ -12,6 +12,8 @@ import type {
   AskResult,
   AskStatus,
   BrowseResponse,
+  FilesResponse,
+  RecordsResponse,
   CommitmentsResponse,
   CustomerSearchResponse,
   CustomerSummary,
@@ -172,6 +174,20 @@ export const api = {
   /** Read the stored record beside its parsed form. */
   record: (partNumber: string, signal?: AbortSignal) =>
     request<RecordResponse>(`/parts/${encodeURIComponent(partNumber)}/record`, signal),
+
+  /** The files in the account, as the database reports them. */
+  schemaFiles: (signal?: AbortSignal) =>
+    request<FilesResponse>("/schema/files", signal),
+
+  /** Records from one file, with the dictionary that labels their fields. */
+  schemaRecords: (file: string, position: number, value: string, signal?: AbortSignal) =>
+    request<RecordsResponse>(
+      `/schema/files/${encodeURIComponent(file)}/records` +
+        (position > 0 && value
+          ? `?position=${position}&value=${encodeURIComponent(value)}`
+          : ""),
+      signal,
+    ),
 
   /** Whether an assistant is configured, and which model answers. */
   askStatus: (signal?: AbortSignal) => request<AskStatus>("/ask/status", signal),
