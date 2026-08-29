@@ -1,0 +1,43 @@
+# What must not travel to the build.
+#
+# `az acr build` uploads the whole context before anything is built, so what is
+# listed here is the difference between a fast build and one that sends hundreds
+# of megabytes of dependencies to be discarded on arrival.
+#
+# The image installs its own dependencies from the lockfiles. Anything already
+# installed here is for a different operating system anyway.
+
+**/node_modules/
+**/bin/
+**/obj/
+**/dist/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# History, not source.
+.git/
+.github/
+
+# Local run state and its logs.
+.run/
+
+# Test artefacts.
+web/cypress/videos/
+web/cypress/screenshots/
+web/cypress/downloads/
+coverage/
+
+# Secrets, and the file naming what a previous provision created.
+.env
+.env.*
+!.env.example
+deploy/azure/environment.json
+
+# The deployment's own definitions. The image is built from a Dockerfile that
+# is passed in by path; it does not need to contain its siblings.
+deploy/

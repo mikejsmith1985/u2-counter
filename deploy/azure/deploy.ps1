@@ -110,16 +110,8 @@ $registry = $environment.Registry
 $apiImage = "$registry.azurecr.io/counter-api:$Tag"
 $mcpImage = "$registry.azurecr.io/counter-mcp:$Tag"
 
-Write-Step "Building $apiImage"
-az acr build `
-    --registry $registry `
-    --image "counter-api:$Tag" `
-    --file (Join-Path $repositoryRoot 'deploy\api.Dockerfile') `
-    $repositoryRoot | Out-Null
-
-# The MCP image needs both repositories in its context, because it carries the
-# hardened fork's source rather than installing the package from an index. The
-# context is therefore their shared parent.
+# Resolved before anything is built, because a missing fork should stop this
+# before it spends several minutes building the other image.
 $forkRoot = if ($env:U2_MCP_ROOT) { $env:U2_MCP_ROOT } else {
     Join-Path (Split-Path -Parent $repositoryRoot) 'u2-mcp'
 }
@@ -128,12 +120,68 @@ if (-not (Test-Path $forkRoot)) {
     throw "The hardened fork was not found at $forkRoot. Set U2_MCP_ROOT."
 }
 
-Write-Step "Building $mcpImage"
+Write-Step "Building $apiImage"
 az acr build `
     --registry $registry `
-    --image "counter-mcp:$Tag" `
-    --file (Join-Path $repositoryRoot 'deploy\mcp.Dockerfile') `
-    (Split-Path -Parent $repositoryRoot) | Out-Null
+    --image "counter-api:$Tag" `
+    --file (Join-Path $repositoryRoot 'deploy\api.Dockerfile') `
+    $repositoryRoot | Out-Null
+
+# Staged into a directory of its own rather than built from the shared parent.
+#
+# The parent is somebody's projects folder. Using it as a build context uploads
+# every unrelated repository beside this one -- hundreds of megabytes, other
+# people's work, and anything private that happens to live there -- to a registry,
+# to be discarded on arrival. A .dockerignore cannot fix that without dropping a
+# file into a directory this project does not own.
+#
+# So the context is built here, holding the two things the image copies.
+Write-Step 'Staging the MCP build context'
+
+$mcpContext = Join-Path ([System.IO.Path]::GetTempPath()) "counter-mcp-context-$Tag"
+
+if (Test-Path $mcpContext) { Remove-Item $mcpContext -Recurse -Force }
+New-Item -ItemType Directory -Path $mcpContext -Force | Out-Null
+
+$excluded = @('.git', '.venv', 'venv', '__pycache__', '.pytest_cache', '.mypy_cache',
+              '.ruff_cache', 'node_modules', 'bin', 'obj', 'dist', '.run')
+
+function Copy-Source {
+    <#
+        Copies a source tree without the directories a build has no use for.
+        Robocopy is used for the exclusions; its exit codes below 8 all mean
+        success of some kind, which is why the usual failure check is wrong here.
+    #>
+    param([string] $From, [string] $To)
+
+    $arguments = @($From, $To, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', '/XD') + $excluded
+    & robocopy.exe @arguments | Out-Null
+
+    if ($LASTEXITCODE -ge 8) {
+        throw "Could not stage $From (robocopy exit $LASTEXITCODE)."
+    }
+
+    $global:LASTEXITCODE = 0
+}
+
+Copy-Source $forkRoot (Join-Path $mcpContext 'u2-mcp')
+Copy-Source (Join-Path $repositoryRoot 'mvstore') (Join-Path $mcpContext 'counter\mvstore')
+
+$stagedSize = [math]::Round(
+    ((Get-ChildItem $mcpContext -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
+Write-Step "Context staged: $stagedSize MB"
+
+Write-Step "Building $mcpImage"
+try {
+    az acr build `
+        --registry $registry `
+        --image "counter-mcp:$Tag" `
+        --file (Join-Path $repositoryRoot 'deploy\mcp.Dockerfile') `
+        $mcpContext | Out-Null
+}
+finally {
+    Remove-Item $mcpContext -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 $registryServer = "$registry.azurecr.io"
 $registryPassword = az acr credential show --name $registry --query 'passwords[0].value' --output tsv
