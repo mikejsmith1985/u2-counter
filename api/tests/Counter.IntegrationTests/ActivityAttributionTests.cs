@@ -114,6 +114,43 @@ public sealed class ActivityAttributionTests(CounterFixture fixture)
         Assert.Single(rows);
     }
 
+    [Fact]
+    public async Task A_caller_who_disconnects_still_leaves_a_row()
+    {
+        // The audit trail's weakest point, and the one that would never show up
+        // in ordinary use.
+        //
+        // The durable write happens after the action has run, and if it were
+        // handed the request's own cancellation token it would be cancelled by
+        // the very thing it is meant to record: a caller who goes away. Someone
+        // who wanted their queries unlogged would only have to stop waiting for
+        // the answers, and the trail would show nothing — not a failure, not an
+        // abandoned request, nothing at all.
+        //
+        // The recorder is passed `CancellationToken.None` for exactly this
+        // reason. That reasoning currently lives in a comment, and a comment
+        // stops no one from changing the argument.
+        string marker = "gone-" + Guid.NewGuid().ToString("N")[..8];
+
+        using HttpClient browser = NewBrowser();
+        using CancellationTokenSource abandoned = new();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            Task<HttpResponseMessage> pending =
+                browser.GetAsync($"/api/v1/parts?q={marker}", abandoned.Token);
+
+            // Cancelled while in flight, which is what a closed tab looks like
+            // from the server's side.
+            await abandoned.CancelAsync();
+            using HttpResponseMessage response = await pending;
+        });
+
+        IReadOnlyList<ActivityRow> rows = await ReadRowsAsync(marker);
+
+        Assert.NotEmpty(rows);
+    }
+
     /// <summary>A client with its own cookie jar, so it is its own session.</summary>
     /// <remarks>
     /// The fixture's shared client keeps no cookies, so every request through it
