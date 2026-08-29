@@ -69,6 +69,16 @@ Write-Step "Deploying tag $Tag to $($environment.ResourceGroup)"
 # -- the gate -----------------------------------------------------------------
 
 if (-not $SkipTests) {
+    # The development services stop first, and this is not tidiness. They hold
+    # the assemblies the build writes, so leaving them running fails the build
+    # and reports it as "the .NET suites failed" -- sending whoever reads that
+    # looking for a broken test that does not exist.
+    #
+    # The suites start their own MCP server and database anyway, so nothing
+    # here needs what is being stopped.
+    Write-Step 'Stopping the development services'
+    & (Join-Path $repositoryRoot 'scriptsun-dev-clean.ps1') -Stop | Out-Null
+
     Write-Step 'Running the test suites'
 
     $dotnet = Join-Path $env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe'
