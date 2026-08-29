@@ -51,6 +51,12 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONIOENCODING = 'utf-8'
 
+# PYTHONUTF8 as well, because PYTHONIOENCODING alone did not hold: colorama
+# wraps the CLI's stdout and writes through the console code page, which stays
+# cp1252 and throws on the tick every successful build prints. This forces
+# Python's UTF-8 mode for the whole interpreter rather than only its streams.
+$env:PYTHONUTF8 = '1'
+
 $repositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $environmentFile = Join-Path $PSScriptRoot 'environment.json'
 
@@ -183,6 +189,55 @@ if (-not (Test-Path $forkRoot)) {
     throw "The hardened fork was not found at $forkRoot. Set U2_MCP_ROOT."
 }
 
+$excluded = @('.git', '.venv', 'venv', '__pycache__', '.pytest_cache', '.mypy_cache',
+              '.ruff_cache', 'node_modules', 'bin', 'obj', 'dist', '.run', 'coverage',
+              'videos', 'screenshots', 'downloads')
+
+function New-BuildContext {
+    <#
+        Copies a source tree into a temporary directory, without the parts a
+        build has no use for, and reports how large the result is.
+
+        This exists because .dockerignore is not honoured here. The file is in
+        the context root and correct, and `az acr build` uploaded 137MB of bin
+        and obj directories anyway -- with .git, which is 1MB, excluded by the
+        CLI's own default rules and nothing else excluded at all.
+
+        Rather than keep guessing at pattern syntax against a builder that does
+        not report what it matched, the context is built here. What is sent is
+        then exactly what a reader of this function can see is sent.
+
+        Robocopy is used for the exclusions; its exit codes below 8 all mean
+        success of some kind, which is why the usual failure check is wrong.
+    #>
+    param([hashtable] $Trees, [string] $Name)
+
+    $context = Join-Path ([System.IO.Path]::GetTempPath()) "counter-$Name-context-$Tag"
+
+    if (Test-Path $context) { Remove-Item $context -Recurse -Force }
+    New-Item -ItemType Directory -Path $context -Force | Out-Null
+
+    foreach ($destination in $Trees.Keys) {
+        $target = if ($destination -eq '.') { $context } else { Join-Path $context $destination }
+        $arguments = @($Trees[$destination], $target, '/E', '/NFL', '/NDL',
+                       '/NJH', '/NJS', '/NP', '/XD') + $excluded
+
+        & robocopy.exe @arguments | Out-Null
+
+        if ($LASTEXITCODE -ge 8) {
+            throw "Could not stage $($Trees[$destination]) (robocopy exit $LASTEXITCODE)."
+        }
+
+        $global:LASTEXITCODE = 0
+    }
+
+    $size = [math]::Round(
+        ((Get-ChildItem $context -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
+    Write-Step "$Name context staged: $size MB"
+
+    return $context
+}
+
 function Assert-ImageExists {
     <#
         Confirms the tag this deploy is about to use is really in the registry.
@@ -212,12 +267,20 @@ function Assert-ImageExists {
     throw "$Repository`:$Tag never appeared in $registry. Check: az acr task list-runs --registry $registry"
 }
 
+Write-Step 'Staging the API build context'
+$apiContext = New-BuildContext -Name 'api' -Trees @{ '.' = $repositoryRoot }
+
 Write-Step "Building $apiImage"
-az acr build `
-    --registry $registry `
-    --image "counter-api:$Tag" `
-    --file (Join-Path $repositoryRoot 'deploy\api.Dockerfile') `
-    $repositoryRoot | Out-Null
+try {
+    az acr build `
+        --registry $registry `
+        --image "counter-api:$Tag" `
+        --file (Join-Path $repositoryRoot 'deploy\api.Dockerfile') `
+        $apiContext | Out-Null
+}
+finally {
+    Remove-Item $apiContext -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # Checked, because a failing `az` does not stop PowerShell on its own.
 # ErrorActionPreference governs cmdlets; a native command that exits non-zero
@@ -235,39 +298,10 @@ Assert-ImageExists -Repository 'counter-api'
 #
 # So the context is built here, holding the two things the image copies.
 Write-Step 'Staging the MCP build context'
-
-$mcpContext = Join-Path ([System.IO.Path]::GetTempPath()) "counter-mcp-context-$Tag"
-
-if (Test-Path $mcpContext) { Remove-Item $mcpContext -Recurse -Force }
-New-Item -ItemType Directory -Path $mcpContext -Force | Out-Null
-
-$excluded = @('.git', '.venv', 'venv', '__pycache__', '.pytest_cache', '.mypy_cache',
-              '.ruff_cache', 'node_modules', 'bin', 'obj', 'dist', '.run')
-
-function Copy-Source {
-    <#
-        Copies a source tree without the directories a build has no use for.
-        Robocopy is used for the exclusions; its exit codes below 8 all mean
-        success of some kind, which is why the usual failure check is wrong here.
-    #>
-    param([string] $From, [string] $To)
-
-    $arguments = @($From, $To, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', '/XD') + $excluded
-    & robocopy.exe @arguments | Out-Null
-
-    if ($LASTEXITCODE -ge 8) {
-        throw "Could not stage $From (robocopy exit $LASTEXITCODE)."
-    }
-
-    $global:LASTEXITCODE = 0
+$mcpContext = New-BuildContext -Name 'mcp' -Trees @{
+    'u2-mcp'         = $forkRoot
+    'counter\mvstore' = (Join-Path $repositoryRoot 'mvstore')
 }
-
-Copy-Source $forkRoot (Join-Path $mcpContext 'u2-mcp')
-Copy-Source (Join-Path $repositoryRoot 'mvstore') (Join-Path $mcpContext 'counter\mvstore')
-
-$stagedSize = [math]::Round(
-    ((Get-ChildItem $mcpContext -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
-Write-Step "Context staged: $stagedSize MB"
 
 Write-Step "Building $mcpImage"
 try {
