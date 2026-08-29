@@ -9,6 +9,7 @@ contains: empty interior fields, absent trailing fields, and subvalues.
 import pytest
 
 from mvstore.store import AM, SM, VM, MultiValueStore, RecordNotFoundError
+from mvstore.validation import RecordInvalidError
 
 
 @pytest.fixture
@@ -262,3 +263,67 @@ class TestStructuralCharactersAreRefused:
         store.write("INVENTORY", "P-1", [["DEN", "AUR"], ["10", "5"]])
 
         assert "DEN" in store.raw("INVENTORY", "P-1")
+
+
+class TestRecordRulesAreEnforcedOnWrite:
+    """The rules a file declares are applied where data enters, not afterwards.
+
+    `validate_record` existed and was called only by tests, so the rules it holds
+    -- no branch named twice, quantities whole, no field longer than the branch
+    list -- were checked after a data set was generated rather than enforced when
+    a record was written. A rule verified afterwards is a rule the next writer
+    can break, and the check that would have caught it runs somewhere else.
+    """
+
+    def test_a_branch_named_twice_is_refused(self, tmp_path) -> None:
+        # Availability for that branch would be ambiguous: two positions, two
+        # different figures, and no way to say which one the screen should show.
+        store = MultiValueStore(tmp_path)
+
+        with pytest.raises(RecordInvalidError, match="more than once"):
+            store.write(
+                "INVENTORY",
+                "P-1",
+                [["DEN", "DEN"], ["10", "5"], ["0", "0"], ["0", "0"], ["", ""]],
+            )
+
+    def test_a_quantity_that_is_not_a_number_is_refused(self, tmp_path) -> None:
+        store = MultiValueStore(tmp_path)
+
+        with pytest.raises(RecordInvalidError):
+            store.write(
+                "INVENTORY",
+                "P-1",
+                [["DEN"], ["many"], ["0"], ["0"], [""]],
+            )
+
+    def test_a_file_with_no_declared_rules_is_stored_as_given(self, tmp_path) -> None:
+        # Only the files named in the contract carry rules. A file without them
+        # must not be refused for breaking rules it does not have.
+        store = MultiValueStore(tmp_path)
+        store.write("SCRATCH", "S-1", ["anything", ["at", "all"]])
+
+        assert store.keys("SCRATCH") == ["S-1"]
+
+    def test_a_refused_record_is_not_written(self, tmp_path) -> None:
+        store = MultiValueStore(tmp_path)
+        store.write("INVENTORY", "P-1", [["DEN"], ["10"], ["0"], ["0"], [""]])
+
+        with pytest.raises(RecordInvalidError):
+            store.write(
+                "INVENTORY",
+                "P-2",
+                [["DEN", "DEN"], ["1", "1"], ["0", "0"], ["0", "0"], ["", ""]],
+            )
+
+        assert store.keys("INVENTORY") == ["P-1"]
+
+    def test_the_seeded_data_satisfies_the_rules_it_is_written_under(self, tmp_path) -> None:
+        # The seeder writes through the same path, so this would have failed at
+        # generation if the rules and the generator disagreed.
+        from mvstore.seed import generate
+
+        store = MultiValueStore(tmp_path)
+        generate(store, parts=40, branches=4, customers=6, orders=20)
+
+        assert len(store.keys("INVENTORY")) > 0

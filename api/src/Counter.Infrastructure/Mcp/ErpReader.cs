@@ -314,8 +314,30 @@ public sealed class ErpReader : IErpReader, IAsyncDisposable
 
             try
             {
+                // Bounded, like every call made through it.
+                //
+                // McpClient.CreateAsync performs a handshake, and against an
+                // endpoint that accepts a connection and then says nothing it
+                // waits indefinitely. Deployed behind an ingress that scales to
+                // zero, that is the normal case rather than an exotic one -- and
+                // an unbounded connect here held the catalogue build's lock
+                // forever, so every later search waited behind it and no request
+                // ever returned at all.
+                using CancellationTokenSource connecting =
+                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                connecting.CancelAfter(_options.ConnectBudget);
+
                 _client = await McpClient.CreateAsync(
-                    transport, cancellationToken: cancellationToken);
+                    transport, cancellationToken: connecting.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "The MCP server at {Endpoint} did not complete a handshake within {Budget}",
+                    _options.Endpoint,
+                    _options.ConnectBudget);
+
+                throw new ErpUnreachableException("The system could not reach the stock data.");
             }
             catch (Exception error) when (IsConnectionFailure(error))
             {

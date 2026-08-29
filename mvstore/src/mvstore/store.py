@@ -139,8 +139,25 @@ class MultiValueStore:
         Raises:
             ValueError: If the key or the record contains a tab or a line break
         """
+        # Both checks before anything is written, and in this order: a record
+        # that would corrupt the file is refused before one that merely breaks a
+        # rule about its own contents.
+        #
+        # `validate_record` existed and was called only by tests, which meant the
+        # rules it holds -- no branch named twice, quantities whole, no field
+        # longer than the branch list -- were checked after generation rather than
+        # enforced at the point data enters. A rule that is verified afterwards is
+        # a rule the next writer can break.
+        # Imported here rather than at module scope: validation describes the
+        # records this store holds and so imports the store's own types. A
+        # module-level import would close that cycle and neither module would
+        # load.
+        from .validation import validate_record
+
+        self._reject_structural_characters(file_name, record_id, build_record(fields))
+        validate_record(file_name, fields)
+
         raw = build_record(fields)
-        self._reject_structural_characters(file_name, record_id, raw)
 
         with self._lock:
             records = self._load(file_name)

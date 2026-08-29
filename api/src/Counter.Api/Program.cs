@@ -163,27 +163,63 @@ using (IServiceScope scope = app.Services.CreateScope())
     }
 }
 
-// The catalogue is read once at startup so search answers instantly. It is built
-// in the background: a slow ERP should delay search, not stop the application
-// from starting and reporting why.
+// The catalogue is read at startup so search answers instantly, in the background
+// so that a slow ERP delays search rather than stopping the application from
+// starting and reporting why.
+//
+// It retries, and that is not belt-and-braces. The ERP this reaches is itself a
+// container that scales to zero, so the first attempt after a deployment
+// routinely arrives while nothing is listening. Without a retry the application
+// starts, fails once, and stays unsearchable until somebody happens to run a
+// search — which fails too, slowly, and is the first anyone hears of it.
 _ = Task.Run(async () =>
 {
     CatalogueProjection catalogue = app.Services.GetRequiredService<CatalogueProjection>();
     ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-    try
+    // Backing off to a minute and staying there. The thing being waited for is
+    // usually a container starting, which takes seconds; when it is something
+    // worse, a minute between attempts keeps the log readable and stops a
+    // failing dependency being hammered by its own client.
+    TimeSpan[] delays =
+    [
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(30),
+    ];
+
+    for (int attempt = 0; ; attempt++)
     {
-        await catalogue.BuildAsync(CancellationToken.None);
-    }
+        try
+        {
+            await catalogue.BuildAsync(CancellationToken.None);
+
+            if (attempt > 0)
+            {
+                logger.LogInformation(
+                    "The catalogue was read on attempt {Attempt}", attempt + 1);
+            }
+
+            return;
+        }
 #pragma warning disable CA1031 // Startup must survive any failure to read the catalogue.
-    catch (Exception error)
+        catch (Exception error)
 #pragma warning restore CA1031
-    {
-        // Deliberately broad. Whatever goes wrong reading the catalogue, the
-        // application must still start: an operator can then see the logged
-        // reason and retry the build, where a process that exited silently
-        // leaves them with nothing to read.
-        logger.LogError(error, "The catalogue could not be read at startup");
+        {
+            // Deliberately broad. Whatever goes wrong reading the catalogue, the
+            // application must still start: an operator can then see the logged
+            // reason, and /health says plainly that search cannot answer yet.
+            TimeSpan delay = delays[Math.Min(attempt, delays.Length - 1)];
+
+            logger.LogWarning(
+                error,
+                "The catalogue could not be read (attempt {Attempt}). Trying again in {Delay}",
+                attempt + 1,
+                delay);
+
+            await Task.Delay(delay);
+        }
     }
 });
 

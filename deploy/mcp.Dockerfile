@@ -44,8 +44,14 @@ ENV U2_DRIVER=demo \
 
 # Present because the server validates its connection settings at startup
 # whichever driver is loaded. With the demo driver nothing authenticates against
-# them, and there is no database behind them. A real deployment overrides all
-# four from a secret store and never from here.
+# them, and there is no database behind them. A real deployment overrides all of
+# them from a secret store and never from here.
+#
+# U2_PASSWORD is deliberately absent: a password baked into an image layer is a
+# password in the registry, readable by anyone who can pull. The container will
+# refuse to start without one, which is the correct failure -- it says plainly
+# that the deployment forgot to supply a credential rather than starting with a
+# default nobody chose. deploy/azure/deploy.ps1 passes it as a secret.
 ENV U2_HOST=127.0.0.1 \
     U2_USER=u2demo \
     U2_ACCOUNT=DEMO

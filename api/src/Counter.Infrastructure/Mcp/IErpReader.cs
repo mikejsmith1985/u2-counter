@@ -85,6 +85,19 @@ public sealed class ErpConnectionOptions
     /// ring back, but they cannot repeat a figure they never received.
     /// </remarks>
     public TimeSpan RequestBudget { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// How long to wait for a connection and its handshake.
+    /// </summary>
+    /// <remarks>
+    /// Longer than <see cref="RequestBudget"/>, and separate from it, because
+    /// they bound different things. A request budget is what a person waiting on
+    /// a screen will tolerate. Connecting happens once, usually while nobody is
+    /// waiting, and against a server that scales to zero it includes the time to
+    /// start a container — thirty seconds is ordinary there and would be
+    /// alarming in a query.
+    /// </remarks>
+    public TimeSpan ConnectBudget { get; set; } = TimeSpan.FromSeconds(45);
 }
 
 /// <summary>Raised when the ERP does not answer within the budget.</summary>

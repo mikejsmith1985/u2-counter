@@ -212,9 +212,15 @@ public sealed class CounterFixture : IAsyncLifetime
     /// through the environment because both are bound as options, which are read
     /// when they are resolved rather than when the host is built.
     /// </remarks>
+    /// <param name="connectBudget">
+    /// How long to wait for a handshake. Defaults to the application's own, which
+    /// is deliberately generous because connecting can include a container
+    /// starting; a test that wants to observe the bound supplies a short one.
+    /// </param>
     public (IAsyncDisposable Application, HttpClient Client) ApplicationAgainst(
         int mcpPort,
-        TimeSpan budget)
+        TimeSpan budget,
+        TimeSpan? connectBudget = null)
     {
         // A fresh factory rather than one derived from the suite's. Deriving
         // keeps the suite's own configuration source, and configuration is
@@ -228,6 +234,8 @@ public sealed class CounterFixture : IAsyncLifetime
                 {
                     ["Erp:Endpoint"] = $"http://127.0.0.1:{mcpPort}/",
                     ["Erp:RequestBudget"] = budget.ToString("c", CultureInfo.InvariantCulture),
+                    ["Erp:ConnectBudget"] = (connectBudget ?? TimeSpan.FromSeconds(45))
+                        .ToString("c", CultureInfo.InvariantCulture),
                 })));
 
         return (application, application.CreateClient());

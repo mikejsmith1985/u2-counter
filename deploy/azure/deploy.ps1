@@ -317,6 +317,21 @@ finally {
 
 Assert-ImageExists -Repository 'counter-mcp'
 
+# The server validates its connection settings at startup whichever driver is
+# loaded, so it refuses to start without a password even though the demonstration
+# driver never authenticates against anything. The image deliberately does not
+# bake one in -- a password in an image layer is a password in a registry -- so
+# the deployment supplies it.
+#
+# It is passed as a container-app secret rather than a plain environment variable
+# because that is how the real one would arrive, and a demonstration that handles
+# its placeholder differently from the real thing has not demonstrated the
+# handling. Nothing authenticates against this value: there is no Universe behind
+# it.
+$u2Password = if ($env:U2_PASSWORD) { $env:U2_PASSWORD } else {
+    'demo-no-database-behind-this'
+}
+
 $registryServer = "$registry.azurecr.io"
 $registryPassword = az acr credential show --name $registry --query 'passwords[0].value' --output tsv
 
@@ -349,12 +364,24 @@ function Test-AppExists {
 Write-Step "Deploying $($environment.McpApp) (internal, scales to zero)"
 
 if (Test-AppExists $environment.McpApp) {
+    # The secret and its reference are set on the update path too, not only on
+    # create. An app created before this existed has neither, and a redeploy that
+    # only swapped the image left the container refusing to start for a missing
+    # password -- while the deploy reported success, because the image really had
+    # been deployed.
+    az containerapp secret set `
+        --resource-group $environment.ResourceGroup `
+        --name $environment.McpApp `
+        --secrets "u2-password=$u2Password" | Out-Null
+
     az containerapp update `
         --resource-group $environment.ResourceGroup `
         --name $environment.McpApp `
         --image $mcpImage `
         --min-replicas 0 `
-        --max-replicas 1 | Out-Null
+        --max-replicas 1 `
+        --set-env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' `
+                       'U2_PASSWORD=secretref:u2-password' | Out-Null
 }
 else {
     az containerapp create `
@@ -371,7 +398,9 @@ else {
         --min-replicas 0 `
         --max-replicas 1 `
         --cpu 0.5 --memory 1.0Gi `
-        --env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' | Out-Null
+        --secrets "u2-password=$u2Password" `
+        --env-vars 'U2_DRIVER=demo' 'MVSTORE_DATA_PATH=/srv/data' `
+                   'U2_PASSWORD=secretref:u2-password' | Out-Null
 }
 
 $mcpEndpoint = "http://$($environment.McpApp)"
@@ -392,7 +421,9 @@ if (Test-AppExists $environment.ApiApp) {
         --name $environment.ApiApp `
         --image $apiImage `
         --min-replicas 0 `
-        --max-replicas 1 | Out-Null
+        --max-replicas 1 `
+        --set-env-vars "Erp__Endpoint=$mcpEndpoint/" `
+                       "ConnectionStrings__Counter=$auditConnection" | Out-Null
 }
 else {
     az containerapp create `
