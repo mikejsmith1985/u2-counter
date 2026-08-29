@@ -109,7 +109,7 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="search">
+    <div className="search search--part">
       <input
         ref={inputRef}
         className="search__input"

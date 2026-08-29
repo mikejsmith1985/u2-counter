@@ -1,8 +1,9 @@
 # mvstore
 
 A demonstration MultiValue store. It holds records in genuine attribute, value
-and subvalue format and answers the four read verbs this feature uses — `LIST`,
-`SELECT`, `SSELECT` and `COUNT`.
+and subvalue format and answers the read verbs this feature uses — `LIST`,
+`SELECT`, `SSELECT`, `COUNT`, and `WHO` for the health check the MCP server makes
+every thirty seconds.
 
 ## Why it exists
 

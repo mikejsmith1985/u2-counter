@@ -75,7 +75,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T028 [P] Implement the EF Core context and migrations for `UserSession` and `ActivityRecord` in `api/src/Counter.Infrastructure/Data/`
 - [X] T029 [P] Write failing tests in `api/tests/Counter.IntegrationTests/ActivityRedactionTests.cs` asserting no seeded credential ever reaches a written record
 - [X] T030 Implement the activity-recording action filter in `api/src/Counter.Api/Filters/ActivityRecordingFilter.cs` — one record per request including failures, naming the person and the database login
-- [X] T031 Implement the five-second request budget in `api/src/Counter.Api/Filters/ErpTimeoutFilter.cs` — a linked cancellation token that stops the work, not merely the waiting
+- [X] T031 Implement the five-second request budget in `api/src/Counter.Infrastructure/Mcp/ErpReader.cs` — the call is raced against the budget and the connection dropped when it expires, because cancelling the token stops the *next* call and not one already in flight. Attempted first as a filter installing the budget as the request's cancellation token; that truncated every slow response to an empty `200`, which is the one answer this feature exists to prevent, and was removed
 - [X] T032 Implement problem-detail mapping in `api/src/Counter.Api/Filters/ProblemDetailsMapper.cs` for the four error types in `contracts/rest-api.md`
 
 ### Web foundations
@@ -236,7 +236,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T088 [P] [US5] Implement the sign-in screen in `web/src/features/governance/SignIn.tsx`, stating plainly that the personas are for demonstration
 - [X] T089 [P] [US5] Implement the governance strip in `web/src/features/governance/GovernanceStrip.tsx` — identity, database login, shared-login notice, read-only badge
 - [X] T090 [US5] Implement the activity panel in `web/src/features/governance/ActivityPanel.tsx`
-- [X] T091 [US5] Gate every data-changing control behind the read-only flag in `web/src/features/governance/ReadOnlyGate.tsx`, so none is rendered in a read-only session
+- [X] T091 [US5] Gate every data-changing control behind the read-only flag in `web/src/components/ReadOnlyGate.tsx`. Rendered disabled with its reason beside it rather than omitted, so the boundary reads as a decision instead of a feature nobody reached
 
 ### Story verification
 
@@ -257,7 +257,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T099 [P] Add the `axe-core` sweep across every screen to the Cypress suite (SC-012)
 - [X] T100 [P] Add keyboard-only completion of all five journeys in `web/cypress/e2e/keyboard-journeys.cy.ts` (SC-011)
 - [X] T101 [P] Implement light and dark themes in `web/src/styles/`, both meeting AA contrast
-- [X] T102 [P] Implement the demonstration-data marker in `web/src/components/DemonstrationBadge.tsx` and place it on every screen showing figures (FR-032)
+- [X] T102 [P] Implement the demonstration-data marker in `web/src/components/ProvenanceBadges.tsx` and place it on every screen showing figures, including the record drawer that covers the governance strip (FR-032)
 - [X] T103 Write `deploy/api.Dockerfile` — API serving the built front-end assets
 - [X] T104 Write `deploy/mcp.Dockerfile` — the hardened fork plus `mvstore`, bound to loopback
 - [X] T105 Write `deploy/azure/provision.ps1` — Container Apps environment, two apps with the MCP server on internal ingress only, and Azure SQL

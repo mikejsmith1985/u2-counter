@@ -12,7 +12,7 @@ describe("the counter screen", () => {
   });
 
   it("renders the search box and the governance strip", () => {
-    cy.get(".search__input").should("be.visible");
+    cy.get(".search--part .search__input").should("be.visible");
     cy.get(".governance").should("be.visible");
   });
 

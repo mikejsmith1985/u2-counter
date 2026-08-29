@@ -36,7 +36,7 @@ Cypress.Commands.add("focusSearch", () => {
   // than from whatever the last test left focused.
   cy.get("body").realClick({ position: "topLeft" });
   cy.realPress("/");
-  cy.get(".search__input").should("be.focused");
+  cy.get(".search--part .search__input").should("be.focused");
 });
 
 Cypress.Commands.add("typeReal", (text: string) => {
@@ -49,7 +49,7 @@ Cypress.Commands.add("findPartByKeyboard", (term: string) => {
 
   // The list has to be there before Enter means anything. Waiting on the
   // element rather than on a delay keeps this honest when the API is slow.
-  cy.get(".search__result").should("have.length.greaterThan", 0);
+  cy.get(".search--part .search__result").should("have.length.greaterThan", 0);
   cy.realPress("Enter");
   cy.get(".part-heading__number").should("be.visible");
 });

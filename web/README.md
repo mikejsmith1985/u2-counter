@@ -1,32 +1,49 @@
-# React + TypeScript + Vite
+# The counter screen
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The interface a branch representative uses while a customer is on the telephone
+asking whether a part is in stock and what it costs them.
 
-Currently, two official plugins are available:
+Everything here follows from that sentence. The person using it has a telephone
+against one shoulder, so every journey is completable from the keyboard and the
+answer fits on one screen without scrolling. They are going to repeat what they
+read to somebody, so the interface never shows a figure without saying where it
+came from — and never lets two different answers look the same.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## The distinction the whole thing is built around
 
-## React Compiler
+"Nothing matched", "the system could not be reached" and "stock is not recorded
+for this part" are three different answers. Collapsed into an empty result they
+look identical, and a representative reading that would tell a customer there is
+no stock — which is a statement someone will act on.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+So each has its own state, its own wording and its own colour, and the API
+carries a typed failure the screen switches on rather than a shape the screen has
+to guess from.
 
-## Expanding the Oxlint configuration
+## Running it
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+Started with everything else, never on its own:
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+../scripts/run-dev-clean.ps1
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The dev server proxies `/api` to the API, so the browser only ever sees one
+origin.
+
+## The suites
+
+```powershell
+npm test        # Vitest: the copied summary, the record rendering
+npm run cypress # a real browser, real events, axe-core on every screen
+```
+
+The Cypress suite uses `cypress-real-events` throughout, and that is not a
+stylistic preference. A synthetic keypress does not move focus, so a suite built
+on `cy.type()` would report that keyboard navigation works without ever having
+exercised it — and keyboard operation is the requirement, not a courtesy.
+
+Both themes are defined at token level, and both meet AA contrast. A colour whose
+only definition sits inside a media query never applies in the other theme, which
+is how an interface ends up showing one theme's text on the other theme's
+background.

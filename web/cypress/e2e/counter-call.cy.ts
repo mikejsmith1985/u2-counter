@@ -27,7 +27,7 @@ describe("a call at the counter", () => {
     // representative has a telephone against one shoulder.
     cy.focusSearch();
     cy.typeReal("breaker");
-    cy.get(".search__result").should("have.length.greaterThan", 0);
+    cy.get(".search--part .search__result").should("have.length.greaterThan", 0);
     cy.realPress("Enter");
 
     cy.get(".headline__figure").should("be.visible");
@@ -73,16 +73,27 @@ describe("a call at the counter", () => {
     // Wide content -- the branch grid, the record panes -- scrolls inside its own
     // container. A page that scrolls sideways hides the governance strip, which
     // is the one thing that must be on screen whatever else is.
+    //
+    // The part is found once and the window is then resized around it, because
+    // that is what happens: someone drags a window narrower, or opens the screen
+    // on a laptop instead of the counter workstation. Re-running the search at
+    // each width would test the search three times and the layout once.
+    cy.findPartByKeyboard("breaker");
+    cy.get(".branch").should("have.length.greaterThan", 0);
+
     for (const width of [1920, 1440, 1024]) {
       cy.viewport(width, 900);
-      cy.findPartByKeyboard("breaker");
 
-      cy.document().then((document) => {
+      cy.document().should((document) => {
         expect(
           document.documentElement.scrollWidth,
           `the page scrolls sideways at ${width}px`,
         ).to.be.at.most(document.documentElement.clientWidth + 1);
       });
+
+      // The strip is the thing a sideways scroll would push off screen, so it is
+      // checked at each width rather than inferred from the measurement.
+      cy.get(".governance").should("be.visible");
     }
   });
 

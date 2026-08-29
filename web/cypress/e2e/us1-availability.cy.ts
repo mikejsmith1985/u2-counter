@@ -25,8 +25,8 @@ describe("finding a part", () => {
     cy.focusSearch();
     cy.typeReal("GFCI");
 
-    cy.get(".search__result").should("have.length.greaterThan", 0);
-    cy.get(".search__result-description").first().should("contain.text", "GFCI");
+    cy.get(".search--part .search__result").should("have.length.greaterThan", 0);
+    cy.get(".search--part .search__result-description").first().should("contain.text", "GFCI");
   });
 
   it("shows each result's availability beside it", () => {
@@ -36,18 +36,18 @@ describe("finding a part", () => {
     cy.focusSearch();
     cy.typeReal("breaker");
 
-    cy.get(".search__result-free").first().should("not.be.empty");
+    cy.get(".search--part .search__result-free").first().should("not.be.empty");
   });
 
   it("selects a result with the arrow keys and Enter", () => {
     cy.focusSearch();
     cy.typeReal("breaker");
-    cy.get(".search__result").should("have.length.greaterThan", 1);
+    cy.get(".search--part .search__result").should("have.length.greaterThan", 1);
 
     cy.realPress("ArrowDown");
-    cy.get(".search__result").eq(1).should("have.attr", "aria-selected", "true");
+    cy.get(".search--part .search__result").eq(1).should("have.attr", "aria-selected", "true");
 
-    cy.get(".search__result").eq(1).find(".search__result-number").invoke("text").then((chosen) => {
+    cy.get(".search--part .search__result").eq(1).find(".search__result-number").invoke("text").then((chosen) => {
       cy.realPress("Enter");
       cy.get(".part-heading__number").should("have.text", chosen.trim());
     });
@@ -101,7 +101,7 @@ describe("finding a part", () => {
     cy.focusSearch();
     cy.typeReal("zzzznothinglikethis");
 
-    cy.get(".search__empty").should("contain.text", "Nothing matched");
+    cy.get(".search--part .search__empty").should("contain.text", "Nothing matched");
   });
 
   it("has no serious accessibility violation on the answered screen", () => {
@@ -113,7 +113,7 @@ describe("finding a part", () => {
     // The list is a combobox popup, which is where these violations usually are.
     cy.focusSearch();
     cy.typeReal("breaker");
-    cy.get(".search__result").should("have.length.greaterThan", 0);
+    cy.get(".search--part .search__result").should("have.length.greaterThan", 0);
 
     cy.checkAccessibility();
   });

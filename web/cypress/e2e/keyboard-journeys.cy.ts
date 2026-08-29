@@ -21,7 +21,7 @@ describe("every journey, keyboard only", () => {
     cy.focusSearch();
     cy.typeReal("breaker");
 
-    cy.get(".search__result").should("have.length.greaterThan", 0);
+    cy.get(".search--part .search__result").should("have.length.greaterThan", 0);
     cy.realPress("ArrowDown");
     cy.realPress("Enter");
 

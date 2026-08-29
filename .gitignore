@@ -54,3 +54,8 @@ web/cypress/downloads/
 Thumbs.db
 *.swp
 *.tmp
+
+# Written by deploy/azure/provision.ps1: the names it created, which are specific
+# to whoever ran it. Not secret, but not shared either -- two people provisioning
+# from the same checkout would each overwrite the other's.
+deploy/azure/environment.json
