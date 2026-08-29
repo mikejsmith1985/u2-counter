@@ -1,6 +1,8 @@
 namespace Counter.Api.Services;
 
 using System.Collections.Concurrent;
+using Counter.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// What was asked of the system, by whom, and how it went.
@@ -10,27 +12,92 @@ using System.Collections.Concurrent;
 /// trail. Every request writes exactly one entry, including the ones that fail —
 /// a failure nobody recorded is indistinguishable from a request nobody made.
 ///
-/// Entries are held in memory for this demonstration. The MCP server keeps its
-/// own durable record; this mirror exists so the activity panel can show a user
-/// their own recent work without exposing the server's log files to a browser.
+/// Entries go to two places. The durable store is the audit trail proper, and is
+/// what a reviewer reads. The in-memory ring is what the activity panel reads, so
+/// showing someone their last ten actions never waits on a database — and so the
+/// panel still works when no database is configured, which is how the
+/// demonstration runs on a laptop.
+///
+/// Nothing written here carries a credential. Values that came from what a person
+/// typed pass through <see cref="SecretRedactor"/> first, because someone will
+/// eventually paste a password into a search box.
 /// </remarks>
-public sealed class ActivityRecorder
+/// <param name="redactor">Removes configured secrets before anything is stored.</param>
+/// <param name="logger">For reporting a durable write that could not be made.</param>
+/// <param name="contexts">The durable store, absent when none is configured.</param>
+public sealed class ActivityRecorder(
+    SecretRedactor redactor,
+    ILogger<ActivityRecorder> logger,
+    IDbContextFactory<CounterContext>? contexts = null)
 {
-    /// <summary>How many entries to keep. Beyond this the oldest are dropped.</summary>
+    /// <summary>How many entries to keep in memory. Beyond this the oldest go.</summary>
     private const int Capacity = 500;
 
     private readonly ConcurrentQueue<ActivityEntry> _entries = new();
+    private readonly SecretRedactor _redactor = redactor;
+    private readonly ILogger<ActivityRecorder> _logger = logger;
+    private readonly IDbContextFactory<CounterContext>? _contexts = contexts;
 
-    /// <summary>Record one request.</summary>
+    /// <summary>Whether entries reach a durable store as well as memory.</summary>
+    public bool IsDurable => _contexts is not null;
+
+    /// <summary>
+    /// Record one request.
+    /// </summary>
     /// <param name="entry">What happened.</param>
-    public void Record(ActivityEntry entry)
+    /// <param name="cancellationToken">Abandons the durable write only.</param>
+    /// <remarks>
+    /// A failure to write the audit row is logged and swallowed. The alternative
+    /// turns a successful answer into an error the user sees, which would mean an
+    /// audit problem denying service — and the in-memory copy plus the MCP
+    /// server's own log still hold the event.
+    /// </remarks>
+    public async Task RecordAsync(ActivityEntry entry, CancellationToken cancellationToken)
     {
-        _entries.Enqueue(entry);
+        ArgumentNullException.ThrowIfNull(entry);
 
-        while (_entries.Count > Capacity && _entries.TryDequeue(out _))
+        ActivityEntry safe = entry with
         {
-            // Oldest first. A bounded record is better than an unbounded one that
-            // eventually consumes the process.
+            TargetKey = _redactor.Redact(entry.TargetKey),
+            DatabaseLogin = _redactor.Redact(entry.DatabaseLogin),
+        };
+
+        Remember(safe);
+
+        if (_contexts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using CounterContext context =
+                await _contexts.CreateDbContextAsync(cancellationToken);
+
+            context.Activity.Add(new ActivityRow
+            {
+                OccurredAt = safe.OccurredAt,
+                UserSubject = safe.UserSubject,
+                DisplayName = safe.DisplayName,
+                Action = safe.Action,
+                TargetKey = safe.TargetKey,
+                DatabaseLogin = safe.DatabaseLogin,
+                DatabaseLoginIsShared = safe.DatabaseLoginIsShared,
+                DurationMs = safe.DurationMs,
+                Outcome = safe.Outcome,
+            });
+
+            await context.SaveChangesAsync(cancellationToken);
+        }
+#pragma warning disable CA1031 // An audit write must never deny service.
+        catch (Exception error)
+#pragma warning restore CA1031
+        {
+            _logger.LogError(
+                error,
+                "The activity record for {Action} by {Subject} could not be stored",
+                safe.Action,
+                safe.UserSubject);
         }
     }
 
@@ -49,6 +116,18 @@ public sealed class ActivityRecorder
             .Reverse()
             .Take(limit)
             .ToList();
+
+    /// <summary>Add to the in-memory ring, dropping the oldest past capacity.</summary>
+    private void Remember(ActivityEntry entry)
+    {
+        _entries.Enqueue(entry);
+
+        while (_entries.Count > Capacity && _entries.TryDequeue(out _))
+        {
+            // Oldest first. A bounded record is better than an unbounded one that
+            // eventually consumes the process.
+        }
+    }
 }
 
 /// <summary>
@@ -65,7 +144,7 @@ public sealed class ActivityRecorder
 /// reviewer needs to know when the database could not tell callers apart.
 /// </param>
 /// <param name="DurationMs">How long it took.</param>
-/// <param name="Outcome">Success, NotFound, Unreachable or Refused.</param>
+/// <param name="Outcome">Success, NotFound, Unreachable, Refused or Failed.</param>
 public sealed record ActivityEntry(
     DateTimeOffset OccurredAt,
     string UserSubject,

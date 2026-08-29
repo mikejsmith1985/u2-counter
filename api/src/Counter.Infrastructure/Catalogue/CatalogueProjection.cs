@@ -125,9 +125,10 @@ public sealed class CatalogueProjection(IErpReader erp, ILogger<CatalogueProject
         }
 
         string normalised = Normalise(text);
+        string[] words = Words(text);
 
         return _entries
-            .Select(entry => new { entry.Part, Rank = entry.RankAgainst(normalised, text) })
+            .Select(entry => new { entry.Part, Rank = entry.RankAgainst(normalised, words) })
             .Where(match => match.Rank > 0)
             .OrderByDescending(match => match.Rank)
             .ThenBy(match => match.Part.PartNumber, StringComparer.Ordinal)
@@ -168,6 +169,22 @@ public sealed class CatalogueProjection(IErpReader erp, ILogger<CatalogueProject
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Split what someone typed into the words a match must contain.
+    /// </summary>
+    /// <param name="text">What they typed.</param>
+    /// <remarks>
+    /// Words rather than the string itself, because the string is whatever
+    /// reached the box. Someone types "gfci breaker", or "breaker gfci", or
+    /// pastes with a space on each end, and all three mean the same request; a
+    /// substring match honours only the first of them.
+    /// </remarks>
+    public static string[] Words(string text) =>
+        text.Split(
+            [' ', '\t', ',', ';'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(word => word.ToUpperInvariant())
+            .ToArray();
 }
 
 /// <summary>
@@ -186,12 +203,14 @@ internal sealed record CatalogueEntry(Part Part)
     /// <summary>
     /// How well this entry matches, with zero meaning not at all.
     /// </summary>
+    /// <param name="normalisedQuery">What was typed, letters and digits only.</param>
+    /// <param name="words">What was typed, split into words and upper-cased.</param>
     /// <remarks>
     /// Ranked rather than filtered, so an exact part number outranks a part that
     /// merely mentions the same word in its description. Someone who types a part
     /// number wants that part first.
     /// </remarks>
-    public int RankAgainst(string normalisedQuery, string rawQuery)
+    public int RankAgainst(string normalisedQuery, string[] words)
     {
         const int ExactPartNumber = 100;
         const int PartNumberPrefix = 50;
@@ -213,7 +232,12 @@ internal sealed record CatalogueEntry(Part Part)
             return PartNumberContains;
         }
 
-        string upper = rawQuery.ToUpperInvariant();
-        return SearchableText.Contains(upper, StringComparison.Ordinal) ? TextContains : 0;
+        // Every word, in any order. Requiring all of them keeps a two-word
+        // search narrower than a one-word search, which is what someone adding
+        // a word to the box is asking for.
+        bool matchesEveryWord = words.Length > 0 && words.All(
+            word => SearchableText.Contains(word, StringComparison.Ordinal));
+
+        return matchesEveryWord ? TextContains : 0;
     }
 }

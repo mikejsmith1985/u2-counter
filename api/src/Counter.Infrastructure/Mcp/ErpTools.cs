@@ -24,9 +24,6 @@ public static class ErpTools
     /// <summary>Run a read-only query.</summary>
     public const string ExecuteQuery = "execute_query";
 
-    /// <summary>List a file's dictionary items.</summary>
-    public const string ListDictionary = "list_dictionary";
-
     /// <summary>Run a selection and return the matching keys.</summary>
     /// <remarks>
     /// Keys come back as structured data. A LIST returns the records formatted
@@ -37,12 +34,23 @@ public static class ErpTools
     public const string GetSelectList = "get_select_list";
 
     /// <summary>Every tool this application is permitted to call.</summary>
+    /// <remarks>
+    /// Each name here is called by <c>ErpReader</c>, and a test fails the build if
+    /// one stops being. A permission nobody uses is one nobody will question when
+    /// it later turns out to matter, so the list is kept to what is actually
+    /// needed rather than to what might be.
+    ///
+    /// <c>list_dictionary</c> was in this list and has been removed. It would name
+    /// a file's fields, but the demonstration store deliberately holds no
+    /// dictionaries -- inventing one would be a second description of the record
+    /// layout to keep in step with the first -- so the record view names fields by
+    /// position, exactly as the file contract does.
+    /// </remarks>
     public static readonly IReadOnlySet<string> Permitted = new HashSet<string>
     {
         ReadRecord,
         ReadRecords,
         ExecuteQuery,
-        ListDictionary,
         GetSelectList,
     };
 

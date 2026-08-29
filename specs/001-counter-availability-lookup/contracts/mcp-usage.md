@@ -17,7 +17,6 @@ an identity provider in front of it.
 | `read_record` | One inventory, product, customer or order record | `file_name`, `record_id` |
 | `read_records` | A batch of orders holding stock at a branch | `file_name`, `record_ids` |
 | `execute_query` | Selecting orders that reference a part | `query`, `max_rows` |
-| `list_dictionary` | Field names for the record view | `file_name` |
 
 That is the whole list. Anything absent from it is absent by decision.
 

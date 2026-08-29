@@ -1,5 +1,6 @@
 namespace Counter.Infrastructure.Mcp;
 
+using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -161,8 +162,80 @@ public sealed class ErpReader : IErpReader, IAsyncDisposable
             _logger.LogWarning(
                 "The ERP did not answer {Tool} within {Budget}", toolName, _options.RequestBudget);
 
+            // Dropped, so the next request opens a fresh one. A connection whose
+            // last exchange was abandoned mid-stream cannot be assumed usable.
+            await DiscardConnectionAsync();
+
             throw new ErpUnreachableException(
                 $"The ERP did not answer within {_options.RequestBudget.TotalSeconds:0} seconds.");
+        }
+        catch (Exception error) when (IsConnectionFailure(error))
+        {
+            // A refused or dropped connection is the same situation as a timeout
+            // from the caller's side, and must arrive as the same answer. Letting
+            // it through as a server error would give the screen nothing to
+            // distinguish from a genuine result -- which is precisely how a
+            // representative ends up telling a customer there is no stock.
+            _logger.LogWarning(error, "The ERP could not be reached for {Tool}", toolName);
+
+            await DiscardConnectionAsync();
+
+            throw new ErpUnreachableException("The system could not reach the stock data.");
+        }
+    }
+
+    /// <summary>
+    /// Whether a failure means the server could not be reached.
+    /// </summary>
+    /// <remarks>
+    /// The inner exceptions are inspected because the transport wraps a socket
+    /// failure in its own type, and the outer type alone says only that
+    /// something went wrong rather than what.
+    /// </remarks>
+    private static bool IsConnectionFailure(Exception error)
+    {
+        for (Exception? candidate = error; candidate is not null; candidate = candidate.InnerException)
+        {
+            if (candidate is HttpRequestException or SocketException or IOException)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Drop the shared connection so the next caller opens a new one.
+    /// </summary>
+    /// <remarks>
+    /// Taken under the same gate that guards connecting: without it, one thread
+    /// could be disposing the client another had just decided to reuse.
+    /// </remarks>
+    private async Task DiscardConnectionAsync()
+    {
+        await _connectionGate.WaitAsync();
+        try
+        {
+            McpClient? dead = _client;
+            _client = null;
+
+            if (dead is not null)
+            {
+                await dead.DisposeAsync();
+            }
+        }
+#pragma warning disable CA1031 // Disposing a broken connection must not raise.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            // Whatever went wrong closing a connection already known to be
+            // broken, the useful outcome -- that nobody will reuse it -- has
+            // already happened.
+        }
+        finally
+        {
+            _connectionGate.Release();
         }
     }
 
@@ -198,7 +271,22 @@ public sealed class ErpReader : IErpReader, IAsyncDisposable
                 Name = "counter-api",
             });
 
-            _client = await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
+            try
+            {
+                _client = await McpClient.CreateAsync(
+                    transport, cancellationToken: cancellationToken);
+            }
+            catch (Exception error) when (IsConnectionFailure(error))
+            {
+                // Failing to connect at all is the plainest form of unreachable,
+                // and the one a demonstration hits first when the server is not
+                // running. It must not surface as a server error.
+                _logger.LogWarning(
+                    error, "The MCP server at {Endpoint} could not be reached", _options.Endpoint);
+
+                throw new ErpUnreachableException("The system could not reach the stock data.");
+            }
+
             return _client;
         }
         finally

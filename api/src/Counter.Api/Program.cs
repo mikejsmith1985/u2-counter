@@ -1,8 +1,10 @@
 using Counter.Api.Filters;
 using Counter.Api.Services;
 using Counter.Infrastructure.Catalogue;
+using Counter.Infrastructure.Data;
 using Counter.Infrastructure.Erp;
 using Counter.Infrastructure.Mcp;
+using Microsoft.EntityFrameworkCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +20,23 @@ builder.Services.AddSingleton<CatalogueProjection>();
 builder.Services.AddSingleton<CustomerDirectory>();
 builder.Services.AddSingleton<SessionStore>();
 builder.Services.AddSingleton<ActivityRecorder>();
+builder.Services.AddSingleton<SecretRedactor>();
 builder.Services.AddSingleton(TimeProvider.System);
+
+// The durable store is optional, and its absence is a supported configuration
+// rather than a degraded one: the demonstration runs on a laptop with no SQL
+// Server, and everything except surviving a restart behaves identically. What
+// changes is stated on the governance strip rather than left to be discovered.
+string? counterConnection = builder.Configuration.GetConnectionString("Counter");
+
+if (!string.IsNullOrWhiteSpace(counterConnection))
+{
+    // A factory rather than a scoped context: activity is written from a filter
+    // that outlives the action's scope, and a context resolved per request would
+    // already be disposed by the time the row is added.
+    builder.Services.AddDbContextFactory<CounterContext>(options =>
+        options.UseSqlServer(counterConnection, sql => sql.EnableRetryOnFailure()));
+}
 
 builder.Services.AddScoped<AvailabilityReader>();
 builder.Services.AddScoped<PricingReader>();
@@ -36,6 +54,10 @@ builder.Services.AddControllers(options =>
     // ones that fail: a failure nobody recorded is indistinguishable from a
     // request nobody made.
     options.Filters.Add<ActivityRecordingFilter>();
+
+    // Innermost, so the budget it imposes covers the action alone and the two
+    // filters above still see -- and record -- the failure it raises.
+    options.Filters.Add<ErpTimeoutFilter>();
 });
 
 builder.Services.AddProblemDetails();
@@ -66,6 +88,23 @@ app.MapControllers();
 // Anything the API does not answer is a front-end route, so the single-page
 // application is returned and the client router takes it from there.
 app.MapFallbackToFile("index.html");
+
+// The schema is brought up to date and open sessions reloaded before anything
+// is served, so a restart mid-call does not sign the person on the phone out.
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    IDbContextFactory<CounterContext>? contexts =
+        scope.ServiceProvider.GetService<IDbContextFactory<CounterContext>>();
+
+    if (contexts is not null)
+    {
+        await using CounterContext context = await contexts.CreateDbContextAsync();
+        await context.Database.MigrateAsync();
+
+        await app.Services.GetRequiredService<SessionStore>()
+            .RestoreAsync(CancellationToken.None);
+    }
+}
 
 // The catalogue is read once at startup so search answers instantly. It is built
 // in the background: a slow ERP should delay search, not stop the application

@@ -40,16 +40,21 @@ public sealed class ActivityRecordingFilter(
 
         CounterSession session = _sessions.ForRequest(context.HttpContext);
 
-        _recorder.Record(new ActivityEntry(
-            OccurredAt: DateTimeOffset.UtcNow,
-            UserSubject: session.Persona.Subject,
-            DisplayName: session.Persona.DisplayName,
-            Action: DescribeAction(context),
-            TargetKey: DescribeTarget(context),
-            DatabaseLogin: _configuration["Erp:DatabaseLogin"] ?? "u2demo@DEMO",
-            DatabaseLoginIsShared: true,
-            DurationMs: (int)timer.ElapsedMilliseconds,
-            Outcome: DescribeOutcome(executed)));
+        await _recorder.RecordAsync(
+            new ActivityEntry(
+                OccurredAt: DateTimeOffset.UtcNow,
+                UserSubject: session.Persona.Subject,
+                DisplayName: session.Persona.DisplayName,
+                Action: DescribeAction(context),
+                TargetKey: DescribeTarget(context),
+                DatabaseLogin: _configuration["Erp:DatabaseLogin"] ?? "u2demo@DEMO",
+                DatabaseLoginIsShared: true,
+                DurationMs: (int)timer.ElapsedMilliseconds,
+                Outcome: DescribeOutcome(executed)),
+            // Not the request's token. A caller who has gone away still leaves a
+            // request that was made, and the record of it is exactly what a
+            // reviewer would come looking for.
+            CancellationToken.None);
     }
 
     /// <summary>Name the action in words a reviewer would recognise.</summary>

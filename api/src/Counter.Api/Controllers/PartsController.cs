@@ -49,7 +49,11 @@ public sealed class PartsController(
     [HttpGet]
     [ProducesResponseType<SearchResponse>(StatusCodes.Status200OK)]
     public async Task<ActionResult<SearchResponse>> Search(
-        [FromQuery] string q,
+        // Nullable deliberately. Left non-nullable, model binding rejects an
+        // absent term first and the caller gets the framework's validation
+        // problem instead of this controller's -- so the client would have two
+        // shapes of 400 to understand where one would do.
+        [FromQuery] string? q,
         [FromQuery] int? limit,
         CancellationToken cancellationToken)
     {

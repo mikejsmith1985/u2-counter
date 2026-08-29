@@ -130,13 +130,25 @@ function Stop-RecordedProcesses {
 function Start-Service {
     <#
         Starts one service, records its id and start time, and returns the record.
+
+        Environment is taken as a hashtable, applied to this process just before
+        the child is created and removed again afterwards. Start-Process hands a
+        child the parent's environment and offers no way to add to it, so this is
+        the only seam available.
     #>
     param(
         [string] $Name,
         [string] $FilePath,
         [string[]] $ArgumentList,
-        [string] $WorkingDirectory
+        [string] $WorkingDirectory,
+        [hashtable] $Environment = @{}
     )
+
+    $previousValues = @{}
+    foreach ($key in $Environment.Keys) {
+        $previousValues[$key] = [Environment]::GetEnvironmentVariable($key)
+        [Environment]::SetEnvironmentVariable($key, $Environment[$key])
+    }
 
     $standardOut = Join-Path $logDirectory "$Name.out.log"
     $standardError = Join-Path $logDirectory "$Name.err.log"
@@ -149,6 +161,10 @@ function Start-Service {
         -PassThru `
         -WindowStyle Hidden
 
+    foreach ($key in $previousValues.Keys) {
+        [Environment]::SetEnvironmentVariable($key, $previousValues[$key])
+    }
+
     Write-Step "Started $Name (pid $($process.Id))"
 
     return [pscustomobject]@{
@@ -157,6 +173,19 @@ function Start-Service {
         StartedAt   = $process.StartTime.ToUniversalTime().ToString('o')
         LogPath     = $standardOut
     }
+}
+
+# Where the hardened fork is checked out: a sibling of this repository unless
+# told otherwise. Its own virtual environment carries the entry point, because
+# this demonstration runs the fork as installed rather than importing its source
+# -- what is exercised should be the thing being offered for review.
+$forkRoot = if ($env:U2_MCP_ROOT) { $env:U2_MCP_ROOT } else {
+    Join-Path (Split-Path -Parent $repositoryRoot) 'u2-mcp'
+}
+$mcpExecutable = Join-Path $forkRoot '.venv\Scripts\u2-mcp.exe'
+
+if (-not (Test-Path $mcpExecutable)) {
+    throw "The hardened MCP server was not found at $mcpExecutable. Set U2_MCP_ROOT to where the fork is checked out."
 }
 
 # -- entry point --------------------------------------------------------------
@@ -184,15 +213,28 @@ if (-not $SkipSql) {
         'mcr.microsoft.com/mssql/server:2022-latest' | Out-Null
 }
 
-$started += Start-Service -Name 'mvstore' `
-    -FilePath 'python' `
-    -ArgumentList @('-m', 'mvstore.server', '--port', '5082') `
-    -WorkingDirectory (Join-Path $repositoryRoot 'mvstore')
-
+# The store is not a service of its own. It is a driver the MCP server loads in
+# process, presenting the same objects uopy does, so the server runs the code it
+# would run against a real Universe rather than a second path written for the
+# demonstration.
 $started += Start-Service -Name 'mcp' `
-    -FilePath 'u2-mcp' `
+    -FilePath $mcpExecutable `
     -ArgumentList @('--streamable-http', '--host', '127.0.0.1', '--port', '5081') `
-    -WorkingDirectory $repositoryRoot
+    -WorkingDirectory $repositoryRoot `
+    -Environment @{
+        'U2_DRIVER'         = 'demo'
+        'MVSTORE_DATA_PATH' = (Join-Path $repositoryRoot 'mvstore\data')
+        'PYTHONPATH'        = (Join-Path $repositoryRoot 'mvstore\src')
+        # The server validates its connection settings at startup whichever
+        # driver is configured, so these must be present even though the demo
+        # driver never authenticates against anything. They are placeholders, not
+        # credentials: there is no Universe instance behind them, and a real
+        # deployment supplies real ones through the vault rather than here.
+        'U2_HOST'           = '127.0.0.1'
+        'U2_USER'           = 'u2demo'
+        'U2_PASSWORD'       = 'demo-no-database-behind-this'
+        'U2_ACCOUNT'        = 'DEMO'
+    }
 
 $started += Start-Service -Name 'api' `
     -FilePath 'dotnet' `
@@ -211,7 +253,6 @@ Write-Host 'Running:' -ForegroundColor Green
 Write-Host '  Front end   http://127.0.0.1:5173'
 Write-Host '  API         http://127.0.0.1:5080'
 Write-Host '  MCP server  http://127.0.0.1:5081  (loopback only)'
-Write-Host '  Store       http://127.0.0.1:5082  (loopback only)'
 Write-Host ''
 Write-Host "  Logs in $logDirectory"
 Write-Host '  Stop with: ./scripts/run-dev-clean.ps1 -Stop'

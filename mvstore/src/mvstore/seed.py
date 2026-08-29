@@ -103,6 +103,9 @@ SEED_OBLIGATIONS: dict[str, str] = {
     "quote_against_committed_part": "Quotations against a part with live commitments",
     "shipped_against_committed_part": "Shipped orders against a part with live commitments",
     "unaccounted_commitment": "A branch whose commitments fall short of its committed total",
+    "commitments_never_exceed_committed": (
+        "No branch whose orders hold more than its committed total"
+    ),
     "non_ascii_text": "Names carrying accented characters",
     "discontinued_with_stock": "A discontinued part that still has stock",
 }
@@ -134,10 +137,19 @@ def generate(
     with store.bulk_write():
         _write_branches(store, branches)
         part_numbers = _write_products(store, rng, parts)
-        _write_inventory(store, rng, part_numbers, branch_codes)
         account_numbers = _write_customers(store, rng, customers, branch_codes)
         _write_pricing(store, rng, account_numbers)
-        _write_orders(store, rng, orders, part_numbers, account_numbers, branch_codes)
+
+        # Orders are written before inventory because inventory depends on them.
+        # In a real system a branch's committed quantity is not an independent
+        # number: it is what the live orders hold. Generating the two separately
+        # produced data where a branch showed nothing committed while three
+        # orders held thirty-nine units of it -- a screen that is plausible,
+        # internally contradictory, and impossible to explain on a call.
+        holdings = _write_orders(
+            store, rng, orders, part_numbers, account_numbers, branch_codes
+        )
+        _write_inventory(store, rng, part_numbers, branch_codes, holdings)
 
 
 def verify_obligations(store: MultiValueStore) -> list[str]:
@@ -161,6 +173,7 @@ def verify_obligations(store: MultiValueStore) -> list[str]:
         "quote_against_committed_part": lambda s: _has_state_against_committed(s, "QUOTE"),
         "shipped_against_committed_part": lambda s: _has_state_against_committed(s, "SHIPPED"),
         "unaccounted_commitment": _has_unaccounted_commitment,
+        "commitments_never_exceed_committed": _commitments_never_exceed_committed,
         "non_ascii_text": _has_non_ascii_text,
         "discontinued_with_stock": _has_discontinued_with_stock,
     }
@@ -212,21 +225,41 @@ def _write_products(store: MultiValueStore, rng: random.Random, count: int) -> l
 
 
 def _write_inventory(
-    store: MultiValueStore, rng: random.Random, part_numbers: list[str], branch_codes: list[str]
+    store: MultiValueStore,
+    rng: random.Random,
+    part_numbers: list[str],
+    branch_codes: list[str],
+    holdings: dict[tuple[str, str], int],
 ) -> None:
-    """Write the INVENTORY file, placing every required stock condition."""
+    """Write the INVENTORY file, placing every required stock condition.
+
+    Args:
+        store: The store to write into
+        rng: The generator, so a data set can be recreated exactly
+        part_numbers: Every part in the catalogue
+        branch_codes: Every branch
+        holdings: Units held per part and branch by orders in a holding state
+    """
     # The first part is stocked everywhere; the second at one branch only; the
     # third is left without an inventory record entirely.
-    _write_position(store, part_numbers[0], branch_codes, rng, spread="all")
-    _write_position(store, part_numbers[1], branch_codes[:1], rng, spread="one")
+    _write_position(store, part_numbers[0], branch_codes, rng, holdings, spread="all")
+    _write_position(store, part_numbers[1], branch_codes[:1], rng, holdings, spread="one")
 
     # An unknown branch code, so the application must display a code it cannot
     # resolve rather than dropping the row.
-    _write_position(store, part_numbers[3], [*branch_codes[:3], "ZZZ"], rng, spread="unknown")
+    _write_position(
+        store, part_numbers[3], [*branch_codes[:3], "ZZZ"], rng, holdings, spread="unknown"
+    )
 
     for part_number in part_numbers[4:]:
         stocking = rng.sample(branch_codes, k=rng.randint(1, len(branch_codes)))
-        _write_position(store, part_number, stocking, rng, spread="normal")
+        _write_position(store, part_number, stocking, rng, holdings, spread="normal")
+
+
+# How many units an allocation nobody released leaves stranded, on the one
+# position deliberately given that condition. The number is arbitrary; what
+# matters is that it is not zero, so the unaccounted row has something to show.
+STRANDED_ALLOCATION = 7
 
 
 def _write_position(
@@ -234,25 +267,55 @@ def _write_position(
     part_number: str,
     branch_codes: list[str],
     rng: random.Random,
+    holdings: dict[tuple[str, str], int],
     spread: str,
 ) -> None:
-    """Write one INVENTORY record across the given branches."""
+    """Write one INVENTORY record across the given branches.
+
+    Committed quantities come from the orders rather than the generator. That is
+    what makes the commitments screen truthful: expanding a branch shows the
+    orders holding its committed stock, and they add up because the committed
+    figure was those orders in the first place.
+
+    Two positions on the first record are given deliberate exceptions, because
+    both are conditions a counter representative meets and the interface has to
+    handle. Neither is a discrepancy the arithmetic cannot express: committed is
+    never allowed to fall below what the orders hold, which would make the
+    unaccounted figure negative and the screen unreadable.
+
+    Args:
+        store: The store to write into
+        part_number: The part this record is for
+        branch_codes: The branches it is stocked at
+        rng: The generator, so a data set can be recreated exactly
+        holdings: Units held per part and branch by orders in a holding state
+        spread: Which of the required stock conditions this record carries
+    """
     on_hand: list[str] = []
     committed: list[str] = []
     on_order: list[str] = []
     bins: list[str] = []
 
-    for position, _ in enumerate(branch_codes):
-        held = rng.choice([0, 0, rng.randint(1, 40), rng.randint(40, 600)])
+    for position, branch_code in enumerate(branch_codes):
+        promised = holdings.get((part_number, branch_code), 0)
 
-        # Position 0 of the first record is entirely committed, and position 1
-        # is oversold, so both states have a guaranteed example.
+        # An allocation left behind by an order closed without releasing it.
+        # Committed exceeds what any order explains, which is exactly the
+        # unaccounted row the commitments screen exists to surface.
+        if spread == "all" and position == 2:
+            promised += STRANDED_ALLOCATION
+
         if spread == "all" and position == 0:
-            held, promised = 60, 60
+            # Entirely committed: nothing free to sell despite stock on the shelf.
+            held = promised
         elif spread == "all" and position == 1:
-            held, promised = 10, 25
+            # Oversold: more promised than present, which happens and must not
+            # produce a negative figure on screen.
+            held = max(0, promised - 15)
         else:
-            promised = rng.randint(0, held) if held and rng.random() < 0.4 else 0
+            # Enough to cover what is promised, plus whatever else is on the
+            # shelf. Committed can never exceed this by accident.
+            held = promised + rng.choice([0, 0, rng.randint(1, 40), rng.randint(40, 600)])
 
         on_hand.append(str(held))
         committed.append(str(promised))
@@ -331,45 +394,89 @@ def _write_orders(
     part_numbers: list[str],
     accounts: list[str],
     branch_codes: list[str],
-) -> None:
-    """Write the ORDER file, placing quotations and shipped orders deliberately."""
+) -> dict[tuple[str, str], int]:
+    """Write the ORDER file, and report what those orders hold.
+
+    Args:
+        store: The store to write into
+        rng: The generator, so a data set can be recreated exactly
+        count: How many orders to write
+        part_numbers: Every part in the catalogue
+        accounts: Every customer account
+        branch_codes: Every branch
+
+    Returns:
+        Units held per part and branch, counting only states that hold stock
+    """
+    from .validation import STATES_HOLDING_STOCK
+
     today = date.today()
     states = [state for state, weight in ORDER_STATES_WITH_WEIGHT for _ in range(weight)]
+    holdings: dict[tuple[str, str], int] = {}
+
+    def record(state: str, parts: list[str], quantities: list[int], branches: list[str]) -> None:
+        """Add an order's lines to the running total, if its state holds stock."""
+        if state not in STATES_HOLDING_STOCK:
+            return
+        for part, quantity, branch in zip(parts, quantities, branches, strict=True):
+            holdings[(part, branch)] = holdings.get((part, branch), 0) + quantity
 
     # The part stocked everywhere carries a live commitment, a quotation and a
-    # shipped order, so the excluded states are visibly excluded.
+    # shipped order against the same branch, so the excluded states are visibly
+    # excluded -- the screen has to show the allocated twenty and neither of the
+    # other two, which is only a demonstration if all three exist.
     committed_part = part_numbers[0]
-    for index, state in enumerate(("ALLOCATED", "QUOTE", "SHIPPED")):
+    fixed_orders = [
+        ("ALLOCATED", branch_codes[0], 20),
+        ("QUOTE", branch_codes[0], 20),
+        ("SHIPPED", branch_codes[0], 20),
+        # Position 1 of that record is deliberately oversold, and position 2
+        # deliberately carries a stranded allocation. Both need real orders
+        # behind them or the inventory record would claim commitments that no
+        # order in the file could account for.
+        ("CONFIRMED", branch_codes[1], 25),
+        ("PICKING", branch_codes[2], 12),
+    ]
+
+    for index, (state, branch_code, quantity) in enumerate(fixed_orders):
         store.write(
             "ORDER",
             f"SO-{100000 + index}",
             [
-                accounts[index],
+                accounts[index % len(accounts)],
                 (today - timedelta(days=3)).isoformat(),
                 state,
                 [committed_part],
-                ["20"],
-                [branch_codes[0]],
+                [str(quantity)],
+                [branch_code],
                 [(today + timedelta(days=5)).isoformat()],
             ],
         )
+        record(state, [committed_part], [quantity], [branch_code])
 
-    for index in range(3, count):
+    for index in range(len(fixed_orders), count):
         line_count = rng.randint(1, 4)
         lines = rng.sample(part_numbers, k=line_count)
+        quantities = [rng.randint(1, 40) for _ in lines]
+        branches = [rng.choice(branch_codes) for _ in lines]
+        state = rng.choice(states)
+
         store.write(
             "ORDER",
             f"SO-{100000 + index}",
             [
                 rng.choice(accounts),
                 (today - timedelta(days=rng.randint(0, 60))).isoformat(),
-                rng.choice(states),
+                state,
                 lines,
-                [str(rng.randint(1, 40)) for _ in lines],
-                [rng.choice(branch_codes) for _ in lines],
+                [str(quantity) for quantity in quantities],
+                branches,
                 [(today + timedelta(days=rng.randint(1, 30))).isoformat() for _ in lines],
             ],
         )
+        record(state, lines, quantities, branches)
+
+    return holdings
 
 
 def _describe(rng: random.Random, category: str) -> str:
@@ -470,29 +577,65 @@ def _has_state_against_committed(store: MultiValueStore, state: str) -> bool:
 def _has_unaccounted_commitment(store: MultiValueStore) -> bool:
     """Whether some branch's committed total exceeds what its orders account for.
 
-    The generator produces this naturally: committed quantities are set on the
-    inventory record independently of the orders, exactly as happens in a real
-    system where an order was closed without releasing its allocation.
+    Placed deliberately rather than arrived at by chance: one position on the
+    first record carries an allocation left behind by an order that was closed
+    without releasing it, which is a thing that happens and which the commitments
+    screen has to be able to say out loud.
     """
-    from .validation import STATES_HOLDING_STOCK
-
-    accounted: dict[tuple[str, str], int] = {}
-    for key in store.keys("ORDER"):
-        fields = store.read("ORDER", key)
-        if str(fields[2]).upper() not in STATES_HOLDING_STOCK:
-            continue
-        parts = _values(fields, 3)
-        quantities = _values(fields, 4)
-        branches = _values(fields, 5)
-        for part, quantity, branch in zip(parts, quantities, branches, strict=False):
-            accounted[(part, branch)] = accounted.get((part, branch), 0) + int(quantity or 0)
+    accounted = _units_held_by_orders(store)
 
     for key in store.keys("INVENTORY"):
         fields = store.read("INVENTORY", key)
         for branch, promised in zip(_values(fields, 0), _values(fields, 2), strict=False):
             if int(promised or 0) > accounted.get((key, branch), 0):
                 return True
+
     return False
+
+
+def _commitments_never_exceed_committed(store: MultiValueStore) -> bool:
+    """Whether every branch's committed total covers what its orders hold.
+
+    The commitments screen shows the orders holding a branch's committed stock
+    and, beside them, the part of that total no order explains. The arithmetic
+    only closes in one direction: orders holding more than the record says is
+    committed would make that figure negative, and there is nothing truthful to
+    put on the screen in that case.
+
+    So the data must not contain it. This is the invariant, checked here rather
+    than left for the integration suite to discover, because a data set that
+    breaks it produces failures that look like parser bugs.
+    """
+    accounted = _units_held_by_orders(store)
+
+    for key in store.keys("INVENTORY"):
+        fields = store.read("INVENTORY", key)
+        for branch, promised in zip(_values(fields, 0), _values(fields, 2), strict=False):
+            if accounted.get((key, branch), 0) > int(promised or 0):
+                return False
+
+    return True
+
+
+def _units_held_by_orders(store: MultiValueStore) -> dict[tuple[str, str], int]:
+    """Units held per part and branch by orders in a state that holds stock."""
+    from .validation import STATES_HOLDING_STOCK
+
+    accounted: dict[tuple[str, str], int] = {}
+
+    for key in store.keys("ORDER"):
+        fields = store.read("ORDER", key)
+        if str(fields[2]).upper() not in STATES_HOLDING_STOCK:
+            continue
+
+        parts = _values(fields, 3)
+        quantities = _values(fields, 4)
+        branches = _values(fields, 5)
+
+        for part, quantity, branch in zip(parts, quantities, branches, strict=False):
+            accounted[(part, branch)] = accounted.get((part, branch), 0) + int(quantity or 0)
+
+    return accounted
 
 
 def _has_non_ascii_text(store: MultiValueStore) -> bool:

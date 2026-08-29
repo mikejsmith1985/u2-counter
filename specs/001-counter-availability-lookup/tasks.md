@@ -69,13 +69,13 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 - [X] T023 [P] Write failing integration tests in `api/tests/Counter.IntegrationTests/McpClientTests.cs` — the client reaches a live `mvstore` and returns a parsed record
 - [X] T024 Implement the MCP client in `api/src/Counter.Infrastructure/Mcp/McpClient.cs`, calling only the tools permitted by `contracts/mcp-usage.md`
-- [ ] T025 Write `api/tests/Counter.IntegrationTests/ForbiddenToolTests.cs` asserting no binding exists to any tool in the forbidden table — the list must fail a build, not sit in a document
+- [X] T025 Write `api/tests/Counter.IntegrationTests/ForbiddenToolTests.cs` asserting no binding exists to any tool in the forbidden table — the list must fail a build, not sit in a document
 - [X] T026 [P] Write failing tests in `api/tests/Counter.UnitTests/MultiValueParserTests.cs` — parallel fields align by position; a short field pads; a record with a quantity for an unnamed branch is rejected
 - [X] T027 Implement `api/src/Counter.Infrastructure/MultiValue/RecordParser.cs` producing one `BranchPosition` per index, never zipping separate lists
-- [ ] T028 [P] Implement the EF Core context and migrations for `UserSession` and `ActivityRecord` in `api/src/Counter.Infrastructure/Data/`
-- [ ] T029 [P] Write failing tests in `api/tests/Counter.IntegrationTests/ActivityRedactionTests.cs` asserting no seeded credential ever reaches a written record
+- [X] T028 [P] Implement the EF Core context and migrations for `UserSession` and `ActivityRecord` in `api/src/Counter.Infrastructure/Data/`
+- [X] T029 [P] Write failing tests in `api/tests/Counter.IntegrationTests/ActivityRedactionTests.cs` asserting no seeded credential ever reaches a written record
 - [X] T030 Implement the activity-recording action filter in `api/src/Counter.Api/Filters/ActivityRecordingFilter.cs` — one record per request including failures, naming the person and the database login
-- [ ] T031 Implement the five-second request budget in `api/src/Counter.Api/Filters/ErpTimeoutFilter.cs` — a linked cancellation token that stops the work, not merely the waiting
+- [X] T031 Implement the five-second request budget in `api/src/Counter.Api/Filters/ErpTimeoutFilter.cs` — a linked cancellation token that stops the work, not merely the waiting
 - [X] T032 Implement problem-detail mapping in `api/src/Counter.Api/Filters/ProblemDetailsMapper.cs` for the four error types in `contracts/rest-api.md`
 
 ### Web foundations
@@ -100,7 +100,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 - [X] T037 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/AvailabilityRulesTests.cs` — free-to-sell is on-hand less committed, clamped at zero; on-order never counts toward it
 - [X] T038 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/StockStateTests.cs` — `Available`, `AllCommitted` and `None` are three distinct states, not a boolean
 - [ ] T039 [P] [US1] Write failing tests in `api/tests/Counter.UnitTests/PartSearchTests.cs` — matching ignores case, spacing and punctuation; no match returns empty rather than an error
-- [ ] T040 [P] [US1] Write failing integration tests in `api/tests/Counter.IntegrationTests/AvailabilityEndpointTests.cs` — the contract shape, `stockIsKnown: false` for a part with no inventory record, and a `504` when the store delays
+- [X] T040 [P] [US1] Write failing integration tests in `api/tests/Counter.IntegrationTests/AvailabilityEndpointTests.cs` — the contract shape, `stockIsKnown: false` for a part with no inventory record, and a `504` when the store delays
 
 ### Domain and services
 
@@ -124,7 +124,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 ### Story verification
 
 - [ ] T051 [US1] Write `web/cypress/e2e/us1-availability.cy.ts` — keyboard-only journey from search to branch grid, with `axe-core` assertions
-- [ ] T052 [US1] Write `api/tests/Counter.IntegrationTests/AvailabilityReconciliationTests.cs` — every parsed branch position matches the raw record, across the whole data set (SC-005)
+- [X] T052 [US1] Write `api/tests/Counter.IntegrationTests/AvailabilityReconciliationTests.cs` — every parsed branch position matches the raw record, across the whole data set (SC-005)
 
 **Checkpoint**: User Story 1 is independently shippable. This alone answers the phone call.
 
@@ -183,7 +183,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 ### Story verification
 
 - [ ] T072 [US3] Write `web/cypress/e2e/us3-commitments.cy.ts` — expanding a branch by keyboard reveals its commitments; a branch with none says so
-- [ ] T073 [US3] Write `api/tests/Counter.IntegrationTests/CommitmentReconciliationTests.cs` — listed commitments plus `unaccounted` equal the committed total, for every branch of every part (SC-014)
+- [X] T073 [US3] Write `api/tests/Counter.IntegrationTests/CommitmentReconciliationTests.cs` — listed commitments plus `unaccounted` equal the committed total, for every branch of every part (SC-014)
 
 **Checkpoint**: "No" has become "not until Thursday".
 
@@ -225,8 +225,8 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 ### Tests first
 
-- [ ] T083 [P] [US5] Write failing integration tests in `api/tests/Counter.IntegrationTests/ActivityAttributionTests.cs` — one record per request per persona, naming the person and the login (SC-006)
-- [ ] T084 [P] [US5] Write failing integration tests in `api/tests/Counter.IntegrationTests/ReadOnlyRouteTests.cs` — no route accepts `POST`, `PUT`, `PATCH` or `DELETE` against ERP data
+- [X] T083 [P] [US5] Write failing integration tests in `api/tests/Counter.IntegrationTests/ActivityAttributionTests.cs` — one record per request per persona, naming the person and the login (SC-006)
+- [X] T084 [P] [US5] Write failing integration tests in `api/tests/Counter.IntegrationTests/ReadOnlyRouteTests.cs` — no route accepts `POST`, `PUT`, `PATCH` or `DELETE` against ERP data
 
 ### Implementation
 
@@ -241,7 +241,7 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 ### Story verification
 
 - [ ] T092 [US5] Write `web/cypress/e2e/us5-governance.cy.ts` — the strip is visible on every screen and the activity panel lists the actions just performed
-- [ ] T093 [US5] Write `api/tests/Counter.IntegrationTests/ErpImmutabilityTests.cs` — every ERP record is byte-identical before and after the full suite. This proves read-only by outcome; T084 only proves intent
+- [X] T093 [US5] Write `api/tests/Counter.IntegrationTests/ErpImmutabilityTests.cs` — every ERP record is byte-identical before and after the full suite. This proves read-only by outcome; T084 only proves intent
 
 **Checkpoint**: All five stories complete.
 
@@ -251,9 +251,9 @@ Per the structure in plan.md: `api/src/`, `api/tests/`, `web/src/`, `web/cypress
 
 - [X] T094 [P] Implement copy-to-clipboard in `web/src/features/availability/CopySummary.ts` — carrying the demonstration marker and the retrieval time (FR-033 to FR-036)
 - [ ] T095 [P] Write `web/tests/CopySummary.test.ts` asserting the copied text contains nothing not on screen
-- [ ] T096 [P] Write `api/tests/Counter.IntegrationTests/SearchPerformanceTests.cs` — 200 searches against the full catalogue, 95th percentile under one second (SC-003)
-- [ ] T097 [P] Write `api/tests/Counter.IntegrationTests/ConcurrentCallerTests.cs` — ten simultaneous sessions each get the single-caller answer (SC-010)
-- [ ] T098 [P] Write `api/tests/Counter.IntegrationTests/FailureShapeTests.cs` — every provoked failure returns a typed problem with a readable detail (SC-009)
+- [X] T096 [P] Write `api/tests/Counter.IntegrationTests/SearchPerformanceTests.cs` — 200 searches against the full catalogue, 95th percentile under one second (SC-003)
+- [X] T097 [P] Write `api/tests/Counter.IntegrationTests/ConcurrentCallerTests.cs` — ten simultaneous sessions each get the single-caller answer (SC-010)
+- [X] T098 [P] Write `api/tests/Counter.IntegrationTests/FailureShapeTests.cs` — every provoked failure returns a typed problem with a readable detail (SC-009)
 - [ ] T099 [P] Add the `axe-core` sweep across every screen to the Cypress suite (SC-012)
 - [ ] T100 [P] Add keyboard-only completion of all five journeys in `web/cypress/e2e/keyboard-journeys.cy.ts` (SC-011)
 - [ ] T101 [P] Implement light and dark themes in `web/src/styles/`, both meeting AA contrast
