@@ -351,11 +351,16 @@ else {
 
     # Appended to the template rather than rewritten, so nothing the CLI put
     # there is lost. The two blocks are the volume and the mount that uses it.
+    # The mount options are not decoration. An Azure Files share mounts as root
+    # with restrictive permissions, and the .NET images run as a non-root user
+    # (uid 1654) -- so without these the application cannot create its own
+    # database file and the audit trail silently does not exist.
     $definition = $definition -replace '(?m)^(\s*)volumes: null\s*$', @"
 `$1volumes:
 `$1- name: audit
 `$1  storageName: $($environment.StorageLink)
 `$1  storageType: AzureFile
+`$1  mountOptions: uid=1654,gid=1654,dir_mode=0755,file_mode=0644
 "@
 
     $definition = $definition -replace '(?m)^(\s*)volumeMounts: null\s*$', @"

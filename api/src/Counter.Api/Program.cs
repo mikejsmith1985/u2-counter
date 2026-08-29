@@ -118,22 +118,48 @@ using (IServiceScope scope = app.Services.CreateScope())
     IDbContextFactory<CounterContext>? contexts =
         scope.ServiceProvider.GetService<IDbContextFactory<CounterContext>>();
 
+    ILogger<Program> startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+
     if (contexts is not null)
     {
-        await using CounterContext context = await contexts.CreateDbContextAsync();
+        try
+        {
+            await using CounterContext context = await contexts.CreateDbContextAsync();
 
-        // The directory, not just the file. On a freshly mounted share the path
-        // the connection string names may not exist yet, and SQLite reports that
-        // as "unable to open database file" -- which reads like a permissions
-        // problem and is not one.
-        CounterDatabase.EnsureDirectoryExists(
-            context.Database.GetConnectionString(),
-            app.Services.GetRequiredService<ILogger<Program>>());
+            // The directory, not just the file. On a freshly mounted share the
+            // path the connection string names may not exist yet, and SQLite
+            // reports that as "unable to open database file" -- which reads like
+            // a permissions problem and is often not one.
+            CounterDatabase.EnsureDirectoryExists(
+                context.Database.GetConnectionString(), startupLogger);
 
-        await context.Database.MigrateAsync();
+            await context.Database.MigrateAsync();
 
-        await app.Services.GetRequiredService<SessionStore>()
-            .RestoreAsync(CancellationToken.None);
+            await app.Services.GetRequiredService<SessionStore>()
+                .RestoreAsync(CancellationToken.None);
+        }
+#pragma warning disable CA1031 // The audit trail is optional; the application is not.
+        catch (Exception error)
+#pragma warning restore CA1031
+        {
+            // Deliberately broad, and this is the line that makes the sentence
+            // above true rather than merely intended.
+            //
+            // The comment on the registration says the durable store is optional
+            // and that its absence is supported. It was not: a share the
+            // container could not write to threw here, unhandled, and killed the
+            // process on startup -- so an application that answers stock
+            // questions refused to start because it could not write down that
+            // somebody had asked one. A claim in a comment that the code does not
+            // keep is worse than no comment.
+            //
+            // Now it degrades. The activity panel still works from memory for
+            // the length of a session, and the log says plainly what was lost.
+            startupLogger.LogError(
+                error,
+                "The audit trail could not be opened. The application is running, and the " +
+                "record of who asked what will not survive a restart");
+        }
     }
 }
 
