@@ -77,7 +77,7 @@ if (-not $SkipTests) {
     # The suites start their own MCP server and database anyway, so nothing
     # here needs what is being stopped.
     Write-Step 'Stopping the development services'
-    & (Join-Path $repositoryRoot 'scriptsun-dev-clean.ps1') -Stop | Out-Null
+    & (Join-Path $repositoryRoot 'scripts/run-dev-clean.ps1') -Stop | Out-Null
 
     Write-Step 'Running the test suites'
 
@@ -342,3 +342,4 @@ Write-Host '  appearing to be broken.'
 Write-Host ''
 Write-Host '  The MCP server has no public address. Nothing outside the'
 Write-Host '  environment can reach the database session it holds.'
+
