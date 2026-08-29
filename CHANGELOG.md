@@ -8,6 +8,22 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **A write path, in a module of its own.** `mvstore/driver.py` still refuses
+  every write unconditionally and is unchanged; `mvstore/writable_driver.py`
+  subclasses it and adds one. A deployment picks by name — `U2_DRIVER=demo` or
+  `U2_DRIVER=mvstore.writable_driver` — and selecting the writable one is still
+  not permission to write, because `MVSTORE_WRITABLE` has to agree. Two switches,
+  answering different questions: which code is loaded, and whether it may act.
+
+  `update_value` changes one value in place and refuses to pad. That refusal is
+  the point. A parallel field may legitimately be shorter than its siblings — bins
+  are recorded for some branches and not others — so setting a value by index and
+  padding to reach it invents positions, and in an inventory record a position is
+  a claim about a branch. Measured: padding to write one bin produced a field of
+  length three where every sibling was four, with no error and a well-formed
+  record. Dictionaries are never writable, because changing one is a schema
+  change.
+
 - **"Use your own data" — how to point this at your database and your key.** The
   question anybody serious asks within a minute, and one the demonstration cannot
   answer by itself: nobody evaluating software wants to send their inventory
