@@ -233,7 +233,14 @@ export function App(): React.JSX.Element {
       </header>
 
       <main className="main">
-        <AskPanel />
+        <AskPanel
+          looking={{
+            partNumber,
+            partDescription: availability?.part.description ?? null,
+            customerAccount,
+            customerName,
+          }}
+        />
 
         {/* Shown when nothing is selected: somebody arriving cold wants to know
             what is in here before they want a particular part, and this is the

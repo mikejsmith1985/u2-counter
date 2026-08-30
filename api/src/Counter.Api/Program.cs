@@ -105,6 +105,7 @@ if (builder.Configuration.GetValue<bool>("Erp:Writable"))
 
 builder.Services.AddScoped<AvailabilityReader>();
 builder.Services.AddScoped<PricingReader>();
+builder.Services.AddScoped<Counter.Infrastructure.Ai.PriceComparison>();
 builder.Services.AddScoped<CommitmentReader>();
 builder.Services.AddScoped<AvailabilityService>();
 

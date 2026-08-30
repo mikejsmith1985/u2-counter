@@ -239,6 +239,23 @@ export interface AskResult {
   inputTokens: number;
   outputTokens: number;
   questionsLeft: number;
+  /** What was on screen when the question was asked, if anything. */
+  looking: string;
+}
+
+/**
+ * What the person can see when they ask.
+ *
+ * Sent so a question phrased the way people phrase them -- "twenty of these to
+ * Denver" -- resolves to the part in front of them. It carries the referent and
+ * nothing else: no figures travel with it, and every number in an answer still
+ * comes back from a tool call.
+ */
+export interface ScreenContext {
+  partNumber: string | null;
+  partDescription: string | null;
+  customerAccount: string | null;
+  customerName: string | null;
 }
 
 /** Whether there is an assistant on this deployment at all. */

@@ -132,6 +132,15 @@ export const TOUR_STEPS: TourStep[] = [
     needsRecord: true,
   },
   {
+    id: "activity-button",
+    title: "It is down here, in the strip",
+    body:
+      "The record of who asked what opens from the bottom right, not the header. " +
+      "Worth pointing at, because the next step shows the panel and somebody who " +
+      "only sees the panel never learns where it came from.",
+    target: "[data-tour='activity-button']",
+  },
+  {
     id: "activity",
     title: "Who asked what",
     body:

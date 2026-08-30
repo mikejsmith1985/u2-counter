@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../../api/client";
-import type { AskResult, AskStep } from "../../api/types";
+import type { AskResult, AskStep, ScreenContext } from "../../api/types";
 import { MarkedRecord } from "./MarkedRecord";
 
 /** Questions offered when the box is empty, so nobody has to invent one. */
@@ -25,7 +25,19 @@ const SUGGESTIONS = [
   "Show me the stored INVENTORY record for E-BRK00008",
 ];
 
-export function AskPanel(): React.JSX.Element | null {
+interface Props {
+  /**
+   * What the person can see. Sent with the question so "these" resolves.
+   *
+   * People at a counter do not repeat themselves: with a part on screen they ask
+   * "how quickly can we get twenty of these to Denver?", and an assistant that
+   * replies "which part?" when the number is six inches away has failed at the
+   * thing it was added for.
+   */
+  looking: ScreenContext;
+}
+
+export function AskPanel({ looking }: Props): React.JSX.Element | null {
   const [question, setQuestion] = useState("");
 
   // Asked once. A deployment without a key has no assistant, and the honest
@@ -39,7 +51,7 @@ export function AskPanel(): React.JSX.Element | null {
   });
 
   const ask = useMutation<AskResult, Error, string>({
-    mutationFn: (asked: string) => api.ask(asked),
+    mutationFn: (asked: string) => api.ask(asked, looking),
   });
 
   if (!status?.isConfigured) {
@@ -117,6 +129,14 @@ export function AskPanel(): React.JSX.Element | null {
                 {answer.steps.length} call{answer.steps.length === 1 ? "" : "s"} ·{" "}
                 {answer.model} · {answer.inputTokens + answer.outputTokens} tokens ·{" "}
                 {answer.questionsLeft} question{answer.questionsLeft === 1 ? "" : "s"} left
+                {answer.looking && (
+                  <>
+                    {" · "}
+                    <span className="ask__looking" title="What it was told you had on screen. No figures came with it.">
+                      shown {answer.looking}
+                    </span>
+                  </>
+                )}
               </span>
             </summary>
 

@@ -21,6 +21,7 @@ import type {
   CustomerSummary,
   PartSummary,
   RecordResponse,
+  ScreenContext,
   SearchResponse,
   SessionResponse,
   ActivityResponse,
@@ -218,11 +219,11 @@ export const api = {
   askStatus: (signal?: AbortSignal) => request<AskStatus>("/ask/status", signal),
 
   /** Ask a question in words, and get the answer with every call it took. */
-  ask: (question: string, signal?: AbortSignal) =>
+  ask: (question: string, looking?: ScreenContext, signal?: AbortSignal) =>
     request<AskResult>("/ask", signal, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, looking: looking ?? null }),
     }),
 
   /** List the catalogue, for somebody who has not got a part number yet. */

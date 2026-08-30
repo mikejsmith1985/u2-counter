@@ -89,7 +89,12 @@ export function GovernanceStrip({
 
       <span className="header__spacer" />
 
-      <button type="button" className="button button--quiet" onClick={onShowActivity}>
+      <button
+        type="button"
+        className="button button--quiet"
+        data-tour="activity-button"
+        onClick={onShowActivity}
+      >
         Recent activity
       </button>
     </footer>

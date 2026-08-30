@@ -30,6 +30,21 @@ public static class AskTools
     /// <summary>Read a record exactly as the database stores it.</summary>
     public const string ReadRecord = "read_record";
 
+    /// <summary>What one named customer pays for a part.</summary>
+    public const string ReadPrice = "read_price";
+
+    /// <summary>What every price class pays for a part, cheapest first.</summary>
+    public const string ComparePrices = "compare_prices";
+
+    /// <summary>Every file in the account, whatever the schema is.</summary>
+    public const string ListFiles = "list_files";
+
+    /// <summary>One file's dictionary: what its fields are called and where they live.</summary>
+    public const string DescribeFile = "describe_file";
+
+    /// <summary>A read-only selection against any file.</summary>
+    public const string Query = "query";
+
     /// <summary>
     /// The files a record may be read from.
     /// </summary>
@@ -118,6 +133,124 @@ public static class AskTools
                     }
                   },
                   "required": ["file", "recordId"],
+                  "additionalProperties": false
+                }
+                """),
+        },
+        new Tool
+        {
+            Name = ReadPrice,
+            Description =
+                "What one customer pays for one part: list price, the multiplier " +
+                "their contract applies, and the net. Use this when a question names " +
+                "a customer, or when a customer is already selected on screen.",
+            InputSchema = Schema(
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "partNumber": {
+                      "type": "string",
+                      "description": "The exact part number, as returned by search_parts."
+                    },
+                    "customerAccount": {
+                      "type": "string",
+                      "description": "The customer's account number."
+                    }
+                  },
+                  "required": ["partNumber", "customerAccount"],
+                  "additionalProperties": false
+                }
+                """),
+        },
+        new Tool
+        {
+            Name = ComparePrices,
+            Description =
+                "What a part costs across every price class, cheapest first, with " +
+                "the customers in each. Use this for \"who gets the best price on " +
+                "this\" and any question comparing customers. One call covers them " +
+                "all -- a price belongs to a price class, and customers are assigned " +
+                "to one, so there is no need to ask about accounts one at a time.",
+            InputSchema = Schema(
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "partNumber": {
+                      "type": "string",
+                      "description": "The exact part number, as returned by search_parts."
+                    }
+                  },
+                  "required": ["partNumber"],
+                  "additionalProperties": false
+                }
+                """),
+        },
+        new Tool
+        {
+            Name = ListFiles,
+            Description =
+                "Name every file in this account. Use it when a question is about " +
+                "data the other tools do not cover, or when you do not yet know what " +
+                "this database holds. Works against any schema, because the account " +
+                "is asked rather than assumed.",
+            InputSchema = Schema(
+                """
+                {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                }
+                """),
+        },
+        new Tool
+        {
+            Name = DescribeFile,
+            Description =
+                "Read one file's dictionary: every field's name, its position, its " +
+                "heading, and whether it holds one value or many. A MultiValue " +
+                "database describes itself, so this is how to learn an unfamiliar " +
+                "file rather than guessing at field names. Do this before querying " +
+                "a file you have not met.",
+            InputSchema = Schema(
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "description": "The file name, as returned by list_files."
+                    }
+                  },
+                  "required": ["file"],
+                  "additionalProperties": false
+                }
+                """),
+        },
+        new Tool
+        {
+            Name = Query,
+            Description =
+                "Run a read-only selection and read back what it found. The statement " +
+                "must begin with SELECT or SSELECT -- anything else is refused, and " +
+                "there is no way to write through this tool. Use the field names from " +
+                "describe_file. Example: SELECT PRODUCT WITH CATEGORY = \"CON\".",
+            InputSchema = Schema(
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "statement": {
+                      "type": "string",
+                      "description": "A SELECT or SSELECT statement, using field names from the file's dictionary."
+                    },
+                    "file": {
+                      "type": "string",
+                      "description": "The file the statement selects from, so the records found can be read back."
+                    }
+                  },
+                  "required": ["statement", "file"],
                   "additionalProperties": false
                 }
                 """),

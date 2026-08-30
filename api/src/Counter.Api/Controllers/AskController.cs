@@ -59,6 +59,7 @@ public sealed class AskController(AskService ask, SessionStore sessions) : Contr
 
         (AskResult? result, AskRefusal refusal) = await _ask.AnswerAsync(
             request.Question ?? string.Empty,
+            request.Looking ?? ScreenContext.Empty,
             _sessions.QuestionsAsked(session),
             cancellationToken);
 
@@ -114,7 +115,15 @@ public sealed class AskController(AskService ask, SessionStore sessions) : Contr
 
 /// <summary>What was asked.</summary>
 /// <param name="Question">The question, in words.</param>
-public sealed record AskRequest(string? Question);
+/// <param name="Looking">
+/// What the person had on screen, so a question phrased the way people phrase
+/// them at a counter -- "twenty of these to Denver" -- resolves to the part in
+/// front of them instead of coming back as "which part did you mean?".
+///
+/// Optional, and absent is a supported state: with nothing selected the
+/// assistant works exactly as it did before.
+/// </param>
+public sealed record AskRequest(string? Question, ScreenContext? Looking);
 
 /// <summary>Whether questions can be asked at all.</summary>
 /// <param name="IsConfigured">Whether an assistant exists on this deployment.</param>

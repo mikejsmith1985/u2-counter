@@ -1387,3 +1387,12 @@ kbd {
 .connect__prompt pre { margin-top: 0.5rem; white-space: pre-wrap; }
 
 .connect__close { margin-top: 1.2rem; font-size: 12px; color: var(--text-muted); max-width: 62ch; }
+
+/* What the assistant was told was on screen, beside the token counts. Marked so
+   a reader can tell a resolved pronoun from the model remembering data -- which
+   is the one thing it must never look like. */
+.ask__looking {
+  color: var(--text-muted);
+  border-bottom: 1px dotted var(--line-strong);
+  cursor: help;
+}

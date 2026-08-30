@@ -53,13 +53,22 @@ public sealed record AskStep(
 /// <param name="InputTokens">Tokens read.</param>
 /// <param name="OutputTokens">Tokens written.</param>
 /// <param name="QuestionsLeft">How many more this session may ask.</param>
+/// <param name="Looking">
+/// What was on the person's screen when they asked, as a short line.
+///
+/// Reported because an answer that resolves "these" to a part nobody typed looks
+/// like the model remembering the data, which is the one thing this must never
+/// look like. Saying what it was told keeps the difference visible: it was given
+/// the part number, and every figure still came from a call listed above.
+/// </param>
 public sealed record AskResult(
     string Answer,
     IReadOnlyList<AskStep> Steps,
     string Model,
     int InputTokens,
     int OutputTokens,
-    int QuestionsLeft);
+    int QuestionsLeft,
+    string Looking);
 
 /// <summary>
 /// Why the assistant would not answer.

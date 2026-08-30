@@ -8,6 +8,41 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **The assistant can answer against a schema nobody anticipated.** It had three
+  tools, all compiled to this demonstration's layout, so a question about anything
+  else came back as "I don't have a tool for that" — which is honest and useless.
+  Three more ask the database what it holds instead: `list_files` names what is
+  there, `describe_file` reads a file's own dictionary for its field names,
+  positions and whether each holds one value or many, and `query` runs a selection
+  against any of them. A MultiValue database describes itself, so this is the
+  difference between an assistant that answers the questions somebody anticipated
+  and one that can be pointed at an unfamiliar ERP.
+
+  `query` refuses any verb that is not SELECT or SSELECT, in this code and again
+  at the MCP server. Widening that takes a deliberate change in two places.
+
+- **Pricing, which the assistant could not see at all.** Asked which customer had
+  the best price on a part whose price was on the screen, it correctly reported
+  that it had no tool for pricing: the screen reaches the price through a
+  different path. `read_price` quotes one customer, `compare_prices` covers every
+  price class at once — one call, not one per account, because in this kind of ERP
+  a price belongs to a price class and customers are assigned to one.
+
+- **The assistant is told what is on the screen.** People at a counter do not
+  repeat themselves; with a part in front of them they ask "how quickly can we get
+  twenty of these to Denver?". That came back as "which part did you mean?".
+
+  The context carries the referent and nothing else — a part number, a customer
+  account, and the words to read a pronoun as. No quantity, price or branch
+  travels with it, the type has no field capable of holding one, and the
+  instructions say plainly that no figures came with it. Every number in an answer
+  still comes back from a tool call. The transcript shows what it was told, so a
+  resolved pronoun cannot be mistaken for the model remembering the data.
+
+- **A tour step for where the activity log lives.** The tour showed the panel and
+  never the button, so it read as though the record of who asked what opened from
+  the header. It is in the strip along the bottom.
+
 - **The guided tour has browser coverage, which it did not before.** It is the
   first thing anybody sees and nothing tested it. Five journeys, each pinning a
   failure that actually happened: it opens on a first visit and not the second,

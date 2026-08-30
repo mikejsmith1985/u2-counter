@@ -1,6 +1,7 @@
 namespace Counter.Infrastructure.Ai;
 
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using Anthropic;
 using Anthropic.Models.Messages;
@@ -18,10 +19,23 @@ using Microsoft.Extensions.Logging;
 /// doing nothing an ordinary function call would not do, and anybody who works
 /// with this software would notice.
 ///
-/// The tools below are the same reads the screens use, and they are the whole
-/// list. There is no write, no arbitrary query, and no way to name a file outside
-/// the four this hands out — so the read-only guarantee does not depend on the
-/// model being well behaved. It cannot ask for what is not there.
+/// The tools below come in two kinds, and the difference is the point.
+///
+/// Some are compiled to this demonstration's layout — searching parts, reading
+/// availability, comparing prices. They are fast paths for the questions a
+/// counter asks all day, and they would not survive being pointed at a different
+/// schema.
+///
+/// The rest ask the database what it contains: name the files, read a file's
+/// dictionary, run a selection against any of them. Those work anywhere, because
+/// a MultiValue database describes itself and the dictionary is the field
+/// mapping. Without them an assistant is only ever as useful as the questions
+/// somebody anticipated, which against an unfamiliar ERP is not useful at all.
+///
+/// Every one of them is a read. The selection tool takes a statement, and both
+/// this code and the MCP server refuse anything whose verb is not SELECT or
+/// SSELECT — so the guarantee does not rest on the model being well behaved, and
+/// widening it would take a deliberate change in two places.
 ///
 /// Every call is recorded with the raw record it returned, because that
 /// transcript is the only thing that lets a reader tell a genuine MultiValue
@@ -37,12 +51,19 @@ public sealed class AskService(
     CatalogueProjection catalogue,
     AvailabilityReader availability,
     Mcp.IErpReader erp,
+    PriceComparison prices,
     SpendLedger ledger,
     AskOptions options,
     ILogger<AskService> logger)
 {
     /// <summary>Most parts to hand back from one search.</summary>
     private const int SearchResults = 8;
+
+    /// <summary>Most keys a generic selection may return.</summary>
+    private const int QueryKeys = 25;
+
+    /// <summary>How many of those to read back in full, so an answer has values in it.</summary>
+    private const int QueryRecords = 5;
 
     /// <summary>How the assistant is told to behave.</summary>
     /// <remarks>
@@ -60,11 +81,15 @@ public sealed class AskService(
         "part is available, free to sell is the number that answers them; on " +
         "hand is not, and saying otherwise promises stock that is already " +
         "somebody else's.\n\n" +
+        "A price belongs to a price class, not to a customer, and customers are " +
+        "assigned to a class. So \"who gets the best price on this\" is one call to " +
+        "compare_prices, not one call per account.\n\n" +
         "Two or three sentences. Name the branch and the number. No preamble.";
 
     private readonly CatalogueProjection _catalogue = catalogue;
     private readonly AvailabilityReader _availability = availability;
     private readonly Mcp.IErpReader _erp = erp;
+    private readonly PriceComparison _prices = prices;
     private readonly SpendLedger _ledger = ledger;
     private readonly AskOptions _options = options;
     private readonly ILogger<AskService> _logger = logger;
@@ -79,11 +104,13 @@ public sealed class AskService(
     /// Answer one question, showing every call it took.
     /// </summary>
     /// <param name="question">What was asked, in words.</param>
+    /// <param name="looking">What is on the person's screen, so a pronoun resolves.</param>
     /// <param name="questionsAlreadyAsked">How many this session has asked.</param>
     /// <param name="cancellationToken">Abandons the work when the caller gives up.</param>
     /// <returns>The answer and its working, or the reason there is none.</returns>
     public async Task<(AskResult? Result, AskRefusal Refusal)> AnswerAsync(
         string question,
+        ScreenContext looking,
         int questionsAlreadyAsked,
         CancellationToken cancellationToken)
     {
@@ -107,7 +134,7 @@ public sealed class AskService(
             return (null, AskRefusal.DailyLimitReached);
         }
 
-        return (await RunAsync(question, questionsAlreadyAsked, cancellationToken), AskRefusal.None);
+        return (await RunAsync(question, looking, questionsAlreadyAsked, cancellationToken), AskRefusal.None);
     }
 
     /// <summary>
@@ -119,6 +146,7 @@ public sealed class AskService(
     /// <returns>The answer and its working.</returns>
     private async Task<AskResult> RunAsync(
         string question,
+        ScreenContext looking,
         int questionsAlreadyAsked,
         CancellationToken cancellationToken)
     {
@@ -144,7 +172,7 @@ public sealed class AskService(
                 {
                     Model = AskOptions.Model,
                     MaxTokens = _options.MaxTokens,
-                    System = Instructions,
+                    System = Instructions + looking.ForModel(),
                     Messages = conversation,
                     Tools = AskTools.Definitions.Select(ToolUnion (tool) => tool).ToList(),
                 },
@@ -206,7 +234,8 @@ public sealed class AskService(
             AskOptions.Model,
             inputTokens,
             outputTokens,
-            Math.Max(0, _options.QuestionsPerSession - questionsAlreadyAsked - 1));
+            Math.Max(0, _options.QuestionsPerSession - questionsAlreadyAsked - 1),
+            looking.ForReader());
     }
 
     /// <summary>
@@ -231,6 +260,16 @@ public sealed class AskService(
                     await ReadAvailabilityAsync(call, arguments, timer, cancellationToken),
                 AskTools.ReadRecord =>
                     await ReadRecordAsync(call, arguments, timer, cancellationToken),
+                AskTools.ReadPrice =>
+                    await ReadPriceAsync(call, arguments, timer, cancellationToken),
+                AskTools.ComparePrices =>
+                    await ComparePricesAsync(call, arguments, timer, cancellationToken),
+                AskTools.ListFiles =>
+                    await ListFilesAsync(call, arguments, timer, cancellationToken),
+                AskTools.DescribeFile =>
+                    await DescribeFileAsync(call, arguments, timer, cancellationToken),
+                AskTools.Query =>
+                    await QueryAsync(call, arguments, timer, cancellationToken),
                 _ => Failed(call, arguments, timer, $"There is no tool called {call.Name}."),
             };
         }
@@ -246,6 +285,261 @@ public sealed class AskService(
 
             return Failed(call, arguments, timer, error.Message);
         }
+    }
+
+    /// <summary>Name every file in the account.</summary>
+    private async Task<(string, AskStep)> ListFilesAsync(
+        ToolUseBlock call,
+        string arguments,
+        Stopwatch timer,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> files = await _erp.ListFilesAsync(cancellationToken);
+        string result = string.Join(", ", files);
+
+        return (
+            result,
+            new AskStep(
+                call.Name,
+                arguments,
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                $"{files.Count} file(s) in the account",
+                result,
+                (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>Read one file's dictionary.</summary>
+    private async Task<(string, AskStep)> DescribeFileAsync(
+        ToolUseBlock call,
+        string arguments,
+        Stopwatch timer,
+        CancellationToken cancellationToken)
+    {
+        string fileName = Argument(call, "file");
+
+        IReadOnlyList<Domain.Catalogue.DictionaryField> fields =
+            await _erp.ListDictionaryAsync(fileName, cancellationToken);
+
+        if (fields.Count == 0)
+        {
+            return Failed(call, arguments, timer, $"{fileName} has no dictionary, or does not exist.");
+        }
+
+        StringBuilder text = new();
+        foreach (Domain.Catalogue.DictionaryField field in fields)
+        {
+            text.Append($"{field.Position}: {field.Name}");
+            if (!string.IsNullOrWhiteSpace(field.Heading))
+            {
+                text.Append($" \"{field.Heading}\"");
+            }
+
+            text.Append(field.IsMultiValued ? " multi-valued" : " single-valued");
+            if (!string.IsNullOrWhiteSpace(field.Conversion))
+            {
+                text.Append($", conversion {field.Conversion}");
+            }
+
+            text.AppendLine();
+        }
+
+        string result = text.ToString();
+
+        return (
+            result,
+            new AskStep(
+                call.Name,
+                arguments,
+                fileName,
+                string.Empty,
+                string.Empty,
+                $"{fields.Count} field(s) described by {fileName}'s own dictionary",
+                result,
+                (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>
+    /// Run a read-only selection and read back what it found.
+    /// </summary>
+    /// <remarks>
+    /// Refused here as well as at the server. The MCP server allows read verbs
+    /// only and would reject anything else, so this check adds no safety it does
+    /// not already have -- what it adds is a sentence the model can act on,
+    /// instead of a transport error, and one fewer round trip spent finding out.
+    /// </remarks>
+    private async Task<(string, AskStep)> QueryAsync(
+        ToolUseBlock call,
+        string arguments,
+        Stopwatch timer,
+        CancellationToken cancellationToken)
+    {
+        string statement = Argument(call, "statement").Trim();
+        string fileName = Argument(call, "file");
+
+        string verb = statement.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+            ?? string.Empty;
+
+        if (!verb.Equals("SELECT", StringComparison.OrdinalIgnoreCase)
+            && !verb.Equals("SSELECT", StringComparison.OrdinalIgnoreCase))
+        {
+            return Failed(
+                call,
+                arguments,
+                timer,
+                $"Refused: a statement must begin with SELECT or SSELECT, not {verb}. "
+                    + "There is no write path through this tool.");
+        }
+
+        IReadOnlyList<string> keys = await _erp.SelectKeysAsync(
+            statement, QueryKeys, cancellationToken);
+
+        if (keys.Count == 0)
+        {
+            // Says what an empty result does and does not mean. Asked to look at
+            // ORDER, the model ran a narrow selection, got nothing back, and told
+            // the reader the file was empty -- it holds 25 records. An empty
+            // result is a fact about the criteria, not about the file.
+            string none =
+                $"Nothing matched. That is a fact about the criteria, not about {fileName}: "
+                    + $"run SELECT {fileName} with no conditions to see whether it holds records at all.";
+            return (
+                none,
+                new AskStep(
+                    call.Name, arguments, fileName, string.Empty, string.Empty,
+                    "Nothing matched", none, (int)timer.ElapsedMilliseconds));
+        }
+
+        IReadOnlyDictionary<string, string> records = await _erp.ReadRecordsAsync(
+            fileName, [.. keys.Take(QueryRecords)], cancellationToken);
+
+        StringBuilder text = new();
+        text.AppendLine($"{keys.Count} key(s): {string.Join(", ", keys)}");
+
+        foreach ((string key, string raw) in records)
+        {
+            // Marks turned into readable separators. The stored bytes are what
+            // read_record is for; here the model needs the values, not proof of
+            // what they were stored as.
+            text.AppendLine($"{key}: {raw.Replace('þ', '|').Replace('ý', ';')}");
+        }
+
+        string result = text.ToString();
+
+        return (
+            result,
+            new AskStep(
+                call.Name,
+                arguments,
+                fileName,
+                string.Empty,
+                string.Empty,
+                $"{keys.Count} key(s) selected, {records.Count} read back",
+                result,
+                (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>What one customer pays for one part.</summary>
+    private async Task<(string, AskStep)> ReadPriceAsync(
+        ToolUseBlock call,
+        string arguments,
+        Stopwatch timer,
+        CancellationToken cancellationToken)
+    {
+        string partNumber = Argument(call, "partNumber");
+        string account = Argument(call, "customerAccount");
+
+        CustomerQuote? quote = await _prices.ForCustomerAsync(
+            partNumber, account, cancellationToken);
+
+        if (quote is null)
+        {
+            return Failed(
+                call,
+                arguments,
+                timer,
+                $"No price for part {partNumber} and account {account}: one of them is unknown.");
+        }
+
+        string result =
+            $"{quote.Name} ({quote.Account}), price class {quote.PriceClass}: " +
+            $"list {quote.ListPrice:F2}, net {quote.NetPrice:F2}" +
+            (quote.Multiplier is null ? string.Empty : $", multiplier {quote.Multiplier:F2}") +
+            $". {quote.Terms}";
+
+        return (
+            result,
+            new AskStep(
+                call.Name,
+                arguments,
+                "PRICE",
+                quote.Account,
+                string.Empty,
+                $"Priced {partNumber} for {quote.Account}",
+                result,
+                (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>What every price class pays for a part.</summary>
+    private async Task<(string, AskStep)> ComparePricesAsync(
+        ToolUseBlock call,
+        string arguments,
+        Stopwatch timer,
+        CancellationToken cancellationToken)
+    {
+        string partNumber = Argument(call, "partNumber");
+
+        PriceSpread? spread = await _prices.AcrossCustomersAsync(partNumber, cancellationToken);
+
+        if (spread is null)
+        {
+            return Failed(call, arguments, timer, $"No part called {partNumber}.");
+        }
+
+        StringBuilder text = new();
+        text.Append($"{spread.PartNumber} {spread.Description}, category {spread.CategoryCode}, ");
+        text.AppendLine($"list {spread.ListPrice:F2}.");
+
+        // Said out loud when the scan did not cover everything, because "cheapest"
+        // over a subset is a different claim from "cheapest" and reads the same.
+        if (spread.AccountsScanned < spread.AccountsTotal)
+        {
+            text.AppendLine(
+                $"Read {spread.AccountsScanned} of {spread.AccountsTotal} accounts; " +
+                "a class held only by an account beyond that is not listed.");
+        }
+
+        foreach (ClassPrice entry in spread.Classes)
+        {
+            text.Append($"class {entry.PriceClass}: net {entry.NetPrice:F2}");
+            if (entry.Multiplier is not null)
+            {
+                text.Append($" (x{entry.Multiplier:F2})");
+            }
+
+            text.Append($", {entry.CustomerCount} account(s)");
+            if (entry.Examples.Count > 0)
+            {
+                text.Append($" incl. {string.Join(", ", entry.Examples)}");
+            }
+
+            text.AppendLine($" -- {entry.Terms}");
+        }
+
+        string result = text.ToString();
+
+        return (
+            result,
+            new AskStep(
+                call.Name,
+                arguments,
+                "PRICE",
+                spread.PartNumber,
+                string.Empty,
+                $"Compared {spread.Classes.Count} price class(es) across {spread.AccountsScanned} account(s)",
+                result,
+                (int)timer.ElapsedMilliseconds));
     }
 
     /// <summary>Search the catalogue.</summary>
