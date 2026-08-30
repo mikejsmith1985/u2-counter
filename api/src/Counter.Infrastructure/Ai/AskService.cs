@@ -84,6 +84,11 @@ public sealed class AskService(
         "A price belongs to a price class, not to a customer, and customers are " +
         "assigned to a class. So \"who gets the best price on this\" is one call to " +
         "compare_prices, not one call per account.\n\n" +
+        "Answer rather than ask. If a question covers several parts -- \"the most " +
+        "15A AFCI breakers\" may match eight of them -- check them and give the " +
+        "answer. You may make several calls at once. Ask which one was meant only " +
+        "when the question genuinely cannot be answered without knowing, not " +
+        "because answering would take a few more lookups.\n\n" +
         "Two or three sentences. Name the branch and the number. No preamble.";
 
     private readonly CatalogueProjection _catalogue = catalogue;
@@ -195,10 +200,57 @@ public sealed class AskService(
             // turns one question into an unbounded number of requests.
             if (round == _options.MaxToolRounds || callsMade + wanted.Length > _options.MaxToolCallsInTotal)
             {
-                answer = string.IsNullOrWhiteSpace(answer)
-                    ? "I could not answer that within the number of lookups allowed. " +
-                      "Try naming a specific part number."
-                    : answer;
+                // One last request, with no tools offered.
+                //
+                // Stopping here used to keep whatever text preceded the final
+                // tool call, which is a running commentary rather than an
+                // answer: "I can see there are records. Let me read one of
+                // these to see the structure better:" was presented to somebody
+                // as the reply to their question. It reads as broken software,
+                // and the model had in fact gathered enough to say something
+                // useful.
+                //
+                // The requested calls are answered with a note rather than run,
+                // because the protocol requires a result for every call made and
+                // the budget is precisely what has been spent.
+                conversation.Add(new MessageParam { Role = "assistant", Content = EchoOf(reply) });
+
+                conversation.Add(new MessageParam
+                {
+                    Role = "user",
+                    Content = wanted
+                        .Select(call => new ToolResultBlockParam
+                        {
+                            ToolUseID = call.ID,
+                            Content =
+                                "No further lookups are available for this question. "
+                                    + "Answer from what you have already read, and say "
+                                    + "plainly what you were not able to check.",
+                        })
+                        .Cast<ContentBlockParam>()
+                        .ToList(),
+                });
+
+                Message closing = await client.Messages.Create(
+                    new MessageCreateParams
+                    {
+                        Model = AskOptions.Model,
+                        MaxTokens = _options.MaxTokens,
+                        System = Instructions + looking.ForModel(),
+                        Messages = conversation,
+                    },
+                    cancellationToken);
+
+                inputTokens += (int)closing.Usage.InputTokens;
+                outputTokens += (int)closing.Usage.OutputTokens;
+
+                string closed = TextOf(closing);
+
+                answer = string.IsNullOrWhiteSpace(closed)
+                    ? "I ran out of lookups before I could answer that. Naming a "
+                        + "specific part number would let me answer in one."
+                    : closed;
+
                 break;
             }
 
