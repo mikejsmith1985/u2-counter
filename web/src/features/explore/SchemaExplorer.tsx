@@ -18,7 +18,7 @@
  */
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { DictionaryField } from "../../api/types";
 import { UpdateValue } from "./UpdateValue";
@@ -48,6 +48,8 @@ export function SchemaExplorer(): React.JSX.Element {
   const [editing, setEditing] = useState<
     { recordId: string; field: DictionaryField; index: number; current: string } | null
   >(null);
+
+  const queryClient = useQueryClient();
 
   // Whether this deployment permits the editor at all. Asked rather than
   // assumed: the cells were buttons on every deployment, including the ones
@@ -270,7 +272,18 @@ export function SchemaExplorer(): React.JSX.Element {
               index={editing.index}
               current={editing.current}
               onClose={() => setEditing(null)}
-              onChanged={() => setApplied({ ...applied })}
+              onChanged={() => {
+                // Thrown away rather than re-set.
+                //
+                // This used to spread `applied` into a new object, which changes
+                // the object's identity and nothing else: the query key is built
+                // from its primitive fields, so the key was identical and React
+                // Query served the cached rows. A value could be changed
+                // successfully and the table would keep showing the old one --
+                // the worst possible outcome for a screen whose subject is
+                // whether a write actually happened.
+                void queryClient.invalidateQueries({ queryKey: ["schema", "records"] });
+              }}
             />
           )}
 
