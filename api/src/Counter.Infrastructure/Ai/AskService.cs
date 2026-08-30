@@ -218,8 +218,12 @@ public sealed class AskService(
                 conversation.Add(new MessageParam
                 {
                     Role = "user",
+                    // The same conversion the loop below uses. A cast does not
+                    // work here: the SDK converts a result block implicitly
+                    // rather than deriving it, so Cast throws at run time and
+                    // the request became a 500 with nothing on screen.
                     Content = wanted
-                        .Select(call => new ToolResultBlockParam
+                        .Select(ContentBlockParam (call) => new ToolResultBlockParam
                         {
                             ToolUseID = call.ID,
                             Content =
@@ -227,7 +231,6 @@ public sealed class AskService(
                                     + "Answer from what you have already read, and say "
                                     + "plainly what you were not able to check.",
                         })
-                        .Cast<ContentBlockParam>()
                         .ToList(),
                 });
 
