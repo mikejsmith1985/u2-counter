@@ -44,6 +44,19 @@ const CARD_GAP = 14;
  */
 const CARD_ESTIMATE = { width: 340, height: 210 };
 
+/**
+ * The tallest a card is allowed to be assumed when reserving room for it.
+ *
+ * Used before the card has been measured, to decide how much of a very tall
+ * target the spotlight may cover. Deliberately generous: reserving too much
+ * trims a highlight slightly, reserving too little puts the card back over the
+ * thing it describes.
+ */
+const TALLEST_CARD = 260;
+
+/** A spotlight never trims below this, or it stops pointing at anything. */
+const SPOTLIGHT_MINIMUM_HEIGHT = 120;
+
 interface Props {
   /** Close the tour, whether it was finished or abandoned. */
   onClose: () => void;
@@ -129,11 +142,28 @@ export function GuidedTour({ onClose, onPrepare }: Props): React.JSX.Element | n
 
     const box = element.getBoundingClientRect();
 
+    const top = box.top - SPOTLIGHT_PADDING;
+    const height = box.height + SPOTLIGHT_PADDING * 2;
+
+    // Trimmed at the bottom so the card always has somewhere to go.
+    //
+    // A target taller than the room left over leaves the card nowhere that
+    // clears it, and the placement below then docked the card to the bottom --
+    // over the very table the step was describing. Highlighting the top of a
+    // long region and putting the card underneath says the same thing and hides
+    // none of it: a table is read downwards, so its headings and first rows are
+    // what the reader needs while the card is open.
+    const roomForCard = TALLEST_CARD + CARD_GAP * 2;
+    const available = Math.max(
+      SPOTLIGHT_MINIMUM_HEIGHT,
+      window.innerHeight - roomForCard - top,
+    );
+
     setSpotlight({
-      top: box.top - SPOTLIGHT_PADDING,
+      top,
       left: box.left - SPOTLIGHT_PADDING,
       width: box.width + SPOTLIGHT_PADDING * 2,
-      height: box.height + SPOTLIGHT_PADDING * 2,
+      height: Math.min(height, available),
     });
   }, [step]);
 

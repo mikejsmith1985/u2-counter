@@ -8,6 +8,25 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **The guided tour has browser coverage, which it did not before.** It is the
+  first thing anybody sees and nothing tested it. Five journeys, each pinning a
+  failure that actually happened: it opens on a first visit and not the second,
+  the assistant and MCP steps are present (asserted against the API rather than
+  guessed at), the card never overlaps the ring it points at, every step that
+  describes a drawer has that drawer on screen, and Escape leaves from anywhere.
+
+  Two of them passed while checking nothing on the first attempt. Cypress queues
+  a walk in one tick, so every "is the card there?" resolved before React had
+  painted, the walk skipped all twelve steps, and the tests went green having
+  visited none of them. They now count what they compared and fail if they
+  compared nothing — which is how both of the defects above were found.
+
+- **Every other spec now starts as a returning visitor.** The tour opens by itself
+  on a first visit, Cypress clears local storage between tests, so every test was
+  a first visit with a tour laid over whatever it was asserting. Twenty-four
+  failures across six specs, every one reported as a CSS property rather than as
+  the tour.
+
 - **Two paths on the "use your own data" panel, and the second one is the point.**
   The page used to describe one setup and leave the reader to work out whether it
   applied to them. It now separates looking at the hosted demonstration — my data,
@@ -28,6 +47,24 @@ source of truth for what changed (Article VI). Format follows
   and having one running.
 
 ### Fixed
+
+- **The governance strip fell off the bottom of the screen.** It is the one thing
+  that must be on screen whatever else is — read-only, demonstration data, one
+  shared login — and at 1024x900 it sat at y=989 in a 900-pixel window. It used
+  `position: sticky`, which cannot move outside the box it sits in, and it sits in
+  a wrapper the tour added to spotlight it: a wrapper exactly the strip's own
+  height. The stickiness had nowhere to go, so on any screen where the branch grid
+  wrapped, the disclosure silently disappeared. The application is now exactly the
+  viewport tall with the middle row taking the scrolling, which makes the claim
+  structural rather than a side effect of the content happening to be short.
+
+- **The tour card still covered what it pointed at.** On the explore step the
+  spotlight was 615 by 1213 — near enough the whole screen — so none of the four
+  placements fit and the card docked to the bottom, over the table the step exists
+  to describe. A spotlight taller than the room left over is now trimmed so the
+  card always has somewhere to go: the top of a long region is highlighted and the
+  card sits below it. A table is read downwards, so its headings and first rows
+  are what the reader needs while the card is open.
 
 - **A deploy could not stop the services blocking it.** The port sweep spared any
   process older than the current session, which protected other people's dev

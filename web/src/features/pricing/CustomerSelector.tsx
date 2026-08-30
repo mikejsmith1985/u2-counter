@@ -6,9 +6,10 @@
  * must not lose the customer.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
+import { useCloseOnOutside } from "../../components/useCloseOnOutside";
 
 const SETTLE_MS = 180;
 
@@ -33,6 +34,10 @@ export function CustomerSelector({ selectedAccount, onSelect }: Props): React.JS
   const [chosenName, setChosenName] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Closes when attention goes elsewhere. Without this both pickers stayed open
+  // at once, one list over the other, with the one behind still catching clicks.
+  useCloseOnOutside(containerRef, isOpen, useCallback(() => setIsOpen(false), []));
 
   useEffect(() => {
     const timer = setTimeout(() => setSettled(text.trim()), SETTLE_MS);

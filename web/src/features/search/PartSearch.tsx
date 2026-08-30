@@ -7,10 +7,11 @@
  * to know the list moved beneath them.
  */
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../../api/client";
 import { useReadiness } from "../../api/readiness";
+import { useCloseOnOutside } from "../../components/useCloseOnOutside";
 
 /** Wait after the last keystroke before asking the API. */
 const SETTLE_MS = 180;
@@ -55,7 +56,12 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
   const [highlighted, setHighlighted] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+
+  // Closes when attention goes elsewhere. Without this both pickers stayed open
+  // at once, one list over the other, with the one behind still catching clicks.
+  useCloseOnOutside(containerRef, isOpen, useCallback(() => setIsOpen(false), []));
 
   useEffect(() => {
     const timer = setTimeout(() => setSettled(text.trim()), SETTLE_MS);
@@ -176,7 +182,7 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="search search--part search--picker">
+    <div className="search search--part search--picker" ref={containerRef}>
       <input
         ref={inputRef}
         className="search__input search__input--picker"

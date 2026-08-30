@@ -4,7 +4,26 @@
 .app {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  min-height: 100vh;
+
+  /* Exactly the viewport, with the middle row taking the scrolling.
+     
+     This used to be min-height, and the governance strip below used sticky to
+     stay on screen. Sticky cannot move outside the box it sits in, and the strip
+     sits in a wrapper the tour added to spotlight it -- a wrapper exactly the
+     strip's own height. So the stickiness had nowhere to go, and on any screen
+     where the branch grid wrapped to more rows the strip fell below the fold:
+     at 1024x900 it sat at y=989 with 900 pixels of window. It said read-only,
+     demonstration data, one shared login, and nobody saw it.
+     
+     Giving the middle row the scrolling makes the claim structural rather than
+     a side effect of the content happening to be short. */
+  height: 100vh;
+}
+
+/* A grid row will not shrink below its content without this, which would put the
+   scrolling back on the page and the strip back off the bottom of it. */
+.app > * {
+  min-height: 0;
 }
 
 /* --- header ---------------------------------------------------------------- */
@@ -121,6 +140,7 @@
   max-width: 78rem;
   width: 100%;
   margin: 0 auto;
+  overflow-y: auto;
 }
 
 /* --- the headline answer --------------------------------------------------- */
@@ -388,8 +408,6 @@
   border-top: 1px solid var(--line);
   font-size: 12px;
   color: var(--text-muted);
-  position: sticky;
-  bottom: 0;
 }
 
 .governance__badge {
