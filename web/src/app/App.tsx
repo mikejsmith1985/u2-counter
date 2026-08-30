@@ -253,6 +253,10 @@ export function App(): React.JSX.Element {
 
       <main className="main">
         <AskPanel
+          onShowPart={(chosen) => {
+            setPartNumber(chosen);
+            setExpandedBranch(null);
+          }}
           looking={{
             partNumber,
             partDescription: availability?.part.description ?? null,

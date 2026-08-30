@@ -510,21 +510,34 @@ public sealed class AskService(
                 "a class held only by an account beyond that is not listed.");
         }
 
-        foreach (ClassPrice entry in spread.Classes)
+        // The answer first, named as the answer.
+        //
+        // This used to print seven classes in price order and leave the reader to
+        // work out that the first one was the point. Ordered is not the same as
+        // answered: a reader scanning a wall of near-identical lines has to do
+        // the comparison the tool already did. The model has the same problem,
+        // and the same fix helps both.
+        ClassPrice? cheapest = spread.Classes.FirstOrDefault();
+
+        if (cheapest is not null)
         {
-            text.Append($"class {entry.PriceClass}: net {entry.NetPrice:F2}");
-            if (entry.Multiplier is not null)
-            {
-                text.Append($" (x{entry.Multiplier:F2})");
-            }
+            text.AppendLine();
+            text.AppendLine($"CHEAPEST -- class {cheapest.PriceClass} at {cheapest.NetPrice:F2}");
+            text.AppendLine($"  {Describe(cheapest)}");
 
-            text.Append($", {entry.CustomerCount} account(s)");
-            if (entry.Examples.Count > 0)
+            if (spread.Classes.Count > 1)
             {
-                text.Append($" incl. {string.Join(", ", entry.Examples)}");
-            }
+                text.AppendLine();
+                text.AppendLine("Every other class, dearest saving first:");
 
-            text.AppendLine($" -- {entry.Terms}");
+                foreach (ClassPrice entry in spread.Classes.Skip(1))
+                {
+                    decimal difference = entry.NetPrice - cheapest.NetPrice;
+                    text.AppendLine(
+                        $"  class {entry.PriceClass} at {entry.NetPrice:F2} "
+                            + $"(+{difference:F2}) -- {Describe(entry)}");
+                }
+            }
         }
 
         string result = text.ToString();
@@ -540,6 +553,21 @@ public sealed class AskService(
                 $"Compared {spread.Classes.Count} price class(es) across {spread.AccountsScanned} account(s)",
                 result,
                 (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>One price class, said the way a person would say it.</summary>
+    /// <param name="entry">The class and what it pays.</param>
+    private static string Describe(ClassPrice entry)
+    {
+        string multiplier = entry.Multiplier is null
+            ? "no terms in force"
+            : $"x{entry.Multiplier:F2}";
+
+        string examples = entry.Examples.Count > 0
+            ? $", including {string.Join(", ", entry.Examples)}"
+            : string.Empty;
+
+        return $"{multiplier}, {entry.CustomerCount} account(s){examples}";
     }
 
     /// <summary>Search the catalogue.</summary>

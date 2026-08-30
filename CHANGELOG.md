@@ -6,6 +6,31 @@ source of truth for what changed (Article VI). Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The waking page held the application awake instead of letting it sleep.** It
+  asked for `/health` once a second and never stopped: the give-up timer only
+  changed the wording. Every request resets the five-minute idle timer that is
+  the whole point of scaling to zero, so a tab left open would have kept both
+  containers running indefinitely — a page written to save money spending it
+  instead, added within an hour of the page itself. It now backs off from one
+  second to five, asks nothing at all while the tab is in the background, and
+  stops entirely after ninety seconds.
+
+- **The price comparison buried its own answer.** It printed seven classes in
+  price order and left the reader to work out that the first one was the point.
+  Ordered is not answered: a wall of near-identical lines makes the reader redo
+  the comparison the tool already did, and the model has the same problem. It now
+  leads with the cheapest class, named as the cheapest, and shows what each other
+  class costs *above* it rather than only what it costs.
+
+- **An answer could be about a part the screen was not showing.** Asking about one
+  part while another was displayed left a price for one thing above a branch grid
+  for another, which reads as two unrelated screens rather than one answer. When
+  the tools name a part that is not the one on screen, the answer offers to show
+  it — offered rather than done, because switching the page underneath somebody
+  changes what their next question means.
+
 ### Added
 
 - **A page that covers the cold start, because nothing inside the application

@@ -135,12 +135,38 @@
     document.getElementById("direct").href = APP;
 
     var EXPECTED_MS = 22000;
-    var POLL_MS = 1000;
-    var GIVE_UP_MS = 120000;
+
+    // Polling stops. All three of these exist because the first version had
+    // none of them: it asked for /health once a second and never stopped, so a
+    // tab left open held both containers awake indefinitely -- every request
+    // resetting the five-minute idle timer that is the entire point of scaling
+    // to zero. A page written to save money spent it instead.
+    var FIRST_DELAY_MS = 1000;
+    var MAX_DELAY_MS = 5000;
+    var GIVE_UP_MS = 90000;
 
     var started = Date.now();
     var fill = document.getElementById("fill");
     var status = document.getElementById("status");
+
+    var delay = FIRST_DELAY_MS;
+    var timer = null;
+    var painter = null;
+    var stopped = false;
+
+    function stop(message) {
+      if (stopped) {
+        return;
+      }
+
+      stopped = true;
+      clearTimeout(timer);
+      clearInterval(painter);
+
+      if (message) {
+        status.textContent = message;
+      }
+    }
 
     function tick() {
       var elapsed = Date.now() - started;
@@ -158,9 +184,33 @@
     }
 
     function go() {
+      stop("ready — opening");
       fill.style.width = "100%";
-      status.textContent = "ready — opening";
       location.replace(APP);
+    }
+
+    function schedule() {
+      if (stopped) {
+        return;
+      }
+
+      if (Date.now() - started > GIVE_UP_MS) {
+        stop("it has not answered in a minute and a half — open it directly below");
+        return;
+      }
+
+      // Nothing is asked while the tab is in the background. Somebody who opened
+      // this and walked away is not waiting for it, and keeping a container
+      // awake for a tab nobody is looking at is the exact cost this page exists
+      // to avoid.
+      if (document.hidden) {
+        timer = setTimeout(schedule, MAX_DELAY_MS);
+        return;
+      }
+
+      ask();
+      delay = Math.min(delay * 1.5, MAX_DELAY_MS);
+      timer = setTimeout(schedule, delay);
     }
 
     function ask() {
@@ -168,30 +218,30 @@
       // so the application's own cookie stays same-site where it belongs.
       fetch(APP.replace(/\/$/, "") + "/health", { mode: "cors", cache: "no-store" })
         .then(function (response) {
-          if (response.ok) {
-            go();
-            return;
-          }
-
           // A 503 here is the application saying it is up but still reading the
-          // catalogue -- which is a state it can narrate itself, so hand over.
-          if (response.status === 503) {
+          // catalogue -- a state it can narrate itself, so hand over.
+          if (response.ok || response.status === 503) {
             go();
           }
         })
         .catch(function () {
-          /* Still starting. The interval tries again. */
+          /* Still starting. The next attempt is already scheduled. */
         });
     }
 
-    setInterval(tick, 200);
-    setInterval(ask, POLL_MS);
-    ask();
-    tick();
+    // Picked up again the moment somebody comes back to the tab.
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden && !stopped) {
+        clearTimeout(timer);
+        delay = FIRST_DELAY_MS;
+        schedule();
+      }
+    });
 
-    setTimeout(function () {
-      status.textContent = "it has not answered in two minutes — try opening it directly";
-    }, GIVE_UP_MS);
+    painter = setInterval(tick, 200);
+    tick();
+    schedule();
+
   })();
 </script>
 </body>

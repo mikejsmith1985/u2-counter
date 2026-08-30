@@ -1545,3 +1545,11 @@ kbd {
 /* A position one field has and another does not. Marked rather than left blank,
    because the gap is the whole point when it appears. */
 .parallel__missing { color: var(--stock-committed); }
+
+/* The part an answer was about, when it is not the one on screen. Offered as a
+   button rather than done automatically: switching the page underneath somebody
+   mid-conversation changes what their next question means. */
+.ask__show-part {
+  margin: 0 0 0.6rem;
+  font-size: 12px;
+}

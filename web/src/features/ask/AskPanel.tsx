@@ -46,9 +46,18 @@ interface Props {
    * thing it was added for.
    */
   looking: ScreenContext;
+  /**
+   * Select a part, so an answer about one can be looked at.
+   *
+   * Without this the assistant answers about a part and the screen carries on
+   * showing whichever one was already there — a price for E-BRK00008 above a
+   * branch grid for something else entirely, which reads as two unrelated
+   * screens stacked rather than one answer.
+   */
+  onShowPart: (partNumber: string) => void;
 }
 
-export function AskPanel({ looking }: Props): React.JSX.Element | null {
+export function AskPanel({ looking, onShowPart }: Props): React.JSX.Element | null {
   const [question, setQuestion] = useState("");
 
   // Asked once. A deployment without a key has no assistant, and the honest
@@ -71,6 +80,11 @@ export function AskPanel({ looking }: Props): React.JSX.Element | null {
 
   const failure = ask.error instanceof ApiFailure ? ask.error : null;
   const answer = ask.data;
+
+  // Which part the answer is actually about, if the tools named one.
+  const answeredAbout = answer?.steps
+    .map((step) => step.recordId)
+    .find((recordId) => recordId.length > 0 && recordId !== looking.partNumber);
 
   function submit(asked: string): void {
     const trimmed = asked.trim();
@@ -132,6 +146,19 @@ export function AskPanel({ looking }: Props): React.JSX.Element | null {
       {answer && !ask.isPending && (
         <div className="ask__answer">
           <p className="ask__said">{answer.answer}</p>
+
+          {/* Offered rather than done. Switching the screen underneath somebody
+              mid-conversation changes what the next question is about, which is
+              a surprising thing for an answer to do. */}
+          {answeredAbout && answeredAbout !== looking.partNumber && (
+            <button
+              type="button"
+              className="button ask__show-part"
+              onClick={() => onShowPart(answeredAbout)}
+            >
+              Show {answeredAbout} on screen
+            </button>
+          )}
 
           <details className="ask__working-out" open>
             <summary>
