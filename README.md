@@ -10,6 +10,10 @@ browser ──▶ ASP.NET Core API ──▶ MCP server ──▶ MultiValue sto
               + React front end     (hardened fork)   (AM / VM / SM records)
 ```
 
+**Before you take any of this on trust:**
+[what it does not show](docs/what-it-does-not-show.md) — the limits, what would
+settle each one, and how to run it against your own U2 instance.
+
 ## Why it is built this way
 
 **It reads the ERP through an MCP server, not a database driver.** The server
