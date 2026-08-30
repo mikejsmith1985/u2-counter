@@ -6,7 +6,13 @@ source of truth for what changed (Article VI). Format follows
 
 ## [Unreleased]
 
-### Added
+- **The tour says what the assistant cannot do, before somebody finds out.** Four
+  of its tools are built for this counter and four ask the database what it holds,
+  so it answers about files nobody wrote code for — just more slowly. Asked
+  something outside all eight it says so rather than guessing, and a reader who
+  has not been told that reads a refusal as a fault. The suggested questions cover
+  both halves for the same reason: the first question somebody types decides what
+  they think the thing is.
 
 - **The assistant can answer against a schema nobody anticipated.** It had three
   tools, all compiled to this demonstration's layout, so a question about anything
@@ -82,6 +88,16 @@ source of truth for what changed (Article VI). Format follows
   and having one running.
 
 ### Fixed
+
+- **The tour claimed the assistant had three tools.** It has eight, and had for
+  most of a day. A tour that miscounts the thing it is explaining is worse than no
+  tour: the reader checks, finds five more, and stops believing the rest of it.
+
+- **Two places still said there was no query tool.** There is one — added because
+  an assistant holding only tools compiled to one layout is useful exactly as far
+  as somebody's foresight went. Both now say what is actually true: no write, no
+  delete, and a selection tool that refuses any verb but SELECT or SSELECT, in the
+  application and again at the server.
 
 - **The governance strip fell off the bottom of the screen.** It is the one thing
   that must be on screen whatever else is — read-only, demonstration data, one

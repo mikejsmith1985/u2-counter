@@ -208,8 +208,10 @@ function RunItYourself({
       <div className="connect__note connect__note--good">
         <strong>Writes are refused by default.</strong> <code>U2_READ_ONLY</code>{" "}
         defaults to true in this fork — you opt in to writes rather than remembering
-        to opt out. The tool list has no write, no delete and no arbitrary query in
-        it, so there is nothing for a model to reach for.
+        to opt out. The tool list has no write and no delete in it, so there is
+        nothing for a model to reach for. It does include a selection tool, which
+        refuses any verb that is not <code>SELECT</code> or <code>SSELECT</code> —
+        checked in the application and again at the server.
       </div>
 
       <div className="connect__note connect__note--warn">

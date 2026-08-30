@@ -18,11 +18,21 @@ import { api, ApiFailure } from "../../api/client";
 import type { AskResult, AskStep, ScreenContext } from "../../api/types";
 import { MarkedRecord } from "./MarkedRecord";
 
-/** Questions offered when the box is empty, so nobody has to invent one. */
+/**
+ * Questions offered when the box is empty, so nobody has to invent one.
+ *
+ * Chosen to cover both halves of what the assistant can do, because the first
+ * question somebody types decides what they think it is. Two exercise the tools
+ * built for this counter; two exercise the ones that ask the database what it
+ * holds, and those are the ones that would still work against a schema nobody
+ * wrote code for. Offering only the first kind makes a general assistant look
+ * like a demo script.
+ */
 const SUGGESTIONS = [
   "Which branch has the most 15A AFCI breakers free to sell?",
-  "Do we have any Southwire THHN wire, and where?",
-  "Show me the stored INVENTORY record for E-BRK00008",
+  "Which customers get the best price on E-BRK00008?",
+  "What files are in this database?",
+  "What does the ORDER file contain, and how is it structured?",
 ];
 
 interface Props {

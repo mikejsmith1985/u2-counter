@@ -78,8 +78,20 @@ export const TOUR_STEPS: TourStep[] = [
     body:
       "Under each answer is every call it made, and what came back. Claude never " +
       "touches the database itself — it asks a separate server over a protocol " +
-      "called MCP, and that server offers exactly three tools. All three are " +
-      "reads. There is no write in the list for it to reach for.",
+      "called MCP, and every tool that server offers is a read. There is no " +
+      "write, and no delete, in the list for it to reach for.",
+    target: "[data-tour='ask']",
+    needsAssistant: true,
+  },
+  {
+    id: "limits",
+    title: "What it can and cannot answer",
+    body:
+      "Four of its tools are built for this counter — parts, stock, pricing. Four " +
+      "ask the database what it holds: name the files, read a file's dictionary, " +
+      "query any of them. So it answers about files nobody wrote code for, just " +
+      "more slowly. Ask it something outside all eight and it says so rather than " +
+      "guessing — that is the design, not a fault.",
     target: "[data-tour='ask']",
     needsAssistant: true,
   },

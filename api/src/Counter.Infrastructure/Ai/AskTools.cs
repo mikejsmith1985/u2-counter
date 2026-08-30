@@ -9,15 +9,26 @@ using Counter.Infrastructure.Erp;
 /// </summary>
 /// <remarks>
 /// This list is the read-only guarantee, expressed where it cannot be argued
-/// with. There is no write tool, no delete tool and no arbitrary query tool, so a
-/// model that decided to change something has nothing to decide it with — the
-/// guarantee does not rest on the model behaving, on a prompt asking it to, or on
-/// a check somewhere downstream.
+/// with. There is no write tool and no delete tool, so a model that decided to
+/// change something has nothing to decide it with — the guarantee does not rest
+/// on the model behaving, on a prompt asking it to, or on a check somewhere
+/// downstream.
 ///
-/// The file a record may be read from is constrained too. Left open, "read record
-/// from file X" is an arbitrary read of anything the database account can see,
-/// which is most of the way back to the query tool this deliberately does not
-/// offer.
+/// There is a query tool, and this comment used to say there deliberately was
+/// not. That changed when the honest answer to "does this work against a schema
+/// nobody anticipated?" turned out to be no: an assistant holding only tools
+/// compiled to one layout is useful exactly as far as somebody's foresight went.
+/// The account can now be asked what it holds, and any of it selected from.
+///
+/// What did not change is that every one of these is a read. The selection tool
+/// refuses any verb that is not SELECT or SSELECT, here and again at the MCP
+/// server, which allows read verbs only. Two places, both deliberate, and neither
+/// of them the model.
+///
+/// `read_record` stays constrained to four files even so. Not for safety, since
+/// the query tool reaches the same records, but because it returns the stored
+/// bytes with their marks intact rather than a rendering of them, and that is the
+/// only thing that shows what the data actually is.
 /// </remarks>
 public static class AskTools
 {
