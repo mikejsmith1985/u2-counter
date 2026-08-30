@@ -150,6 +150,19 @@ if (-not $SkipTests) {
 
     Push-Location (Join-Path $repositoryRoot 'web')
     try {
+        # Types first, with the command the container build actually runs.
+        #
+        # `tsc --noEmit` on this project checks nothing: the root tsconfig is a
+        # solution file with an empty `files` array and only references, so it
+        # finds no work and exits 0. Every "types are clean" it reported was
+        # meaningless, and two type errors reached the registry before a Docker
+        # build caught them -- forty seconds of ACR time to learn something a
+        # second of local time knew.
+        & npx.cmd tsc -b
+        if ($LASTEXITCODE -ne 0) {
+            throw 'The front end does not type-check. Nothing was deployed.'
+        }
+
         & npm.cmd test
         if ($LASTEXITCODE -ne 0) { throw 'The front-end unit tests failed. Nothing was deployed.' }
     }

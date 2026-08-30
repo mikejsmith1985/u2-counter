@@ -39,6 +39,7 @@ export function SchemaExplorer(): React.JSX.Element {
   const [applied, setApplied] = useState<{ position: number; value: string; isExact: boolean }>({
     position: 0,
     value: "",
+    isExact: false,
   });
 
   // Which cell is being edited, if any. Held here rather than in the row so that
@@ -104,7 +105,7 @@ export function SchemaExplorer(): React.JSX.Element {
               setFile(event.target.value);
               setPosition(0);
               setValue("");
-              setApplied({ position: 0, value: "" });
+              setApplied({ position: 0, value: "", isExact: false });
             }}
           >
             {(files?.files ?? []).map((name) => (
