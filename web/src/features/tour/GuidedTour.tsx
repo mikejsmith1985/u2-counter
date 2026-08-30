@@ -54,6 +54,14 @@ const CARD_ESTIMATE = { width: 340, height: 210 };
  */
 const TALLEST_CARD = 260;
 
+/**
+ * Below this width the card is docked across the bottom instead of placed.
+ *
+ * Matches the stylesheet's narrow breakpoint, so the two cannot disagree about
+ * what counts as a phone.
+ */
+const NARROW_WIDTH = 736;
+
 /** A spotlight never trims below this, or it stops pointing at anything. */
 const SPOTLIGHT_MINIMUM_HEIGHT = 120;
 
@@ -360,6 +368,30 @@ function cardPosition(
   spotlight: Spotlight | null,
   card: { width: number; height: number },
 ): React.CSSProperties {
+  // On a phone the card does not go beside anything.
+  //
+  // Checked before everything else, including the no-target case, because the
+  // first step has no target and was therefore centred -- and a centred fixed
+  // element with `width: auto` shrinks to fit rather than spanning, which put a
+  // 195-pixel card on a 390-pixel screen.
+  //
+  // The placement below picks a side that clears the highlighted area, and at
+  // this width no side does: the card is wider than whatever is left over, so it
+  // was placed at x=195 and hung a third of itself off the edge. Trying harder is
+  // the wrong answer. It becomes a sheet across the bottom, which is what a phone
+  // does with a panel anyway, and the ring still marks the target above it.
+  if (window.innerWidth < NARROW_WIDTH) {
+    return {
+      left: CARD_GAP,
+      right: CARD_GAP,
+      bottom: CARD_GAP,
+      top: "auto",
+      width: "auto",
+      maxHeight: "60vh",
+      overflowY: "auto",
+    };
+  }
+
   if (!spotlight) {
     return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
   }

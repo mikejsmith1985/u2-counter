@@ -1112,6 +1112,21 @@ kbd {
 
 .explore__selection code { font-family: var(--font-mono); }
 
+/* Wide content scrolls inside its own box rather than pushing the page sideways.
+   
+   Five places in the application already wrapped a table in this class and it
+   was never written, so every one of them overflowed instead: the explore table
+   ran 26 pixels past a phone's edge, and the same rule would have bitten a
+   narrow desktop window. A class that does not exist fails silently, which is
+   why nothing reported it. */
+.scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  /* Momentum scrolling on touch, and a scrollbar that does not overlay the last
+     row on the platforms that would. */
+  scrollbar-width: thin;
+}
+
 /* --- connect your own data -------------------------------------------------- */
 
 .connect { padding: 0.4rem 0 1rem; font-size: 13px; line-height: 1.6; }
@@ -1637,4 +1652,72 @@ kbd {
   }
 
   .workstation-note strong { color: var(--text); }
+}
+
+/* --- a phone ---------------------------------------------------------------
+   
+   This is a counter workstation application and says so on screen. What follows
+   is not an attempt to make it a phone application; it is the difference
+   between "designed for a desk" and "looks broken", which are not the same
+   thing to somebody opening a link on the way to a meeting.
+   
+   Everything here came from measuring at 390x844 rather than from guessing:
+   one element overflowed, and every control was between 27 and 37 pixels tall
+   against a 44-pixel guideline. */
+
+@media (max-width: 46rem) {
+  /* Reachable with a thumb. The numbers were 27-37px, which is fine for a mouse
+     and wrong for a finger. */
+  .button,
+  button.button,
+  .search__input,
+  .connect__input,
+  .explore select,
+  .explore input {
+    min-height: 44px;
+  }
+
+  .header .button { padding-inline: 0.75rem; }
+
+  /* The identity control was 18px tall -- the smallest thing on the screen, and
+     one of the few that opens a panel. */
+  .governance__identity { min-height: 44px; padding-inline: 0.5rem; }
+
+  /* The copy buttons were 24px, which is the smallest thing anybody would try
+     to hit and the one most annoying to miss. */
+  .copy { min-height: 40px; padding: 0.4rem 0.7rem; font-size: 12px; }
+  .connect__code pre { padding-right: 6rem; }
+  .connect__prompt .copy { min-height: 44px; width: 100%; }
+
+  /* Links inside prose are left alone on purpose. A 44-pixel line in the middle
+     of a sentence is not a bigger target, it is a broken paragraph -- and a
+     reference in running text is read rather than tapped. */
+
+  /* The only element that overflowed, by seven pixels: a close button pinned to
+     the right of a drawer header that had run out of room. */
+  .drawer__header { flex-wrap: wrap; row-gap: 0.4rem; }
+  .drawer__header .button { flex: 0 0 auto; }
+
+  /* A drawer is the screen on a phone. Anything less reads as a dialog that
+     failed to size itself. */
+  .drawer__panel {
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
+  }
+
+  /* Twelve branch cards in one column is a long scroll to reach a number. Two
+     up keeps the comparison on one screen, which is the point of the grid. */
+  .branch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+  .branch { padding: 0.5rem 0.55rem; }
+
+  /* The tour card is docked across the bottom by the placement code at this
+     width; these are the parts CSS owns. */
+  .tour__card { width: auto; max-width: none; }
+
+  /* Transcript and record output wrap rather than scroll sideways: on a phone a
+     horizontal scroll inside a vertical scroll is unusable. */
+  .ask__result,
+  .prove__bytes pre,
+  .record-pane { white-space: pre-wrap; word-break: break-word; }
 }

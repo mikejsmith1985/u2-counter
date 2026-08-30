@@ -6,6 +6,37 @@ source of truth for what changed (Article VI). Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`.scroll` was used in five places and never written.** Every table that
+  believed it was inside a horizontally scrolling box was not, so the explore
+  table ran twenty-six pixels past a phone's edge and would have done the same in
+  a narrow desktop window. A class that does not exist fails silently, which is
+  why nothing reported it at any width.
+
+- **The tour card hung a third of itself off a phone.** Its placement picks a
+  side that clears the highlighted area, and at 390 pixels no side does — the
+  card is wider than whatever is left over, so it sat at x=195 on a 390-pixel
+  screen. Below the narrow breakpoint it now docks as a sheet across the bottom,
+  which is what a phone does with a panel anyway; the ring still marks the target
+  above it. Two faults, not one: the first step has no target, so it returned
+  early and never reached the new branch, and a centred fixed element with
+  `width: auto` shrinks to fit rather than spanning.
+
+- **Every control was too small to hit.** Between 27 and 37 pixels tall against a
+  44-pixel guideline: fine for a mouse, wrong for a thumb. Links inside prose are
+  deliberately excluded — a 44-pixel line in the middle of a sentence is a broken
+  paragraph, and a reference in running text is read rather than tapped.
+
+### Added
+
+- **A browser suite at phone size.** Four journeys at 390x844: nothing overflows
+  on any screen, the tour docks rather than hanging off the edge, every control
+  is big enough to hit, and the note saying this was built for a counter
+  workstation is there to be read. Measured rather than eyeballed, because the
+  last four layout faults in this project were all found by measuring and none by
+  reading the stylesheet.
+
 ### Added
 
 - **The empty screen offers parts where stock is already promised.** Free to sell
