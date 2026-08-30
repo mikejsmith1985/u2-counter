@@ -6,6 +6,60 @@ source of truth for what changed (Article VI). Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A page that covers the cold start, because nothing inside the application
+  can.** The API container serves the web application as well as the API, so the
+  first request after a quiet period has no server to answer it: the browser
+  waits on a socket and the screen stays blank for about twenty seconds. Every
+  "waking up" message in the application is unreachable at precisely the moment
+  it would be useful, which is how a deliberate cost decision came to look like a
+  broken deployment.
+
+  The new entry page is served from storage, which is always on and costs a
+  fraction of a cent a month. It paints at once, says what is happening and what
+  the alternative would cost, wakes the application by asking it for `/health`,
+  and hands over the moment it answers. It carries no credentials — the one
+  cross-origin request is an anonymous health check — so the session cookie stays
+  same-site on the application's own origin and sign-in is untouched.
+
+- **The parsed record shows its parallel fields as a grid.** "Position three of
+  every field describes the same branch" was written on the screen and then
+  contradicted by it: fields were listed one per line with values joined by dots,
+  and single-valued fields sat among them looking as though they ought to have a
+  third position too. Parallel fields are now columns and positions are rows, so
+  reading across a row *is* the claim. Fields holding one value are shown apart,
+  as describing the record rather than a position in it. A record whose fields
+  disagree on length says so and marks the gaps, because that is the damage a
+  careless write does and hiding it here would hide the point.
+
+- **An answer to "how would anybody know this is real?"** Asked of the record
+  view in almost those words, and it is the right question: every pixel is drawn
+  by this application, so a picture of separators is a picture. The panel says
+  that outright rather than answering with a better picture, then does the two
+  things that are worth more — hands over the bytes to be counted in tools we do
+  not control, and renders a record pasted in from somewhere else, which a
+  renderer written around its own fixture could not. It ends by naming the only
+  thing that settles it, which is not on this screen.
+
+### Fixed
+
+- **The explore screen was unreachable.** It rendered only while no part was
+  selected, so picking one made it vanish with nothing offering a way back — and
+  it holds the file list, the dictionaries and the only editor in the
+  application. Two statements elsewhere kept pointing at it. It is now opened
+  from the header at any time, and the tour opens it rather than relying on
+  nothing being selected.
+
+- **The setup prompt carried a stale claim and unusable characters.** It still
+  said the tool list had "no arbitrary query" — untrue since the selection tool
+  was added — and its em dashes arrived as replacement characters when pasted
+  into a terminal. It is plain ASCII now, and accurate.
+
+- **Two more claims about the cold start were false.** The tour and the
+  deployment summary both said the screen explains the wait. It cannot: the
+  server that would draw that message is the one starting.
+
 - **The tour says what the assistant cannot do, before somebody finds out.** Four
   of its tools are built for this counter and four ask the database what it holds,
   so it answers about files nobody wrote code for — just more slowly. Asked

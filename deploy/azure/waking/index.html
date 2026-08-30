@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Counter — starting up</title>
+<!--
+  The page that covers the cold start, because nothing in the application can.
+
+  The API container serves the web application as well as the API, so on the
+  first request after a quiet period there is no server to send a page: the
+  browser waits on a socket and the screen stays empty for about twenty seconds.
+  Every "waking up" message inside the application is unreachable at exactly the
+  moment it would be useful.
+
+  So this is served from storage, which is always on and costs a fraction of a
+  cent a month. It paints immediately, says what is happening and why, wakes the
+  application by asking it for /health, and sends the reader on the moment it
+  answers. Nothing here needs the application to be running, which is the whole
+  point.
+
+  It deliberately does not carry credentials: the only cross-origin request it
+  makes is an anonymous health check, so the session cookie stays same-site on
+  the application's own origin and sign-in is unaffected.
+-->
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #0f1113;
+    --surface: #16191d;
+    --line: #262b31;
+    --text: #e6e8ea;
+    --muted: #9aa1a9;
+    --faint: #6b727a;
+    --accent: #d98b4a;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background: var(--ground);
+    color: var(--text);
+    font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  main { width: 100%; max-width: 34rem; }
+
+  h1 {
+    margin: 0 0 0.4rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  p { margin: 0 0 0.9rem; color: var(--muted); }
+
+  .bar {
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 1.2rem 0 0.5rem;
+  }
+
+  .bar__fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    transition: width 0.6s linear;
+  }
+
+  .status {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .why {
+    margin-top: 1.6rem;
+    padding: 0.75rem 0.9rem;
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    font-size: 13px;
+  }
+
+  .why strong { color: var(--text); font-weight: 600; }
+
+  a { color: var(--accent); }
+
+  .manual { margin-top: 1.2rem; font-size: 13px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar__fill { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Starting the counter</h1>
+  <p id="lead">
+    Nobody has used this for a while, so it powered itself down rather than bill
+    for sitting idle. Waking it now.
+  </p>
+
+  <div class="bar" aria-hidden="true"><div class="bar__fill" id="fill"></div></div>
+  <p class="status" id="status" role="status" aria-live="polite">asking it to start…</p>
+
+  <div class="why">
+    <strong>This wait is a choice, not a fault.</strong> Both containers scale to
+    zero when idle. Running one continuously would cost around seventy dollars a
+    month to serve a demonstration nobody is looking at; about twenty seconds on
+    the first visit costs nothing. Every visit after this one is immediate until
+    it goes quiet again.
+  </div>
+
+  <p class="manual">
+    Not moving? <a id="direct" href="#">Open it directly</a> — it may simply have
+    taken longer than expected.
+  </p>
+</main>
+
+<script>
+  (function () {
+    // Written in by the deployment, so this page never has to be edited to
+    // point somewhere else.
+    var APP = "%%APP_URL%%";
+
+    document.getElementById("direct").href = APP;
+
+    var EXPECTED_MS = 22000;
+    var POLL_MS = 1000;
+    var GIVE_UP_MS = 120000;
+
+    var started = Date.now();
+    var fill = document.getElementById("fill");
+    var status = document.getElementById("status");
+
+    function tick() {
+      var elapsed = Date.now() - started;
+
+      // Approaches full without reaching it, because arriving at 100% and then
+      // waiting is worse than a bar that is honestly still moving.
+      var progress = 1 - Math.exp(-elapsed / EXPECTED_MS);
+      fill.style.width = (progress * 96).toFixed(1) + "%";
+
+      status.textContent =
+        Math.round(elapsed / 1000) + "s · " +
+        (elapsed > EXPECTED_MS * 2
+          ? "taking longer than usual, still trying"
+          : "waiting for the first response");
+    }
+
+    function go() {
+      fill.style.width = "100%";
+      status.textContent = "ready — opening";
+      location.replace(APP);
+    }
+
+    function ask() {
+      // No credentials on purpose: this is a plain health check across origins,
+      // so the application's own cookie stays same-site where it belongs.
+      fetch(APP.replace(/\/$/, "") + "/health", { mode: "cors", cache: "no-store" })
+        .then(function (response) {
+          if (response.ok) {
+            go();
+            return;
+          }
+
+          // A 503 here is the application saying it is up but still reading the
+          // catalogue -- which is a state it can narrate itself, so hand over.
+          if (response.status === 503) {
+            go();
+          }
+        })
+        .catch(function () {
+          /* Still starting. The interval tries again. */
+        });
+    }
+
+    setInterval(tick, 200);
+    setInterval(ask, POLL_MS);
+    ask();
+    tick();
+
+    setTimeout(function () {
+      status.textContent = "it has not answered in two minutes — try opening it directly";
+    }, GIVE_UP_MS);
+  })();
+</script>
+</body>
+</html>

@@ -51,6 +51,8 @@ export interface TourStep {
   needsActivity?: boolean;
   /** Whether this step needs the "use your own data" panel open. */
   needsConnect?: boolean;
+  /** Whether this step needs the explore drawer open. */
+  needsExplore?: boolean;
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -101,8 +103,10 @@ export const TOUR_STEPS: TourStep[] = [
     body:
       "No field names are written into this page. The files come from the account " +
       "and the columns from each file's own dictionary — which is how a MultiValue " +
-      "database describes itself. Point it at your database and it shows yours.",
-    target: "[data-tour='explore']",
+      "database describes itself. Point it at your database and it shows yours. " +
+      "It is in the header, under Explore the database, whenever you want it.",
+    target: ".drawer__panel",
+    needsExplore: true,
   },
   {
     id: "parts",
@@ -137,8 +141,10 @@ export const TOUR_STEPS: TourStep[] = [
     title: "The record, exactly as stored",
     body:
       "Real attribute and value marks, not JSON dressed up to look like them. " +
-      "Position three of every field describes the same branch — the trap this " +
-      "kind of data sets for anyone who has only met SQL.",
+      "The parsed view puts the fields that run in parallel side by side: one row " +
+      "is one branch, across every field at once. That is the trap this kind of " +
+      "data sets for anyone who has only met SQL — and if you doubt any of it, " +
+      "the panel at the bottom hands you the bytes to check elsewhere.",
     target: ".drawer__panel",
     needsPart: true,
     needsRecord: true,
@@ -168,7 +174,9 @@ export const TOUR_STEPS: TourStep[] = [
     body:
       "The strip along the bottom says the awkward parts out loud: one shared " +
       "database login, demonstration data, read-only. It also says the whole thing " +
-      "powers itself down when idle, which is why your first visit was slow.",
+      "powers itself down when idle. That is why the first load takes about " +
+      "twenty seconds and shows nothing while it does: the server that would " +
+      "draw a waiting message is the thing being started.",
     target: "[data-tour='governance']",
   },
   {

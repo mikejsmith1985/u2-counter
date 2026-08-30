@@ -95,8 +95,8 @@ export function setupPrompt(values: OwnValues): string {
 trade-counter application that reads through it.
 
 Two repositories:
-  - ${REPOSITORIES.server} — the MCP server (Python 3.12)
-  - ${REPOSITORIES.app} — the API and web application (.NET 9, React)
+  - ${REPOSITORIES.server} -- the MCP server (Python 3.12)
+  - ${REPOSITORIES.app} -- the API and web application (.NET 9, React)
 
 My database:
   host    ${host}
@@ -107,7 +107,7 @@ Please do this in order, and stop at the first step that does not behave as
 described rather than working around it:
 
 1. Clone the server repository and create a virtual environment from its
-   pyproject. Install "uopy" from my own Rocket U2 client tools — it is not on
+   pyproject. Install "uopy" from my own Rocket U2 client tools -- it is not on
    PyPI, so if you cannot find it, stop and tell me.
 
 2. Set U2_HOST, U2_USER, U2_PASSWORD and U2_ACCOUNT in the environment only.
@@ -120,15 +120,18 @@ described rather than working around it:
 4. Only if that passed: clone the application repository, build it, and point its
    Erp:Endpoint at the MCP server. Leave Erp:Writable off.
 
-5. Open the "Explore" screen and confirm it lists MY files with MY field names —
+5. Open the "Explore" screen and confirm it lists MY files with MY field names --
    they come from my dictionaries, not from anything written into the page. Tell
    me what it listed.
 
 Two things to know before you start. Writes are refused by default in this fork:
-U2_READ_ONLY defaults to true, and the tool list contains no write, no delete and
-no arbitrary query. And the counter screens themselves — as opposed to the Explore
-screen — are mapped to a demonstration schema, so they will not fit my files until
-that mapping is changed; that mapping lives in one class, ErpFiles.cs.
+U2_READ_ONLY defaults to true, and the tool list contains no write and no delete.
+It does include a selection tool, which refuses any verb that is not SELECT or
+SSELECT -- checked in the application and again at the server.
+
+And the counter screens themselves -- as opposed to the Explore screen -- are
+mapped to a demonstration schema, so they will not fit my files until that
+mapping is changed; that mapping lives in one class, ErpFiles.cs.
 
 Point this at a restored copy of my data the first time, not production.`;
 }

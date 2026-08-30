@@ -7,6 +7,8 @@
  * labelled rather than hidden, because hiding them would defeat the point.
  */
 
+import { ParallelFields } from "./ParallelFields";
+import { ProveItYourself } from "./ProveItYourself";
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../../api/client";
@@ -157,12 +159,7 @@ export function RecordDrawer({ partNumber, onClose }: Props): React.JSX.Element 
               <div>
                 <h3 className="panel__title">Parsed</h3>
                 <div className="record-pane">
-                  {Object.entries(data.parsed).map(([position, values]) => (
-                    <div key={position}>
-                      <span style={{ color: "var(--text-faint)" }}>field {position}: </span>
-                      {values.join(" · ")}
-                    </div>
-                  ))}
+                  <ParallelFields parsed={data.parsed} />
                 </div>
               </div>
             </div>
@@ -171,6 +168,11 @@ export function RecordDrawer({ partNumber, onClose }: Props): React.JSX.Element 
               What was run
             </h3>
             <div className="record-query">{data.query}</div>
+
+            {/* The objection this whole panel invites, answered rather than
+                left for the reader to raise on their own: nothing drawn here
+                can settle whether the data is genuine. */}
+            <ProveItYourself raw={data.rawRecord} />
           </>
         )}
       </div>

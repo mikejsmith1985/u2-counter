@@ -529,6 +529,22 @@ Write-Step "Deploying $($environment.ApiApp) (public, scales to zero)"
 
 $auditConnection = 'Data Source=/audit/counter.db'
 
+# Turned on before the API is deployed, because the API has to be told the
+# page's origin: the page asks it for /health across origins, and this
+# application names its allowed origins rather than accepting a wildcard.
+az storage blob service-properties update `
+    --account-name $environment.StorageAccount `
+    --static-website `
+    --index-document 'index.html' `
+    --404-document 'index.html' | Out-Null
+
+$wakingOrigin = (az storage account show `
+    --resource-group $environment.ResourceGroup `
+    --name $environment.StorageAccount `
+    --query 'primaryEndpoints.web' -o tsv).TrimEnd('/')
+
+$corsSetting = "Cors__Origins__0=$wakingOrigin"
+
 # Set before the environment variable that references it, because a secretref
 # naming a secret the app does not have is accepted and then fails at start-up.
 if ($assistantKey -and (Test-AppExists $environment.ApiApp)) {
@@ -547,6 +563,7 @@ if (Test-AppExists $environment.ApiApp) {
         --max-replicas 1 `
         --set-env-vars "Erp__Endpoint=$mcpEndpoint/" `
                        "ConnectionStrings__Counter=$auditConnection" `
+                       $corsSetting `
                        $assistantSetting $apiWritable | Out-Null
 }
 else {
@@ -565,6 +582,7 @@ else {
         --cpu 1.0 --memory 2.0Gi `
         --secrets "anthropic-api-key=$assistantKey" `
         --env-vars "Erp__Endpoint=$mcpEndpoint/" "ConnectionStrings__Counter=$auditConnection" `
+                   $corsSetting `
                    $assistantSetting $apiWritable | Out-Null
 
 }
@@ -575,6 +593,74 @@ $url = az containerapp show `
     --name $environment.ApiApp `
     --query 'properties.configuration.ingress.fqdn' `
     --output tsv
+
+
+# -- the page that covers the cold start ---------------------------------------
+
+function Publish-WakingPage {
+    <#
+        .SYNOPSIS
+        Put the waking page on always-on storage, and return where it lives.
+
+        .DESCRIPTION
+        The API container serves the web application as well as the API, so the
+        first request after a quiet period has no server to answer it: the
+        browser waits on a socket and the screen stays blank for about twenty
+        seconds. Every "waking up" message inside the application is unreachable
+        at precisely the moment it would be useful, which is how a deliberate
+        cost decision came to look like a broken deployment.
+
+        Static website hosting on the storage account already provisioned for the
+        audit share fixes that for a fraction of a cent a month. The page paints
+        at once, says what is happening, wakes the application by asking it for
+        /health, and hands over the moment it answers.
+
+        Uploaded on every deployment rather than once, because it names the
+        application's URL and a page that quietly points at the wrong deployment
+        is worse than no page.
+    #>
+    param(
+        [Parameter(Mandatory)] $Environment,
+        [Parameter(Mandatory)] [string] $AppUrl
+    )
+
+    Write-Step 'Publishing the waking page'
+
+    az storage blob service-properties update `
+        --account-name $Environment.StorageAccount `
+        --static-website `
+        --index-document 'index.html' `
+        --404-document 'index.html' | Out-Null
+
+    $endpoint = az storage account show `
+        --resource-group $Environment.ResourceGroup `
+        --name $Environment.StorageAccount `
+        --query 'primaryEndpoints.web' -o tsv
+
+    if ([string]::IsNullOrWhiteSpace($endpoint)) {
+        throw 'Static website hosting did not report an endpoint.'
+    }
+
+    # Written into a copy, so the checked-in page keeps its placeholder and a
+    # second deployment does not find the first one's URL already baked in.
+    $source = Join-Path $PSScriptRoot 'waking\index.html'
+    $staged = Join-Path ([System.IO.Path]::GetTempPath()) 'counter-waking-index.html'
+
+    (Get-Content $source -Raw).Replace('%%APP_URL%%', $AppUrl) |
+        Set-Content -Path $staged -Encoding UTF8 -NoNewline
+
+    az storage blob upload `
+        --account-name $Environment.StorageAccount `
+        --container-name '$web' `
+        --name 'index.html' `
+        --file $staged `
+        --content-type 'text/html; charset=utf-8' `
+        --overwrite | Out-Null
+
+    Remove-Item $staged -ErrorAction SilentlyContinue
+
+    return $endpoint.TrimEnd('/')
+}
 
 # -- the audit share, checked on every deployment ------------------------------
 #
@@ -791,6 +877,8 @@ container log for the reason the schema could not be opened.
 
 Set-AuditShare -Environment $environment -Tag $Tag
 
+$wakingUrl = Publish-WakingPage -Environment $environment -AppUrl "https://$url"
+
 Assert-DeploymentAnswers -Url $url
 
 Write-Host ''
@@ -798,9 +886,15 @@ Write-Host 'Deployed.' -ForegroundColor Green
 Write-Host "  https://$url"
 Write-Host "  Tag $Tag"
 Write-Host ''
+Write-Host '  Give people this address, not the one above:' -ForegroundColor Green
+Write-Host "  $wakingUrl"
+Write-Host '  It is served from storage, so it paints immediately, explains the'
+Write-Host '  wait, wakes the application and hands over when it answers.'
+Write-Host ''
 Write-Host '  Both apps scale to zero when idle. The first request after a quiet'
-Write-Host '  period wakes them, which the screen says plainly rather than'
-Write-Host '  appearing to be broken.'
+Write-Host '  period wakes them. That first load shows nothing at all while it'
+Write-Host '  happens: this container serves the page as well as the API, so the'
+Write-Host '  thing that would draw a waiting message is what is starting.'
 Write-Host ''
 Write-Host '  The MCP server has no public address. Nothing outside the'
 Write-Host '  environment can reach the database session it holds.'

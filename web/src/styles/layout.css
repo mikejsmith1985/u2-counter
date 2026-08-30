@@ -1396,3 +1396,152 @@ kbd {
   border-bottom: 1px dotted var(--line-strong);
   cursor: help;
 }
+
+/* --- "how would you know this is real" ------------------------------------- */
+
+/* Folded away by default. The question is worth answering where it is asked,
+   but somebody who has not thought to ask it should not have to read the
+   answer before they can see the record. */
+.prove {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.prove__summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  list-style: none;
+}
+
+.prove__summary::before { content: "? "; }
+.prove__summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.prove p {
+  margin: 0.6rem 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+
+.prove__lead { color: var(--text) !important; }
+
+.prove__heading {
+  margin: 1rem 0 0.2rem;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+}
+
+.prove__bytes { position: relative; }
+
+.prove__bytes pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.7;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.6rem 4.5rem 0.6rem 0.7rem;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.prove__try { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.prove__input {
+  width: 100%;
+  min-height: 4.5rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 0.55rem 0.65rem;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  resize: vertical;
+}
+
+.prove__input:focus-visible { outline: 2px solid var(--focus); outline-offset: -1px; }
+
+.prove__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.prove__rendered {
+  margin-top: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface);
+}
+
+.prove__note {
+  margin-top: 1rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--stock-committed);
+  background: var(--surface-sunken);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+
+/* --- the parsed record, laid out so parallel fields line up ---------------- */
+
+.parallel__caption {
+  margin: 0 0 0.5rem;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.parallel__single { margin-bottom: 0.9rem; }
+
+.parallel__line {
+  display: flex;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.parallel__position { color: var(--text-faint); white-space: nowrap; }
+.parallel__value { color: var(--text); }
+
+.parallel__table {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.parallel__table th,
+.parallel__table td {
+  text-align: left;
+  padding: 0.25rem 0.7rem 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.parallel__table thead th {
+  color: var(--text-faint);
+  font-weight: 500;
+  border-bottom-color: var(--line-strong);
+}
+
+.parallel__table tbody th {
+  color: var(--text-faint);
+  font-weight: 500;
+  padding-right: 1rem;
+}
+
+/* A position one field has and another does not. Marked rather than left blank,
+   because the gap is the whole point when it appears. */
+.parallel__missing { color: var(--stock-committed); }

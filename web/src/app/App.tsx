@@ -19,6 +19,7 @@ import { GovernanceStrip } from "../features/governance/GovernanceStrip";
 import { AskPanel } from "../features/ask/AskPanel";
 import { ConnectPanel } from "../features/connect/ConnectPanel";
 import { SchemaExplorer } from "../features/explore/SchemaExplorer";
+import { ExploreDrawer } from "../features/explore/ExploreDrawer";
 import { GuidedTour } from "../features/tour/GuidedTour";
 import { TOUR_PART_NUMBER, type TourStep } from "../features/tour/steps";
 import { ActivityPanel } from "../features/governance/ActivityPanel";
@@ -42,6 +43,7 @@ export function App(): React.JSX.Element {
   const [isRecordOpen, setIsRecordOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
   const [isSignInOpen, setIsSignInOpen] = useState(false);
   const [customerAccount, setCustomerAccount] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState<string | null>(null);
@@ -171,6 +173,7 @@ export function App(): React.JSX.Element {
     // previous step is pointing at.
     setIsRecordOpen(step.needsRecord === true);
     setIsActivityOpen(step.needsActivity === true);
+    setIsExploreOpen(step.needsExplore === true);
 
     // Opened and closed, so stepping backwards out of one puts it away rather
     // than leaving it over the thing the previous step is pointing at.
@@ -206,6 +209,22 @@ export function App(): React.JSX.Element {
           onClick={() => setIsTourOpen(true)}
         >
           Take the tour
+        </button>
+
+        {/* In the header because it used to be unreachable.
+            
+            The explore screen rendered only while no part was selected, so
+            picking one made it disappear with no way back -- and it is the
+            screen that shows the files and dictionaries, and the only one that
+            can change a value. Two claims elsewhere pointed at a screen the
+            reader could no longer find. */}
+        <button
+          type="button"
+          className="button button--quiet"
+          data-tour="explore-button"
+          onClick={() => setIsExploreOpen(true)}
+        >
+          Explore the database
         </button>
 
         {/* Offered in the header rather than buried, because "can I run this
@@ -393,6 +412,8 @@ export function App(): React.JSX.Element {
       {isConnectOpen && <ConnectPanel onClose={() => setIsConnectOpen(false)} />}
 
       {isActivityOpen && <ActivityPanel onClose={() => setIsActivityOpen(false)} />}
+
+      {isExploreOpen && <ExploreDrawer onClose={() => setIsExploreOpen(false)} />}
 
       {isSignInOpen && (
         <SignIn

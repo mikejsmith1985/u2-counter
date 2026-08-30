@@ -17,6 +17,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../../api/client";
 import type { AskResult, AskStep, ScreenContext } from "../../api/types";
 import { MarkedRecord } from "./MarkedRecord";
+import { ProveItYourself } from "../record/ProveItYourself";
 
 /**
  * Questions offered when the box is empty, so nobody has to invent one.
@@ -185,7 +186,10 @@ function Step({ step }: { step: AskStep }): React.JSX.Element {
           checking whether the answer follows from the data has been handed the
           answer twice and the data never. */}
       {step.rawRecord ? (
-        <MarkedRecord raw={step.rawRecord} />
+        <>
+          <MarkedRecord raw={step.rawRecord} />
+          <ProveItYourself raw={step.rawRecord} />
+        </>
       ) : (
         step.result && <pre className="ask__result">{step.result}</pre>
       )}
