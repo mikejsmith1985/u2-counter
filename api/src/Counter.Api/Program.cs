@@ -105,6 +105,10 @@ if (builder.Configuration.GetValue<bool>("Erp:Writable"))
 
 builder.Services.AddScoped<AvailabilityReader>();
 builder.Services.AddScoped<PricingReader>();
+
+// A singleton, because it scans once and keeps the answer: the whole point is
+// not to read several dozen inventory records on every page load.
+builder.Services.AddSingleton<PromisedStock>();
 builder.Services.AddScoped<Counter.Infrastructure.Ai.PriceComparison>();
 builder.Services.AddScoped<CommitmentReader>();
 builder.Services.AddScoped<AvailabilityService>();

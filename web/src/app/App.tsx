@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, ApiFailure } from "../api/client";
 import { PartSearch } from "../features/search/PartSearch";
 import { BranchGrid } from "../features/availability/BranchGrid";
+import { PromisedExamples } from "../features/availability/PromisedExamples";
 import { PricingPanel } from "../features/pricing/PricingPanel";
 import { BranchCommitments } from "../features/commitments/BranchCommitments";
 import { RecordDrawer } from "../features/record/RecordDrawer";
@@ -270,6 +271,10 @@ export function App(): React.JSX.Element {
             only screen that answers that from the database rather than from a
             layout compiled into the application. */}
         {partNumber === null && <SchemaExplorer />}
+
+        {partNumber === null && (
+          <PromisedExamples onSelect={(chosen) => setPartNumber(chosen)} />
+        )}
 
         {partNumber === null && <EmptyState />}
 

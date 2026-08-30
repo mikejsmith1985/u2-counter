@@ -38,7 +38,20 @@
   position: sticky;
   top: 0;
   z-index: 20;
+
+  /* Wraps rather than clips.
+     
+     A row of fixed items has no way to fail gracefully: adding one more button
+     to it pushed the name off the left edge, so the application was headed
+     "nter". Wrapping costs a second row on a narrow window and nothing at all
+     on a wide one, and it cannot silently lose a control the way shrinking
+     does. */
+  flex-wrap: wrap;
 }
+
+/* The name never shrinks. It is the first thing read and the least useful thing
+   to compress. */
+.header__mark { flex: 0 0 auto; }
 
 .header__mark {
   font-weight: 700;
@@ -1552,4 +1565,56 @@ kbd {
 .ask__show-part {
   margin: 0 0 0.6rem;
   font-size: 12px;
+}
+
+/* --- parts where the distinction is real ----------------------------------- */
+
+.promised {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.promised__title { margin: 0 0 0.3rem; font-size: 13px; font-weight: 600; }
+
+.promised__lead {
+  margin: 0 0 0.8rem;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 66ch;
+}
+
+.promised__list { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.promised__part {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.3rem 1rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.promised__part:hover { border-color: var(--line-strong); }
+.promised__part:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.promised__number { font-family: var(--font-mono); color: var(--text-muted); }
+.promised__description { min-width: 0; }
+.promised__sum { color: var(--text-muted); white-space: nowrap; }
+.promised__sum strong { color: var(--stock-available); }
+
+@media (max-width: 46rem) {
+  .promised__part { grid-template-columns: 1fr; }
+  .promised__sum { white-space: normal; }
 }

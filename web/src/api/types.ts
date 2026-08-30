@@ -258,6 +258,22 @@ export interface ScreenContext {
   customerName: string | null;
 }
 
+/**
+ * A part where some of the stock is already promised.
+ *
+ * Offered because the distinction the whole application is built around is
+ * invisible on most of the catalogue: most parts have nothing committed
+ * anywhere, so the committed column reads as a row of zeroes.
+ */
+export interface PromisedPart {
+  partNumber: string;
+  description: string;
+  branchCode: string;
+  onHand: number;
+  committed: number;
+  freeToSell: number;
+}
+
 /** Whether there is an assistant on this deployment at all. */
 export interface AskStatus {
   isConfigured: boolean;

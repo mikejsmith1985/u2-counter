@@ -20,6 +20,7 @@ import type {
   CustomerSearchResponse,
   CustomerSummary,
   PartSummary,
+  PromisedPart,
   RecordResponse,
   ScreenContext,
   SearchResponse,
@@ -225,6 +226,10 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, looking: looking ?? null }),
     }),
+
+  /** A few parts where stock is already promised, or an empty list. */
+  promisedParts: (limit: number, signal?: AbortSignal) =>
+    request<PromisedPart[]>(`/parts/promised?limit=${limit}`, signal),
 
   /** List the catalogue, for somebody who has not got a part number yet. */
   browseParts: (limit: number, signal?: AbortSignal) =>

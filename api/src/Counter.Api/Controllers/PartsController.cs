@@ -25,6 +25,7 @@ public sealed class PartsController(
     CommitmentReader commitments,
     AvailabilityReader parts,
     CatalogueProjection catalogue,
+    PromisedStock promised,
     IErpReader erp) : ControllerBase
 {
     /// <summary>Most results a search will return, however many are asked for.</summary>
@@ -63,6 +64,34 @@ public sealed class PartsController(
     /// a promise to a customer that cannot be kept -- and a picker exists to find
     /// a part, not to report on one.
     /// </remarks>
+    /// <summary>
+    /// A few parts where some of the stock is already promised.
+    /// </summary>
+    /// <param name="limit">How many to return.</param>
+    /// <param name="cancellationToken">Abandons the work when the caller gives up.</param>
+    /// <returns>What was found, which may be an empty list.</returns>
+    /// <remarks>
+    /// The distinction this application is built around is invisible on most of
+    /// the catalogue: most parts have nothing committed at any branch, so the
+    /// committed column reads as twelve zeroes and looks like decoration. Somebody
+    /// picking a part at random is unlikely to meet the one thing worth showing
+    /// them.
+    ///
+    /// An empty list is a real answer and not a failure -- a quiet account with
+    /// nothing on order would give one -- so the screen shows nothing rather than
+    /// claiming something.
+    /// </remarks>
+    [HttpGet("promised")]
+    [ProducesResponseType<IReadOnlyList<PromisedPart>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<PromisedPart>>> Promised(
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken)
+    {
+        int wanted = Math.Clamp(limit ?? 3, 1, 10);
+
+        return Ok(await promised.FindAsync(wanted, cancellationToken));
+    }
+
     [HttpGet("browse")]
     [ProducesResponseType<BrowseResponse<PartSummary>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<BrowseResponse<PartSummary>>> Browse(

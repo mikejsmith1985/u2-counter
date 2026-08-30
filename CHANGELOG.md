@@ -6,6 +6,34 @@ source of truth for what changed (Article VI). Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The empty screen offers parts where stock is already promised.** Free to sell
+  is on hand minus committed, and that difference is the reason this exists — but
+  it is invisible on most of the catalogue, because most parts have nothing
+  committed anywhere. Somebody picking a part at random reads a column of
+  identical zeroes and reasonably concludes the column is decoration, having been
+  told three times that it is the point. A few examples are now offered with the
+  numbers on them: thirty-nine on hand, thirty-nine promised, none to sell.
+
+  Nothing is hardcoded — the account is scanned and the answer kept — so against
+  a different database it shows that database's examples, and if nothing is
+  committed anywhere it shows nothing at all rather than making a claim the data
+  cannot support.
+
+### Fixed
+
+- **The part picker opened its list on page load.** Two reasonable decisions
+  collided: the box takes focus on load so somebody can type at once, and focus
+  opens the catalogue so nobody has to guess a search term. Together they meant
+  the page arrived with a dropdown hanging open over it, which reads as something
+  left broken. Focus a person causes now opens the list; focus this code causes
+  does not.
+
+- **The header clipped its own name.** A row of fixed items has no way to fail
+  gracefully, so adding one more button pushed "Counter" off the left edge and
+  the application was headed "nter". It wraps now, and the name never shrinks.
+
 ### Fixed
 
 - **The waking page held the application awake instead of letting it sleep.** It

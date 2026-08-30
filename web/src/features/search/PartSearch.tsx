@@ -57,6 +57,9 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  /** Set just before this code moves focus, so that focus does not open the list. */
+  const isFocusOursRef = useRef(false);
   const listId = useId();
 
   // Closes when attention goes elsewhere. Without this both pickers stayed open
@@ -70,7 +73,17 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
 
   // The search box takes focus on load and on `/`, so the first keystroke of a
   // call always lands somewhere useful.
+  //
+  // The list is deliberately not opened by that focus. Two reasonable decisions
+  // collided here: focusing on load so somebody can type at once, and opening
+  // the catalogue on focus so nobody has to guess a search term. Together they
+  // meant the page arrived with a dropdown already hanging open over it, which
+  // reads as something left in a broken state rather than as a convenience.
+  //
+  // So the opening is attributed to a person: focus that a person caused opens
+  // the list, focus this code caused does not.
   useEffect(() => {
+    isFocusOursRef.current = true;
     inputRef.current?.focus();
 
     function onSlash(event: KeyboardEvent): void {
@@ -79,6 +92,9 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
 
       if (event.key === "/" && !isTyping) {
         event.preventDefault();
+
+        // Pressing slash is a person asking for the box, so this focus does
+        // open the list -- unlike the one on load.
         inputRef.current?.focus();
       }
     }
@@ -203,7 +219,14 @@ export function PartSearch({ onSelect }: Props): React.JSX.Element {
           setHighlighted(0);
           setIsOpen(true);
         }}
-        onFocus={() => setIsOpen(true)}
+        onFocus={() => {
+          if (isFocusOursRef.current) {
+            isFocusOursRef.current = false;
+            return;
+          }
+
+          setIsOpen(true);
+        }}
         onKeyDown={onKeyDown}
       />
 
