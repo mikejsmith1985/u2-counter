@@ -466,16 +466,51 @@ public sealed class AskService(
         IReadOnlyDictionary<string, string> records = await _erp.ReadRecordsAsync(
             fileName, [.. keys.Take(QueryRecords)], cancellationToken);
 
+        // Labelled by the file's own dictionary rather than handed over flat.
+        //
+        // This used to render each record as `a|b;c|d;e`, which asks the model to
+        // count positions across a run of marks -- the exact task this whole
+        // application exists to say is dangerous. It got it wrong in the obvious
+        // way: asked which parts had committed stock, it read field four,
+        // ON.ORDER, as field three, COMMITTED, and reported three branches with
+        // committed inventory that had none. The answer cited the record it had
+        // misread, which makes it worse than a refusal.
+        //
+        // Naming each field removes the counting. The dictionary is already how
+        // every other part of this reads an unfamiliar file.
+        IReadOnlyList<Domain.Catalogue.DictionaryField> labels =
+            await _erp.ListDictionaryAsync(fileName, cancellationToken);
+
         StringBuilder text = new();
         text.AppendLine($"{keys.Count} key(s): {string.Join(", ", keys)}");
 
         foreach ((string key, string raw) in records)
         {
-            // Marks turned into readable separators. The stored bytes are what
-            // read_record is for; here the model needs the values, not proof of
-            // what they were stored as.
-            text.AppendLine($"{key}: {raw.Replace('þ', '|').Replace('ý', ';')}");
+            text.AppendLine();
+            text.AppendLine($"{key}:");
+
+            string[] fields = raw.Split('þ');
+
+            for (int position = 0; position < fields.Length; position++)
+            {
+                Domain.Catalogue.DictionaryField? label =
+                    labels.FirstOrDefault(field => field.Position == position + 1);
+
+                string name = label?.Name ?? $"field {position + 1}";
+                string[] values = fields[position].Split('ý');
+
+                text.AppendLine(
+                    values.Length > 1
+                        ? $"  {position + 1} {name}: {string.Join(", ", values)}"
+                        : $"  {position + 1} {name}: {fields[position]}");
+            }
         }
+
+        text.AppendLine();
+        text.AppendLine(
+            "Values within a field are listed in position order, and position n of "
+                + "every multi-valued field describes the same thing. Read across "
+                + "fields at the same position; do not count separators.");
 
         string result = text.ToString();
 
