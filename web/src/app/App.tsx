@@ -26,6 +26,7 @@ import { TOUR_PART_NUMBER, type TourStep } from "../features/tour/steps";
 import { ActivityPanel } from "../features/governance/ActivityPanel";
 import { SignIn } from "../features/governance/SignIn";
 import { ReadOnlyGate } from "../components/ReadOnlyGate";
+import { BuiltForAWorkstation } from "../components/BuiltForAWorkstation";
 import { CustomerSelector } from "../features/pricing/CustomerSelector";
 import { buildSummary } from "../features/availability/copySummary";
 import {
@@ -253,6 +254,8 @@ export function App(): React.JSX.Element {
       </header>
 
       <main className="main">
+        <BuiltForAWorkstation />
+
         <AskPanel
           onShowPart={(chosen) => {
             setPartNumber(chosen);

@@ -1618,3 +1618,23 @@ kbd {
   .promised__part { grid-template-columns: 1fr; }
   .promised__sum { white-space: normal; }
 }
+
+/* Shown only where it is true. On a desk monitor this says nothing worth the
+   space; on a phone it turns a shortcoming into a stated decision. */
+.workstation-note { display: none; }
+
+@media (max-width: 46rem) {
+  .workstation-note {
+    display: block;
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--surface-sunken);
+    border-left: 3px solid var(--stock-committed);
+    border-radius: 3px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  .workstation-note strong { color: var(--text); }
+}
