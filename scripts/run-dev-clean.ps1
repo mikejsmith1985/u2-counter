@@ -40,6 +40,20 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $runDirectory = Join-Path $repositoryRoot '.run'
 $pidFilePath = Join-Path $runDirectory 'pids.json'
+
+# The ports this stack occupies, named so a message about one reads as English.
+# In one place because they are checked before a run and swept after it, and two
+# lists that must agree are one list waiting to disagree.
+#
+# A list of pairs rather than a hashtable keyed by number, because an ordered
+# dictionary indexed with an integer returns the element at that POSITION, not
+# the one with that key -- so $ports[5081] asked for the five-thousandth entry,
+# found nothing, and every message read "Stopping  on port 5081".
+$developmentPorts = @(
+    @{ Port = 5081; Name = 'the MCP server' }
+    @{ Port = 5080; Name = 'the API' }
+    @{ Port = 5173; Name = 'the front end' }
+)
 $logDirectory = Join-Path $runDirectory 'logs'
 
 
@@ -100,6 +114,63 @@ function Test-ProcessIsOurs {
     return ([math]::Abs(($actual - $recorded).TotalSeconds) -lt 1)
 }
 
+function Test-ProcessRunsFromRepository {
+    <#
+        .SYNOPSIS
+        Whether a process was launched out of this repository.
+
+        .DESCRIPTION
+        Identity by location, which is the only claim available that stays true.
+        A process id is reused, a name is shared by every Node and Python on the
+        machine, and a start time only says whether something is older than this
+        script -- not whose it is.
+
+        Two roots count, because the stack spans two checkouts: this repository
+        and the fork the MCP server is installed from. Anything running out of
+        either was started by this script.
+
+        Two places carry the answer, and neither alone is enough. The executable
+        path settles the API and the MCP server, which run from the build output
+        and from the fork's virtual environment. It does not settle the front end:
+        Vite runs whichever Node is on PATH, so its executable sits in Program
+        Files whoever started it -- but the repository is there in its arguments.
+
+        Anything unreadable is treated as not ours. Refusing to stop a process we
+        cannot identify is the mistake that costs nothing.
+    #>
+    param([Parameter(Mandatory)] $Process)
+
+    $roots = @($repositoryRoot, $forkRoot) |
+        Where-Object { $_ } |
+        ForEach-Object { (Resolve-Path $_ -ErrorAction SilentlyContinue)?.Path } |
+        Where-Object { $_ } |
+        ForEach-Object { $_.TrimEnd('\') }
+
+    if ($roots.Count -eq 0) { return $false }
+
+    try {
+        $executable = $Process.Path
+    }
+    catch {
+        # Access is denied for processes owned by another user. Not ours, then.
+        return $false
+    }
+
+    $commandLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($Process.Id)" -ErrorAction SilentlyContinue).CommandLine
+
+    foreach ($root in $roots) {
+        if ($executable -and $executable.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+
+        if ($commandLine -and $commandLine.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Assert-PortIsFree {
     <#
     .SYNOPSIS
@@ -152,10 +223,7 @@ function Stop-PortHolder {
     #>
     param(
         [int] $Port,
-        [string] $Name,
-        # When this session began. Anything listening from before then belongs to
-        # somebody else.
-        [DateTime] $SessionStartedAt
+        [string] $Name
     )
 
     $owners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
@@ -167,19 +235,26 @@ function Stop-PortHolder {
             continue
         }
 
-        # Started before we did, so it is not ours.
+        # Ours only if it runs out of this repository.
         #
-        # This guard exists because the comment above it used to be wrong. It
-        # said the port was ours because this script assigned it, and that holds
-        # only while the port was free. Vite falls back to the next port when its
-        # own is taken, so on a machine already running another project this
-        # script would report 5173, bind 5174, and then stop whatever else was
-        # listening on 5173. It did exactly that, to an unrelated dev server.
+        # This guard exists because the comment above it used to be wrong. It said
+        # the port was ours because this script assigned it, and that holds only
+        # while the port was free. Vite falls back to the next port when its own is
+        # taken, so on a machine already running another project this script would
+        # report 5173, bind 5174, and then stop whatever else was listening on
+        # 5173. It did exactly that, to an unrelated dev server.
         #
-        # Start time is the same test the recorded processes use, and for the
-        # same reason: an id alone is not identity.
-        if ($process.StartTime.ToUniversalTime() -lt $SessionStartedAt) {
-            Write-Step "Leaving $($process.ProcessName) (pid $processId) on port $Port - it was already running"
+        # The first repair asked when the process started and spared anything older
+        # than this session. That was the wrong question. It spared other people's
+        # servers, which was the point, but it also spared OUR OWN from an earlier
+        # session -- and those hold the assemblies the build writes, so a deploy
+        # then failed on locked files and reported it as a failing test suite.
+        #
+        # Where a process runs from answers both at once and does not decay. A
+        # server started from this repository is ours whenever it started; one
+        # started from anywhere else is not ours however recently.
+        if (-not (Test-ProcessRunsFromRepository -Process $process)) {
+            Write-Step "Leaving $($process.ProcessName) (pid $processId) on port $Port - it is not ours"
             continue
         }
 
@@ -211,11 +286,26 @@ function Stop-RecordedProcesses {
         # after we did: anything older was already listening, and is not ours to
         # stop however inconvenient its port is.
         if ($record.Port) {
-            Stop-PortHolder `
-                -Port ([int] $record.Port) `
-                -Name $record.Name `
-                -SessionStartedAt ([DateTime]::Parse($record.StartedAt).ToUniversalTime())
+            Stop-PortHolder -Port ([int] $record.Port) -Name $record.Name
         }
+    }
+
+    # And then the ports themselves, recorded or not.
+    #
+    # The record is not a complete account of what is running. It is written when
+    # a service starts and deleted when one stops, so a session that ended badly
+    # -- or a machine that restarted the terminal -- leaves services running with
+    # nothing tracking them. This ran into exactly that: three orphans held all
+    # three ports, "nothing recorded as running" was printed, and the next build
+    # failed on assemblies the orphaned API still had open. The error it produced
+    # said the test suites had failed, which was untrue and sent the reader
+    # looking for a broken test that did not exist.
+    #
+    # Safe to do unconditionally now only because the test is where a process
+    # runs from rather than when it started. Sweeping a port on any weaker basis
+    # is how this script once stopped an unrelated project's dev server.
+    foreach ($service in $developmentPorts) {
+        Stop-PortHolder -Port $service.Port -Name $service.Name
     }
 
     if (Test-Path $pidFilePath) { Remove-Item $pidFilePath -Force }
@@ -361,9 +451,9 @@ $auditDatabase = Join-Path $runDirectory 'counter.db'
 # Checked before anything starts, so a busy port is reported rather than worked
 # around. A dev server that quietly moves to another port makes every printed
 # address wrong.
-Assert-PortIsFree -Port 5081 -Name 'the MCP server'
-Assert-PortIsFree -Port 5080 -Name 'the API'
-Assert-PortIsFree -Port 5173 -Name 'the front end'
+foreach ($service in $developmentPorts) {
+    Assert-PortIsFree -Port $service.Port -Name $service.Name
+}
 
 Register-Started (Start-Service -Name 'mcp' `
     -FilePath $mcpExecutable `

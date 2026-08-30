@@ -29,6 +29,34 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **A deploy could not stop the services blocking it.** The port sweep spared any
+  process older than the current session, which protected other people's dev
+  servers — the point — but also protected our own from an earlier session, and
+  those hold the assemblies the build writes. The sweep now asks where a process
+  runs from rather than when it started: out of this repository or the fork the
+  MCP server is installed from, it is ours whenever it started; from anywhere
+  else it is not ours however recently. Start time decays into the wrong answer;
+  location does not.
+
+- **Stopping only stopped what was recorded.** The PID file is written when a
+  service starts and deleted when one stops, so a session that ended badly left
+  services running with nothing tracking them — `-Stop` reported "nothing
+  recorded as running" while three orphans held all three ports. It now sweeps
+  the ports themselves as well, which is only safe because the test above is
+  location rather than age.
+
+- **A build failure was reported as a failing test suite.** `dotnet test` builds
+  before it runs and returns the same exit code either way, so a locked assembly
+  came back as "the .NET suites failed" — a false statement that sends the reader
+  hunting a broken test that does not exist. The build is now its own step with
+  its own message, which names the likely cause and the command that fixes it.
+
+- **A hardcoded port list disagreed with itself.** The three ports are named once
+  and both the pre-run check and the stop sweep read that list. The first attempt
+  keyed it by port number in an ordered dictionary, where an integer index
+  selects by *position* — so every message read "Stopping  on port 5081" with the
+  name missing.
+
 - **Both pickers stayed open at once.** Each had a container ref and neither used
   it, so opening the parts list over the customers list left the one behind still
   catching the mouse. Closing now watches pointer and focus both — a keyboard user

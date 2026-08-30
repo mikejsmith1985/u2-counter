@@ -133,7 +133,19 @@ if (-not $SkipTests) {
     $dotnet = Join-Path $env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe'
     if (-not (Test-Path $dotnet)) { $dotnet = 'dotnet' }
 
-    & $dotnet test (Join-Path $repositoryRoot 'api\Counter.sln') --nologo -v q
+    # Built first, and separately, so a build failure is reported as one.
+    #
+    # "dotnet test" builds before it runs, and reports either outcome with the
+    # same exit code -- so a locked assembly came back as "the .NET suites
+    # failed", which is a false statement that sends the reader looking for a
+    # broken test. The comment further up predicted this exact confusion and the
+    # message still made it. Two commands, two messages.
+    & $dotnet build (Join-Path $repositoryRoot 'api\Counter.sln') --nologo -v q
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The .NET build failed - no test has run yet. If it names a locked file, something is still using the assemblies: run scripts/run-dev-clean.ps1 -Stop. Nothing was deployed.'
+    }
+
+    & $dotnet test (Join-Path $repositoryRoot 'api\Counter.sln') --nologo -v q --no-build
     if ($LASTEXITCODE -ne 0) { throw 'The .NET suites failed. Nothing was deployed.' }
 
     Push-Location (Join-Path $repositoryRoot 'web')
