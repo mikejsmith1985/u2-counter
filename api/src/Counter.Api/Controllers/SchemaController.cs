@@ -86,6 +86,7 @@ public sealed class SchemaController(IErpReader erp) : ControllerBase
         string fileName,
         [FromQuery] int? position,
         [FromQuery] string? value,
+        [FromQuery] bool? exact,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<DictionaryField> fields =
@@ -93,11 +94,32 @@ public sealed class SchemaController(IErpReader erp) : ControllerBase
 
         bool isFiltered = position is > 0 && !string.IsNullOrWhiteSpace(value);
 
-        // A value is quoted, and a position is a number the dictionary gave us.
-        // Neither reaches the query as text somebody typed.
-        string selection = isFiltered
-            ? $"SELECT {fileName} WITH F{position} = \"{Quoted(value!)}\""
-            : $"SELECT {fileName}";
+        // Contains, unless asked for an exact match.
+        //
+        // Exact was the only option and it is what a MultiValue SELECT does, but
+        // as the sole behaviour on a screen for exploring an unfamiliar account
+        // it reads as broken: typing "aurora" against a branch called "Aurora"
+        // returned nothing at all, with no hint why.
+        //
+        // LIKE is the operator UniVerse already has, with three dots as its
+        // wildcard, so this invents no syntax. Case stays significant either
+        // way -- quietly folding case here would make the screen behave unlike
+        // the database it is demonstrating, and the reader could not reproduce
+        // it against their own.
+        string selection;
+
+        if (!isFiltered)
+        {
+            selection = $"SELECT {fileName}";
+        }
+        else if (exact == true)
+        {
+            selection = $"SELECT {fileName} WITH F{position} = \"{Quoted(value!)}\"";
+        }
+        else
+        {
+            selection = $"SELECT {fileName} WITH F{position} LIKE \"...{Quoted(value!)}...\"";
+        }
 
         IReadOnlyList<string> keys =
             await _erp.SelectKeysAsync(selection, MaximumKeys, cancellationToken);

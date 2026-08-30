@@ -170,3 +170,63 @@ def test_a_verb_that_is_still_not_answered_says_which_ones_are(store) -> None:
         run_query(store, "DELETE INVENTORY")
 
     assert "WHO" in str(raised.value)
+
+
+class TestLikePatterns:
+    """`WITH F<n> LIKE "...value..."`, which is how a person searches.
+
+    Exact match is what a MultiValue SELECT does, and it is hostile as the only
+    option on a screen whose purpose is finding out what an unfamiliar account
+    holds: typing "square d" against a manufacturer called "Square D" returns
+    nothing and looks broken rather than case-sensitive.
+
+    LIKE is the operator UniVerse already has for this, with three dots as its
+    wildcard, so offering it invents nothing. Case stays significant -- matching
+    regardless of case would make this behave differently from the database it
+    is demonstrating, which is worse than the inconvenience it fixes.
+    """
+
+    def test_contains_matches_anywhere_in_the_value(self, store: MultiValueStore) -> None:
+        result = run_query(store, 'SELECT PRODUCT WITH F2 LIKE "...quare..."')
+
+        assert sorted(result.record_ids) == ["SQD-QO120", "SQD-QO220"]
+
+    def test_a_leading_wildcard_anchors_the_end(self, store: MultiValueStore) -> None:
+        assert sorted(run_query(store, 'SELECT PRODUCT WITH F2 LIKE "...eal"').record_ids) == [
+            "IDL-4SQBOX"
+        ]
+        assert run_query(store, 'SELECT PRODUCT WITH F2 LIKE "...eax"').record_ids == []
+
+    def test_a_trailing_wildcard_anchors_the_start(self, store: MultiValueStore) -> None:
+        assert sorted(run_query(store, 'SELECT PRODUCT WITH F2 LIKE "Ide..."').record_ids) == [
+            "IDL-4SQBOX"
+        ]
+        assert run_query(store, 'SELECT PRODUCT WITH F2 LIKE "deal..."').record_ids == []
+
+    def test_case_still_matters(self, store: MultiValueStore) -> None:
+        # The point of the exercise. A screen that quietly matched regardless of
+        # case would demonstrate something the reader could not reproduce
+        # against their own database.
+        assert sorted(run_query(store, 'SELECT PRODUCT WITH F2 LIKE "...Ideal..."').record_ids) == [
+            "IDL-4SQBOX"
+        ]
+        assert run_query(store, 'SELECT PRODUCT WITH F2 LIKE "...ideal..."').record_ids == []
+
+    def test_a_pattern_with_no_wildcard_is_an_exact_match(self, store: MultiValueStore) -> None:
+        assert sorted(run_query(store, 'SELECT PRODUCT WITH F2 LIKE "Ideal"').record_ids) == [
+            "IDL-4SQBOX"
+        ]
+        assert run_query(store, 'SELECT PRODUCT WITH F2 LIKE "Idea"').record_ids == []
+
+    def test_it_reaches_into_a_multi_valued_field(self, store: MultiValueStore) -> None:
+        # One inventory record holds every branch, so a pattern matching any one
+        # of its values matches the record.
+        assert sorted(run_query(store, 'SELECT INVENTORY WITH F1 LIKE "...UR"').record_ids) == [
+            "SQD-QO120"
+        ]
+
+    def test_equals_is_unchanged(self, store: MultiValueStore) -> None:
+        assert sorted(run_query(store, 'SELECT PRODUCT WITH F2 = "Ideal"').record_ids) == [
+            "IDL-4SQBOX"
+        ]
+        assert run_query(store, 'SELECT PRODUCT WITH F2 = "Idea"').record_ids == []

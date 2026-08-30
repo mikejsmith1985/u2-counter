@@ -77,10 +77,12 @@ class QueryResult:
 
 @dataclass
 class _Criterion:
-    """One `WITH F<n> = "value" ...` clause."""
+    """One `WITH F<n> = "value"` or `WITH F<n> LIKE "...value..."` clause."""
 
     field_index: int
     accepted_values: list[str]
+    #: True for LIKE, where each accepted value is a pattern rather than a literal.
+    is_pattern: bool = False
 
 
 def _answer_session_verb(verb: str, store: MultiValueStore) -> QueryResult:
@@ -261,17 +263,33 @@ def _parse_criteria(tokens: list[str]) -> list[_Criterion]:
         if token != "WITH":
             raise QueryError(f"Unexpected '{tokens[index]}' in query")
 
-        if index + 2 >= len(tokens) or tokens[index + 2] != "=":
-            raise QueryError('A WITH clause must read: WITH F<n> = "value"')
+        if index + 2 >= len(tokens) or tokens[index + 2].upper() not in {"=", "LIKE"}:
+            raise QueryError(
+                'A WITH clause must read: WITH F<n> = "value" or WITH F<n> LIKE "...value..."'
+            )
 
-        criteria.append(_criterion_from(tokens[index + 1], tokens[index + 3 :]))
+        criteria.append(
+            _criterion_from(
+                tokens[index + 1],
+                tokens[index + 3 :],
+                is_pattern=tokens[index + 2].upper() == "LIKE",
+            )
+        )
         index += 3 + len(criteria[-1].accepted_values)
 
     return criteria
 
 
-def _criterion_from(field_token: str, value_tokens: list[str]) -> _Criterion:
-    """Build one criterion from its field reference and the values after it."""
+def _criterion_from(
+    field_token: str, value_tokens: list[str], is_pattern: bool = False
+) -> _Criterion:
+    """Build one criterion from its field reference and the values after it.
+
+    Args:
+        field_token: The field reference, as F1, F2 and so on
+        value_tokens: The quoted values that follow it
+        is_pattern: True when the operator was LIKE rather than =
+    """
     match = _FIELD_REFERENCE.match(field_token)
     if match is None:
         raise QueryError(
@@ -288,7 +306,11 @@ def _criterion_from(field_token: str, value_tokens: list[str]) -> _Criterion:
     if not accepted:
         raise QueryError(f"WITH {field_token} names no value to match")
 
-    return _Criterion(field_index=int(match.group(1)), accepted_values=accepted)
+    return _Criterion(
+        field_index=int(match.group(1)),
+        accepted_values=accepted,
+        is_pattern=is_pattern,
+    )
 
 
 def _matches(
@@ -316,7 +338,58 @@ def _field_matches(fields: list[Any], criterion: _Criterion) -> bool:
     if position < 0 or position >= len(fields):
         return False
 
-    return any(value in criterion.accepted_values for value in _flatten(fields[position]))
+    values = _flatten(fields[position])
+
+    if not criterion.is_pattern:
+        return any(value in criterion.accepted_values for value in values)
+
+    return any(
+        _like(value, pattern)
+        for value in values
+        for pattern in criterion.accepted_values
+    )
+
+
+def _like(value: str, pattern: str) -> bool:
+    """Return whether one value satisfies a UniVerse LIKE pattern.
+
+    UniVerse writes wildcards as three dots: `"...AURORA..."` matches any value
+    containing AURORA, `"AURORA..."` any value starting with it. Everything
+    outside a wildcard is matched exactly, case included, because that is what
+    the database does -- a screen that quietly lower-cased both sides would be
+    demonstrating something the reader could not reproduce.
+
+    Args:
+        value: One value from the record
+        pattern: The pattern from the query, with `...` as the wildcard
+
+    Returns:
+        True when the value satisfies the pattern
+    """
+    parts = pattern.split("...")
+
+    if len(parts) == 1:
+        return value == pattern
+
+    if parts[0] and not value.startswith(parts[0]):
+        return False
+
+    if parts[-1] and not value.endswith(parts[-1]):
+        return False
+
+    # Each middle piece must appear, in order, after the one before it.
+    position = len(parts[0])
+    for piece in parts[1:-1]:
+        if not piece:
+            continue
+
+        found = value.find(piece, position)
+        if found == -1:
+            return False
+
+        position = found + len(piece)
+
+    return True
 
 
 def _flatten(field_value: object) -> list[str]:

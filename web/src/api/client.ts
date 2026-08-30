@@ -207,11 +207,17 @@ export const api = {
     request<FilesResponse>("/schema/files", signal),
 
   /** Records from one file, with the dictionary that labels their fields. */
-  schemaRecords: (file: string, position: number, value: string, signal?: AbortSignal) =>
+  schemaRecords: (
+    file: string,
+    position: number,
+    value: string,
+    isExact: boolean,
+    signal?: AbortSignal,
+  ) =>
     request<RecordsResponse>(
       `/schema/files/${encodeURIComponent(file)}/records` +
         (position > 0 && value
-          ? `?position=${position}&value=${encodeURIComponent(value)}`
+          ? `?position=${position}&value=${encodeURIComponent(value)}&exact=${isExact}`
           : ""),
       signal,
     ),

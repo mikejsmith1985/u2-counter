@@ -8,6 +8,35 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **The explore panel rendered twice.** It was added as a drawer opened from the
+  header and the original inline copy was never removed, so the empty screen
+  carried both.
+
+- **The only write in the application was invisible.** Every value in the explore
+  table was already a button, and looked exactly like text: the affordance was a
+  dotted underline in transparent, appearing only on hover. Nobody found it. It
+  is a dashed underline now, with a line above the table saying what clicking
+  does. A feature nobody can find costs the same to build as one that works and
+  earns nothing.
+
+- **Read-only deployments still rendered editable cells.** Clicking one opened an
+  editor that could only fail. The table now asks the API what this deployment
+  permits and renders plain text when it permits nothing.
+
+- **Exact match was the only way to search the account.** It is what a MultiValue
+  SELECT does, and as the sole option on a screen for exploring an unfamiliar
+  database it reads as broken: "aurora" against a branch called "Aurora" returned
+  nothing, with no hint that case was the reason. The filter now offers
+  *contains*, which asks `LIKE "...value..."` — the operator UniVerse already has,
+  with three dots as its wildcard, so nothing is invented.
+
+  Case stays significant. Folding it would make the screen behave unlike the
+  database it is demonstrating, and the reader could not reproduce it against
+  their own. Instead the zero explains itself: nothing matched, matching is
+  case-sensitive, and here is the capitalisation you probably meant.
+
+### Fixed
+
 - **`.scroll` was used in five places and never written.** Every table that
   believed it was inside a horizontally scrolling box was not, so the explore
   table ran twenty-six pixels past a phone's edge and would have done the same in
