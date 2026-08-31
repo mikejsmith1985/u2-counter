@@ -98,6 +98,25 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for a query that cannot be answered.** A query language that quietly
+  accepts what it does not understand does not fail — it answers a different
+  question, and the answer looks like an answer. Every refusal names what was
+  wrong, because whoever reads it is at a keyboard writing the next attempt.
+
+- **A test for `LIST X @ID`, which had a fixed bug and no test.** Asking that way
+  prints keys and nothing else, as Universe does. Printing whole records meant
+  every line began with an attribute mark, so a caller taking the first word of
+  each line took an entire record as though it were a key. The shape of defect
+  that comes back, because the obvious change — print the records, they are more
+  useful — looks like an improvement.
+
+- **Tests for a listing of something that moved.** A listing selects keys and
+  then reads each one, which is two passes over a file somebody else may be
+  writing to. A record deleted in between is ordinary and must not take the
+  listing with it, while the count still reports what the selection matched —
+  reporting the smaller number would make a claim about the criteria rather than
+  about what happened afterwards.
+
 - **Tests for the terms that could not be honoured.** A pricing multiplier is a
   fraction of list, so it discounts. One above 1 charges a customer more than
   list on the strength of an agreement saying the opposite; one at zero gives

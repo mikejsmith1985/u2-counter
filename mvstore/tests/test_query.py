@@ -281,3 +281,105 @@ class TestFindingOutWhatIsHere:
             run_query(store, "LISTFILES").record_ids
         )
 
+class TestAQueryThatCannotBeAnswered:
+    """Malformed input refused, rather than answered approximately.
+
+    A query language that quietly accepts what it does not understand does
+    not fail -- it answers a different question, and the answer looks like
+    an answer. Every refusal here has to name what was wrong, because the
+    person reading it is at a keyboard writing the next attempt.
+    """
+
+    def test_sample_without_a_count_is_refused(self, store: MultiValueStore) -> None:
+        """Otherwise it would silently sample nothing, or everything."""
+        with pytest.raises(QueryError, match="SAMPLE"):
+            run_query(store, "LIST PRODUCT SAMPLE")
+
+    def test_sample_followed_by_something_that_is_not_a_count_is_refused(
+        self, store: MultiValueStore
+    ) -> None:
+        with pytest.raises(QueryError, match="SAMPLE"):
+            run_query(store, "LIST PRODUCT SAMPLE MANY")
+
+    def test_a_token_the_parser_did_not_expect_is_named(
+        self, store: MultiValueStore
+    ) -> None:
+        """Naming it is the difference between a hint and a shrug.
+
+        After a WITH clause, only another clause may follow. A bare word
+        before the first one is a record key -- `LIST FILE key` is real
+        syntax -- so a stray token only reads as stray after a clause.
+        """
+        with pytest.raises(QueryError, match="Unexpected"):
+            run_query(store, 'LIST PRODUCT WITH F1 = "x" ORDER F2')
+
+    def test_a_field_reference_that_is_not_one_is_refused(
+        self, store: MultiValueStore
+    ) -> None:
+        """This store names fields by position, and says so when asked otherwise."""
+        with pytest.raises(QueryError, match="field reference"):
+            run_query(store, "LIST PRODUCT WITH DESCRIPTION = \"x\"")
+
+    def test_a_criterion_with_nothing_to_match_is_refused(
+        self, store: MultiValueStore
+    ) -> None:
+        """WITH F1 alone is half a question."""
+        with pytest.raises(QueryError, match="no value to match"):
+            run_query(store, "LIST PRODUCT WITH F1 =")
+
+
+class TestSelectingOnFieldsThatAreNotThere:
+    """Records are not all the same length, and a criterion must cope.
+
+    A file that has been in service for years holds records written before
+    the last three fields existed. Selecting on one of those must leave them
+    out of the result rather than fail the whole query -- the records that
+    do have the field are still the answer.
+    """
+
+    def test_a_record_too_short_for_the_criterion_simply_does_not_match(
+        self, store: MultiValueStore
+    ) -> None:
+        """No error, and no false match either."""
+        store.write("PRODUCT", "SHORT-ONE", ["Only a description"])
+
+        result = run_query(store, 'LIST PRODUCT WITH F5 = "A"')
+
+        assert "SHORT-ONE" not in result.record_ids
+
+    def test_the_records_that_do_have_the_field_are_still_found(
+        self, store: MultiValueStore
+    ) -> None:
+        """The point: one short record must not empty the result."""
+        store.write("PRODUCT", "SHORT-ONE", ["Only a description"])
+
+        result = run_query(store, 'LIST PRODUCT WITH F5 = "A"')
+
+        assert result.record_ids, "a short record emptied the whole selection"
+
+
+class TestTheWildcardUniverseAlreadyHas:
+    """LIKE with three dots, which is the operator the database has.
+
+    Written this way rather than inventing a syntax, so somebody reading the
+    query can run it against their own account and get the same answer.
+    """
+
+    def test_a_pattern_matches_pieces_in_order(self, store: MultiValueStore) -> None:
+        """Each piece has to appear after the one before it."""
+        result = run_query(store, 'LIST PRODUCT WITH F1 LIKE "...20A...Breaker"')
+
+        assert "SQD-QO120" in result.record_ids
+
+    def test_pieces_out_of_order_do_not_match(self, store: MultiValueStore) -> None:
+        """Otherwise LIKE would be a bag of words rather than a pattern."""
+        result = run_query(store, 'LIST PRODUCT WITH F1 LIKE "...Breaker...20A"')
+
+        assert "SQD-QO120" not in result.record_ids
+
+    def test_consecutive_wildcards_are_not_an_error(self, store: MultiValueStore) -> None:
+        """A typed pattern collects them, and refusing would be pedantry."""
+        result = run_query(store, 'LIST PRODUCT WITH F1 LIKE "......Breaker"')
+
+        assert "SQD-QO120" in result.record_ids
+
