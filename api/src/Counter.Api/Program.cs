@@ -80,8 +80,21 @@ if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(SdkKeyName))
         SdkKeyName, Environment.GetEnvironmentVariable(VaultKeyName));
 }
 
-bool hasApiKey = !string.IsNullOrWhiteSpace(
-    Environment.GetEnvironmentVariable(SdkKeyName));
+// Whether this deployment has an assistant at all.
+//
+// The key itself is still never read into a variable -- only its presence is
+// -- because a value assigned to one is a value a log or an error message can
+// reach. That property is the reason the bridge above copies environment
+// variable to environment variable and touches nothing else.
+//
+// The switch beside it lets a deployment declare it has no assistant without
+// unsetting anything, which is what makes "running without a key" testable at
+// all: the alternative is clearing a process-wide variable that everything
+// else in the process shares. It reads the same way as Erp:Writable below.
+bool isAssistantDisabled = builder.Configuration.GetValue<bool>("Assistant:Disabled");
+
+bool hasApiKey = !isAssistantDisabled
+    && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(SdkKeyName));
 
 builder.Services.AddSingleton(new AskOptions { IsConfigured = hasApiKey });
 builder.Services.AddSingleton<SpendLedger>();

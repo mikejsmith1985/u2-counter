@@ -8,6 +8,13 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **A second test application became a second writer on one SQLite file.** The
+  suite points every application at one audit database through a process-wide
+  environment variable, so a new test that started its own application
+  inherited it. That is where SQLite's locking assumptions stop holding, and
+  the tests that suffered were the ones about the audit trail — failing about
+  one run in three, and looking exactly like a fault in the thing they cover.
+  It gets its own database now.
 - **A test that passed alone and failed in company.** The activity attribution
   test signs in as two personas and asserts a row was recorded for each, but
   the helper it used returned as soon as *any* row appeared. Recording is
@@ -98,6 +105,21 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for a deployment with no assistant, which is how anybody evaluating
+  this will run it.** A key is the one thing they will not have, so running
+  without one has to be an ordinary state: every other screen works, and the
+  assistant says why it is absent rather than failing when asked. Nothing
+  exercised it, because the suite runs with a key and the routes that would
+  answer are never called — they cost money.
+
+- **An `Assistant:Disabled` switch, so that could be tested at all.** The key is
+  deliberately never read into a variable, only checked for presence, because a
+  value assigned to one is a value a log can reach. The alternative to this
+  switch was clearing a process-wide variable every other test shares, so the
+  switch is the smaller change — and it weakens nothing.
+
+- **The answer evaluation is named in the README's list of suites.** It was
+  missing, and it is the one that found a wrong answer six green suites did not.
 - **Tests for a query that cannot be answered.** A query language that quietly
   accepts what it does not understand does not fail — it answers a different
   question, and the answer looks like an answer. Every refusal names what was

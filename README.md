@@ -81,10 +81,18 @@ names are shared, so an id alone is not identity and a name is not ownership.
 | `mvstore` | The store, its verbs, and the seeder's own obligations |
 | Vitest | What the copy button puts on the clipboard, and how a record renders |
 | Cypress | A real browser with real events, and `axe-core` on every screen |
+| `scripts/overnight/ask-eval.mjs` | The assistant's answers, checked against the database rather than against a phrase |
 
 The seeder names fourteen conditions the data must contain and checks each one
 after generating, so an edge case cannot quietly disappear from the data while
 the tests that need it keep passing against nothing.
+
+The last row is the odd one, and it earns its place. Every other suite asks
+whether a request succeeded, and a wrong answer succeeds — so each case there
+states what must be true of the answer given what the API independently
+reports, and compares figures rather than matching words. It found the
+assistant reporting a total twenty units too high, with every individual
+branch figure correct, which nothing else was capable of noticing.
 
 The defects these suites found are listed in [CHANGELOG.md](./CHANGELOG.md) with
 what each would have done to somebody reading the screen. A suite that never

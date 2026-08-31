@@ -42,6 +42,15 @@ public sealed class CounterFixture : IAsyncLifetime
     public HttpClient Client { get; private set; } = null!;
 
     /// <summary>The copied ERP data this run reads.</summary>
+    /// <summary>The port the demonstration ERP is listening on.</summary>
+    /// <remarks>
+    /// Exposed so a test can start a second application against the same ERP.
+    /// One case needs to: a deployment with no assistant configured cannot be
+    /// reached from this application, which has one, and clearing the key would
+    /// mean clearing a process-wide variable every other test shares.
+    /// </remarks>
+    public int McpPort { get; private set; }
+
     public string DataDirectory => _dataDirectory;
 
     /// <summary>Where the repository keeps this feature's files.</summary>
@@ -104,6 +113,7 @@ public sealed class CounterFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("Erp__DatabasePassword", ErpPasswordUnderTest);
 
         int mcpPort = FindFreePort();
+        McpPort = mcpPort;
         _mcpServer = StartMcpServer(mcpPort, _dataDirectory);
 
         await WaitForListenerAsync(mcpPort);
