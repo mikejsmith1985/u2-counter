@@ -148,4 +148,72 @@ public sealed class WriteRefusalTests
 
         Assert.Equal([3], ErpWriter.FieldLengths(record));
     }
+
+    /// <summary>Build a change from two records, as the writer does.</summary>
+    /// <param name="before">The stored form before.</param>
+    /// <param name="after">The stored form after.</param>
+    /// <returns>The change and its verdict.</returns>
+    private static RecordChange Changed(string before, string after) =>
+        new("AUR", before, after, ErpWriter.FieldLengths(before), ErpWriter.FieldLengths(after));
+
+    [Fact]
+    public void A_value_replaced_in_place_preserves_the_alignment()
+    {
+        // The verdict the whole write path exists to produce, and the one shown
+        // to a person as proof their change did what they meant.
+        RecordChange change = Changed(
+            "LKW" + ValueMark + "GRE" + AttributeMark + "16" + ValueMark + "16",
+            "AURORA" + ValueMark + "GRE" + AttributeMark + "16" + ValueMark + "16");
+
+        Assert.True(change.IsAlignmentPreserved);
+    }
+
+    [Fact]
+    public void A_field_that_gained_a_value_fails_the_alignment_check()
+    {
+        // Both records are well formed. The database will not object, no later
+        // read will disagree, and branch three's quantity now describes branch
+        // four. The lengths are the only place it shows.
+        RecordChange change = Changed(
+            "LKW" + ValueMark + "GRE" + AttributeMark + "16" + ValueMark + "16",
+            "LKW" + ValueMark + "GRE" + ValueMark + "AUR" + AttributeMark + "16" + ValueMark + "16");
+
+        Assert.False(change.IsAlignmentPreserved);
+    }
+
+    [Fact]
+    public void A_record_that_gained_a_field_fails_the_alignment_check()
+    {
+        // What an attribute mark in a value does. Caught here as well as
+        // refused up front, because being caught afterwards was the old
+        // behaviour and it was not enough.
+        RecordChange change = Changed(
+            "LKW" + AttributeMark + "16",
+            "LKW" + AttributeMark + "16" + AttributeMark + "extra");
+
+        Assert.False(change.IsAlignmentPreserved);
+    }
+
+    [Fact]
+    public void A_field_that_lost_a_value_fails_too()
+    {
+        // The other direction, and the more likely one: rebuilding a record
+        // drops a field that happened to be shorter than its siblings, and
+        // everything after it shifts up by one.
+        RecordChange change = Changed(
+            "LKW" + ValueMark + "GRE" + ValueMark + "AUR" + AttributeMark + "16",
+            "LKW" + ValueMark + "GRE" + AttributeMark + "16");
+
+        Assert.False(change.IsAlignmentPreserved);
+    }
+
+    [Fact]
+    public void A_record_unchanged_is_aligned_with_itself()
+    {
+        // A write that changed a value to what it already held is not a
+        // failure, and must not read as one.
+        string record = "LKW" + ValueMark + "GRE" + AttributeMark + "16" + ValueMark + "16";
+
+        Assert.True(Changed(record, record).IsAlignmentPreserved);
+    }
 }
