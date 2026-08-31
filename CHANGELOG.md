@@ -98,6 +98,20 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for the terms that could not be honoured.** A pricing multiplier is a
+  fraction of list, so it discounts. One above 1 charges a customer more than
+  list on the strength of an agreement saying the opposite; one at zero gives
+  the goods away. Neither is a shape anybody notices on a screen — both are just
+  a number, and the screen shows it. These refusals existed and had never been
+  exercised, and a validator whose refusals are never run is one nobody knows
+  still refuses.
+
+- **Tests for sessions surviving a database that has gone away.** Persisting must
+  never deny service: the durable store is the optional half of this deployment
+  and the counter screen is not. A share unmounted or a file locked has to leave
+  somebody able to sign in and serve a customer, losing only the fact that a
+  restart will sign them out.
+
 - **Tests for reading an unfamiliar account, which had none in the .NET suite.**
   These routes are the backend of the claim that most distinguishes this from a
   hardcoded screen: the files, the fields and the records come from the
