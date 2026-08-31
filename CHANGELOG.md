@@ -98,6 +98,22 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for the copy button, whose failure path had none.** It is the escape
+  hatch on the setup panel — the panel exists because four variables and one
+  command are where most people stop, and copying them out is its whole point.
+  Clipboard access is refused over plain HTTP, which is exactly how somebody
+  runs this the first time, and a button that says "Copied" having copied
+  nothing is worse than one that fails visibly: the person is about to paste,
+  into a terminal, whatever happened to be there before.
+
+- **Tests for a catalogue built over an account with a hole in it.** Search is
+  answered from the projection rather than from the database, so a part missing
+  there does not exist as far as anybody using the application is concerned —
+  no error, no empty state, just a search that returns nothing and reads exactly
+  like a part the branch does not stock. A record that cannot be read is
+  ordinary in a live account, and the untested question was whether one takes
+  the rest with it.
+
 - **Tests for deleting a record, which had none.** The only destructive
   operation in the store, and the one where being wrong cannot be undone by
   writing the right value afterwards. The refusals matter more than the
