@@ -32,7 +32,15 @@
 [CmdletBinding()]
 param(
     [switch] $Stop,
-    [switch] $SkipSql
+    [switch] $SkipSql,
+
+    # Run the local stack with the write path switched on.
+    #
+    # Off by default, matching the deployment's default and the claim that goes
+    # with it. On, because the browser suite could not reach the editor at all
+    # otherwise: the one write in the application had no automated coverage,
+    # which is how a stale-cache bug reached somebody clicking.
+    [switch] $Writable
 )
 
 $ErrorActionPreference = 'Stop'
@@ -460,7 +468,9 @@ Register-Started (Start-Service -Name 'mcp' `
     -ArgumentList @('--streamable-http', '--host', '127.0.0.1', '--port', '5081') `
     -WorkingDirectory $repositoryRoot `
     -Environment @{
-        'U2_DRIVER'         = 'demo'
+        'U2_DRIVER'         = $(if ($Writable) { 'mvstore.writable_driver' } else { 'demo' })
+        'MVSTORE_WRITABLE'  = $(if ($Writable) { 'true' } else { 'false' })
+        'U2_READ_ONLY'      = $(if ($Writable) { 'false' } else { 'true' })
         'MVSTORE_DATA_PATH' = (Join-Path $repositoryRoot 'mvstore\data')
         'PYTHONPATH'        = (Join-Path $repositoryRoot 'mvstore\src')
         # The server validates its connection settings at startup whichever
@@ -485,6 +495,10 @@ Register-Started (Start-Service -Name 'api' `
         # never exercised the durable path at all -- and the one place a
         # durability bug would have shown up was the one place it could not.
         'ConnectionStrings__Counter' = "Data Source=$auditDatabase"
+        # Matches the MCP driver chosen above. Both have to agree: a writable
+        # store behind a read-only API is a write path that cannot be reached,
+        # and the reverse is an API offering an editor the store will refuse.
+        'Erp__Writable'              = $(if ($Writable) { 'true' } else { 'false' })
     } `
     -Port 5080)
 

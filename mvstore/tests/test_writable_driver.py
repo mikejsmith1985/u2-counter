@@ -20,7 +20,7 @@ import pytest
 from mvstore import writable_driver
 from mvstore.driver import UOError
 from mvstore.seed import generate
-from mvstore.store import AM, VM, MultiValueStore, parse_record
+from mvstore.store import AM, SM, VM, MultiValueStore, parse_record
 
 
 @pytest.fixture
@@ -195,3 +195,147 @@ class TestWritingAWholeRecord:
 
         with pytest.raises(UOError):
             handle.write("NEW-PART-2", ["a\nb"])
+
+
+class TestSeparatorsInAValue:
+    """A value may not carry a mark, and the attribute mark is the one that matters.
+
+    The guard checked the value mark and not the attribute mark, which is the
+    wrong one to miss. A value mark adds a value to a field; an attribute mark
+    splits the field in two. Writing one<AM>two into the first field of a
+    four-field record produced a five-field record, and every field after the
+    first then described something it was not.
+
+    It was not silent -- the alignment check noticed afterwards and the screen
+    said "written, but a field changed length". That is honest and far too late.
+    The record was already wrong, and every later read agreed with it.
+    """
+
+    def test_an_attribute_mark_is_refused(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        with pytest.raises(UOError, match="separator"):
+            handle.update_value(part, position=2, index=0, value="one" + AM + "two")
+
+    def test_a_value_mark_is_refused(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        with pytest.raises(UOError, match="separator"):
+            handle.update_value(part, position=2, index=0, value="one" + VM + "two")
+
+    def test_a_subvalue_mark_is_refused(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        with pytest.raises(UOError, match="separator"):
+            handle.update_value(part, position=2, index=0, value="one" + SM + "two")
+
+    def test_a_refusal_leaves_the_record_alone(self, writable):
+        # A refusal that had already written would be worse than no refusal at
+        # all: the caller is told it failed and the record says otherwise.
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        before = handle.read(part)
+
+        with pytest.raises(UOError):
+            handle.update_value(part, position=2, index=0, value="one" + AM + "two")
+
+        assert handle.read(part) == before
+
+    def test_the_field_count_cannot_change(self, writable):
+        # Stated as the property rather than the mechanism, because the
+        # mechanism is what was wrong: the check listed the marks it knew about
+        # and one was missing from the list.
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        before = len(parse_record(handle.read(part)))
+
+        for mark in (AM, VM, SM):
+            with pytest.raises(UOError):
+                handle.update_value(part, position=2, index=0, value="x" + mark + "y")
+
+        assert len(parse_record(handle.read(part))) == before
+
+    def test_an_ordinary_value_is_still_written(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        handle.update_value(part, position=2, index=0, value="777")
+
+        assert parse_record(handle.read(part))[1][0] == "777"
+
+class TestDeletingARecord:
+    """Removing a record, which nothing had ever exercised.
+
+    The only destructive operation on the driver, and the one where being
+    wrong is not recoverable by writing the right value afterwards. It was
+    the single path here with no test at all.
+
+    The refusals matter more than the deletion. A delete that runs when
+    writes were never permitted is the failure this module's two-switch
+    design exists to prevent, and a dictionary deleted by accident takes the
+    description of a file with it -- every later read of that file then has
+    no idea what its fields mean.
+    """
+
+    def test_a_delete_is_refused_when_writes_are_not_permitted(self, refusing):
+        """Selecting the driver is not permission to destroy anything."""
+        record_file = writable_driver.File("BRANCH", session=refusing)
+
+        with pytest.raises(UOError, match="read-only"):
+            record_file.delete("AUR")
+
+    def test_the_record_survives_a_refused_delete(self, refusing):
+        """The refusal has to happen before the store is touched."""
+        record_file = writable_driver.File("BRANCH", session=refusing)
+        key = sorted(refusing.store.keys("BRANCH"))[0]
+
+        with pytest.raises(UOError):
+            record_file.delete(key)
+
+        assert record_file.read(key), "the record was removed by a refused delete"
+
+    def test_a_dictionary_cannot_be_deleted(self, writable):
+        """A dictionary describes a file's shape; removing it is a schema change."""
+        dictionary = writable_driver.File("DICT.BRANCH", session=writable)
+
+        with pytest.raises(UOError, match="dictionary"):
+            dictionary.delete("NAME")
+
+    def test_a_permitted_delete_removes_the_record(self, writable):
+        """The operation itself, so the refusals above mean something."""
+        record_file = writable_driver.File("BRANCH", session=writable)
+        key = sorted(writable.store.keys("BRANCH"))[0]
+
+        record_file.delete(key)
+
+        with pytest.raises(Exception):
+            record_file.read(key)
+
+    def test_deleting_a_record_that_is_not_there_is_reported_as_a_driver_error(
+        self, writable
+    ):
+        """Not as whatever the store happened to raise.
+
+        A caller handles UOError. A store-level exception reaching it would
+        pass straight through the code that means to report the failure.
+        """
+        record_file = writable_driver.File("BRANCH", session=writable)
+
+        with pytest.raises(UOError):
+            record_file.delete("NO-SUCH-BRANCH")
+
+    def test_deleting_one_record_leaves_its_neighbours_alone(self, writable):
+        """The file is a set of records, not a list with positions."""
+        record_file = writable_driver.File("BRANCH", session=writable)
+        keys = sorted(writable.store.keys("BRANCH"))
+
+        record_file.delete(keys[0])
+
+        for surviving in keys[1:]:
+            assert record_file.read(surviving), f"{surviving} went with {keys[0]}"
+

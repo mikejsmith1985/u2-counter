@@ -15,10 +15,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- SessionStore lives here and needs no server to exercise: an
+         HttpContext is enough. Article V keeps that in the unit layer. -->
+    <ProjectReference Include="..\..\src\Counter.Api\Counter.Api.csproj" />
     <ProjectReference Include="..\..\src\Counter.Domain\Counter.Domain.csproj" />
     <ProjectReference Include="..\..\src\Counter.Infrastructure\Counter.Infrastructure.csproj" />
   </ItemGroup>

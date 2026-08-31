@@ -19,7 +19,6 @@ import { RecordDrawer } from "../features/record/RecordDrawer";
 import { GovernanceStrip } from "../features/governance/GovernanceStrip";
 import { AskPanel } from "../features/ask/AskPanel";
 import { ConnectPanel } from "../features/connect/ConnectPanel";
-import { SchemaExplorer } from "../features/explore/SchemaExplorer";
 import { ExploreDrawer } from "../features/explore/ExploreDrawer";
 import { GuidedTour } from "../features/tour/GuidedTour";
 import { TOUR_PART_NUMBER, type TourStep } from "../features/tour/steps";
@@ -268,12 +267,6 @@ export function App(): React.JSX.Element {
             customerName,
           }}
         />
-
-        {/* Shown when nothing is selected: somebody arriving cold wants to know
-            what is in here before they want a particular part, and this is the
-            only screen that answers that from the database rather than from a
-            layout compiled into the application. */}
-        {partNumber === null && <SchemaExplorer />}
 
         {partNumber === null && (
           <PromisedExamples onSelect={(chosen) => setPartNumber(chosen)} />

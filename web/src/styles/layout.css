@@ -1194,7 +1194,9 @@ kbd {
   color: inherit;
   cursor: pointer;
   text-align: left;
-  border-bottom: 1px dotted transparent;
+  /* Visible without hovering. It was dotted-transparent, so an editable value
+     looked exactly like a read-only one and nobody found the editor at all. */
+  border-bottom: 1px dashed var(--line-strong);
 }
 
 .explore__cell:hover,
@@ -1721,3 +1723,43 @@ kbd {
   .prove__bytes pre,
   .record-pane { white-space: pre-wrap; word-break: break-word; }
 }
+
+/* The one thing somebody needs to know before typing into the explore filter,
+   put where they are about to type rather than in a tooltip. */
+.explore__note {
+  margin: 0.4rem 0 0.8rem;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-faint);
+  max-width: 70ch;
+}
+
+/* A zero with its most likely reason attached. Capitalisation is nearly always
+   what a nothing-matched means here, and the reader has no way to know that. */
+.explore__nothing {
+  margin: 0.5rem 0 0.8rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--surface-sunken);
+  border-left: 3px solid var(--stock-committed);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 70ch;
+}
+
+/* The invitation to edit, above the table it applies to. Shown only where the
+   deployment actually permits it. */
+.explore__editable {
+  margin: 0.4rem 0 0.8rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--surface-sunken);
+  border-left: 3px solid var(--accent);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 70ch;
+}
+
+.explore__editable strong { color: var(--text); }

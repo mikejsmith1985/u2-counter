@@ -172,3 +172,64 @@ class TestUnknownFiles:
     def test_an_unvalidated_file_passes(self) -> None:
         """Only the files in the contract carry rules; others are stored as given."""
         validate_record("SOMETHING.ELSE", ["anything", ["at", "all"]])
+
+class TestTermsThatCouldNotBeHonoured:
+    """Contract terms, where a bad value is money rather than a display bug.
+
+    A multiplier is a fraction of list price, so it discounts. One above 1
+    would charge a customer more than list on the strength of an agreement
+    that says the opposite, and one at or below zero would give the goods
+    away. Neither is a shape anybody would notice on a screen -- both are
+    just a number, and the screen would show it.
+
+    These error branches were the ones with no test. A validator whose
+    refusals are never exercised is a validator nobody knows still refuses.
+    """
+
+    def test_a_multiplier_that_is_not_a_number_is_refused(self) -> None:
+        """Otherwise it reaches the price calculation as a parse failure."""
+        with pytest.raises(RecordInvalidError, match="not a multiplier"):
+            validate_record("PRICING", ["not-a-number", "2026-01-03", "2026-12-29"])
+
+    def test_a_multiplier_above_list_price_is_refused(self) -> None:
+        """Terms discount from list. One above it charges more than list."""
+        with pytest.raises(RecordInvalidError, match="outside the range"):
+            validate_record("PRICING", ["1.40", "2026-01-03", "2026-12-29"])
+
+    def test_a_multiplier_of_zero_is_refused(self) -> None:
+        """Free goods on the strength of a typo."""
+        with pytest.raises(RecordInvalidError, match="outside the range"):
+            validate_record("PRICING", ["0", "2026-01-03", "2026-12-29"])
+
+    def test_a_date_that_is_not_a_date_is_refused(self) -> None:
+        """A window nobody can evaluate is terms that never apply."""
+        with pytest.raises(RecordInvalidError, match="YYYY-MM-DD"):
+            validate_record("PRICING", ["0.70", "03/01/2026", "2026-12-29"])
+
+    def test_an_ordinary_discount_is_accepted(self) -> None:
+        """So the refusals above mean something."""
+        validate_record("PRICING", ["0.70", "2026-01-03", "2026-12-29"])
+
+
+class TestOrdersThatCannotBeRead:
+    """An order missing the fields that say whether it holds stock.
+
+    Its state decides whether the stock it names is committed or free. A
+    record too short to carry one cannot be judged either way, and guessing
+    would either deny a customer stock that is available or promise stock
+    that is already somebody else's.
+    """
+
+    def test_an_order_with_no_state_is_refused(self) -> None:
+        """Two fields is not enough to know what the order is doing."""
+        with pytest.raises(RecordInvalidError, match="customer, a date and a state"):
+            validate_record("ORDER", ["C-10000", "2026-08-01"])
+
+    def test_an_order_with_a_state_nobody_recognises_is_refused(self) -> None:
+        """Storing it would leave every later read guessing at its meaning."""
+        with pytest.raises(RecordInvalidError):
+            validate_record(
+                "ORDER",
+                ["C-10000", "2026-08-01", "AWAITING-PAPERWORK", ["E-BRK1"], ["4"], ["DEN"]],
+            )
+

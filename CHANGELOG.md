@@ -8,6 +8,81 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **A second test application became a second writer on one SQLite file.** The
+  suite points every application at one audit database through a process-wide
+  environment variable, so a new test that started its own application
+  inherited it. That is where SQLite's locking assumptions stop holding, and
+  the tests that suffered were the ones about the audit trail — failing about
+  one run in three, and looking exactly like a fault in the thing they cover.
+  It gets its own database now.
+- **A test that passed alone and failed in company.** The activity attribution
+  test signs in as two personas and asserts a row was recorded for each, but
+  the helper it used returned as soon as *any* row appeared. Recording is
+  durable and happens after the response, so under the load of a full suite the
+  second write was still in flight and the assertion failed. A test that fails
+  only in company is worse than one that fails always: it teaches whoever sees
+  the red to run it again rather than to read it. The wait now matches what is
+  being asserted.
+
+- **An assertion that could not see what it was looking for.** "One request
+  produces exactly one row" read as soon as the first row landed, so a
+  duplicate still in flight would have passed the test that exists to catch
+  double-counting. It now waits for the count to stop moving.
+
+- **The assistant did arithmetic, and got it wrong.** Asked how many units of
+  a part were free to sell in total, it listed six branches with the right
+  figure against each and gave a total twenty units too high. The tool handed
+  it a list of branches and no total, so the only place the sum could be
+  worked out was in the model's head. The totals were already computed here —
+  the same ones the availability endpoint returns — so they are now stated.
+  An answer wrong only in its total is the hardest kind to catch by reading
+  it: everything supporting it checks out.
+
+- **One question allowance, shared by everybody.** The assistant permits twelve
+  questions per session because it runs on a personal API key. The count was
+  kept against the persona rather than the session, and every visitor who has
+  not chosen a persona is the same one — so it was a single bucket shared by
+  everyone using the deployment at once. Two people trying it together would
+  have spent each other's questions, and whoever asked the twelfth would have
+  switched the assistant off for the other with no way to get it back. It is
+  counted against the session key now, which is what the comment beside it
+  always claimed it did.
+
+- **A successful write erased its own proof.** Refreshing the table the moment
+  the write returned re-rendered the editor, so the report showing that every
+  parallel field still held the same number of values appeared and vanished.
+  That report is the entire reason the screen exists. The rows refresh when
+  the editor is closed instead.
+
+- **The explore panel rendered twice.** It was added as a drawer opened from the
+  header and the original inline copy was never removed, so the empty screen
+  carried both.
+
+- **The only write in the application was invisible.** Every value in the explore
+  table was already a button, and looked exactly like text: the affordance was a
+  dotted underline in transparent, appearing only on hover. Nobody found it. It
+  is a dashed underline now, with a line above the table saying what clicking
+  does. A feature nobody can find costs the same to build as one that works and
+  earns nothing.
+
+- **Read-only deployments still rendered editable cells.** Clicking one opened an
+  editor that could only fail. The table now asks the API what this deployment
+  permits and renders plain text when it permits nothing.
+
+- **Exact match was the only way to search the account.** It is what a MultiValue
+  SELECT does, and as the sole option on a screen for exploring an unfamiliar
+  database it reads as broken: "aurora" against a branch called "Aurora" returned
+  nothing, with no hint that case was the reason. The filter now offers
+  *contains*, which asks `LIKE "...value..."` — the operator UniVerse already has,
+  with three dots as its wildcard, so nothing is invented.
+
+  Case stays significant. Folding it would make the screen behave unlike the
+  database it is demonstrating, and the reader could not reproduce it against
+  their own. Instead the zero explains itself: nothing matched, matching is
+  case-sensitive, and here is the capitalisation you probably meant.
+
+### Fixed
+
 - **`.scroll` was used in five places and never written.** Every table that
   believed it was inside a horizontally scrolling box was not, so the explore
   table ran twenty-six pixels past a phone's edge and would have done the same in
@@ -29,6 +104,234 @@ source of truth for what changed (Article VI). Format follows
   paragraph, and a reference in running text is read rather than tapped.
 
 ### Added
+
+- **Tests for a deployment with no assistant, which is how anybody evaluating
+  this will run it.** A key is the one thing they will not have, so running
+  without one has to be an ordinary state: every other screen works, and the
+  assistant says why it is absent rather than failing when asked. Nothing
+  exercised it, because the suite runs with a key and the routes that would
+  answer are never called — they cost money.
+
+- **An `Assistant:Disabled` switch, so that could be tested at all.** The key is
+  deliberately never read into a variable, only checked for presence, because a
+  value assigned to one is a value a log can reach. The alternative to this
+  switch was clearing a process-wide variable every other test shares, so the
+  switch is the smaller change — and it weakens nothing.
+
+- **The answer evaluation is named in the README's list of suites.** It was
+  missing, and it is the one that found a wrong answer six green suites did not.
+- **Tests for a query that cannot be answered.** A query language that quietly
+  accepts what it does not understand does not fail — it answers a different
+  question, and the answer looks like an answer. Every refusal names what was
+  wrong, because whoever reads it is at a keyboard writing the next attempt.
+
+- **A test for `LIST X @ID`, which had a fixed bug and no test.** Asking that way
+  prints keys and nothing else, as Universe does. Printing whole records meant
+  every line began with an attribute mark, so a caller taking the first word of
+  each line took an entire record as though it were a key. The shape of defect
+  that comes back, because the obvious change — print the records, they are more
+  useful — looks like an improvement.
+
+- **Tests for a listing of something that moved.** A listing selects keys and
+  then reads each one, which is two passes over a file somebody else may be
+  writing to. A record deleted in between is ordinary and must not take the
+  listing with it, while the count still reports what the selection matched —
+  reporting the smaller number would make a claim about the criteria rather than
+  about what happened afterwards.
+
+- **Tests for the terms that could not be honoured.** A pricing multiplier is a
+  fraction of list, so it discounts. One above 1 charges a customer more than
+  list on the strength of an agreement saying the opposite; one at zero gives
+  the goods away. Neither is a shape anybody notices on a screen — both are just
+  a number, and the screen shows it. These refusals existed and had never been
+  exercised, and a validator whose refusals are never run is one nobody knows
+  still refuses.
+
+- **Tests for sessions surviving a database that has gone away.** Persisting must
+  never deny service: the durable store is the optional half of this deployment
+  and the counter screen is not. A share unmounted or a file locked has to leave
+  somebody able to sign in and serve a customer, losing only the fact that a
+  restart will sign them out.
+
+- **Tests for reading an unfamiliar account, which had none in the .NET suite.**
+  These routes are the backend of the claim that most distinguishes this from a
+  hardcoded screen: the files, the fields and the records come from the
+  account's own dictionary rather than from anything written here. The browser
+  suite drives them end to end, which is worth more for the screen and less for
+  what a filter turns into — and for what happens to a value carrying the one
+  character that could end a quoted string early. The selection is built by
+  joining strings, which is the shape that becomes an injection everywhere else.
+
+- **Tests for telling a failure apart from an answer.** The exception filter
+  carries the single most important distinction in the application: a failure to
+  reach the data must never arrive as an empty success, because an empty success
+  is indistinguishable from "there is no stock". Every wrong answer it could
+  give looks fine — a timeout reported as 404 reads as "no such part", and a 404
+  reported as 502 sends somebody to check a database that is working perfectly.
+
+- **Tests for keeping a secret out of the one place that keeps things forever.**
+  The audit trail records what a person typed, and a person can type anything —
+  including a password pasted into the wrong window. Once it lands there it is
+  in a durable store, in a backup, and in front of whoever reviews the trail.
+  What existed ran through a live server, covering the happy path and not the
+  shapes that make redaction hard: a secret sitting inside a longer one, the
+  password inside a connection string, and the case-sensitivity that stops
+  ordinary words being replaced.
+
+- **Tests for a refusal that arrives inside a successful call.** The MCP server
+  reports "write operations are disabled" in the body rather than by failing,
+  so a caller watching only for an exception would read it as a completed
+  write — then read the record back, find its shape unchanged, and report a
+  successful no-op.
+
+- **Tests for making room for the audit trail.** It runs before anything is
+  serving, and the rule is that it must never throw: the trail is the one part
+  of the deployment that is explicitly optional, and refusing to start because
+  it could not be created would take the whole thing down for the piece that
+  was allowed to be missing.
+
+- **Tests for the copy button, whose failure path had none.** It is the escape
+  hatch on the setup panel — the panel exists because four variables and one
+  command are where most people stop, and copying them out is its whole point.
+  Clipboard access is refused over plain HTTP, which is exactly how somebody
+  runs this the first time, and a button that says "Copied" having copied
+  nothing is worse than one that fails visibly: the person is about to paste,
+  into a terminal, whatever happened to be there before.
+
+- **Tests for a catalogue built over an account with a hole in it.** Search is
+  answered from the projection rather than from the database, so a part missing
+  there does not exist as far as anybody using the application is concerned —
+  no error, no empty state, just a search that returns nothing and reads exactly
+  like a part the branch does not stock. A record that cannot be read is
+  ordinary in a live account, and the untested question was whether one takes
+  the rest with it.
+
+- **Tests for deleting a record, which had none.** The only destructive
+  operation in the store, and the one where being wrong cannot be undone by
+  writing the right value afterwards. The refusals matter more than the
+  deletion: a delete that runs when writes were never permitted is the failure
+  the two-switch design exists to prevent, and a dictionary deleted by accident
+  takes with it the description of what every field in that file means.
+
+- **Tests for LISTFILES**, which is step one of the only path open to somebody
+  pointing this at an account they have never seen — and so the command most
+  likely to be the first impression the whole thing makes. It lists data files
+  and not their dictionaries, and reads no records, which is what stopped a
+  stranger's first command failing on an error about an empty file name.
+
+- **The two remaining tool results the model reads now have tests.** What a
+  tool hands over is what the model believes, and the one wrong answer this
+  project has shipped came from exactly there. The price comparison is checked
+  for naming the cheapest class as the answer rather than merely listing it
+  first, for stating each difference so the model is not left to subtract, and
+  for saying out loud when the scan covered only part of the account file —
+  "cheapest" over a subset is a different claim and reads the same. The query
+  result is checked for labelling every field from the dictionary, which is
+  what stopped the model counting positions across separators and reading
+  ON.ORDER as COMMITTED.
+
+- **Tests for reading a file's dictionary.** Fields come back in position order
+  rather than the order the server happened to send them, because a screen
+  listing a record's fields out of order is describing a different record.
+
+- **Tests for which orders are counted as holding stock, and which quietly are
+  not.** Every untested path here was one that excludes something, and each
+  changes the figure a representative acts on: committed stock that no listed
+  order explains. A shipped order no longer holds anything, a quote is not a
+  commitment, and an order in a state nobody recognises is excluded rather than
+  counted — the safe direction, and the silent one, because an account whose
+  states have drifted looks exactly like an account that is fine.
+
+- **Tests for telling an answer from a refusal, and a whole one from part of**
+  **one.** The server reports most failures inside the payload rather than by
+  failing the call, so a caller watching only for an exception reads "record not
+  found" as a record. The completeness flag matters more: absent means complete,
+  and only because the server states incompleteness explicitly when it applies.
+  Reading that backwards in one direction marks every answer partial, which is
+  annoying. In the other direction a truncated read of which branches hold a
+  part becomes "no other branch has it", and somebody is sent to the wrong one.
+
+- **Tests for rebuilding a record from what the server returns.** The MCP server
+  hands back fields as JSON and this puts the separators back, which makes it a
+  boundary where structure is reconstructed and therefore one where structure
+  can quietly be lost. Two things depend on it being exact: the record view
+  shows the result to a person as the stored form, and the write path compares
+  field lengths before and after a change to prove nothing moved — so a rebuild
+  that dropped an empty field would compare against a record that never existed
+  and pass a write that should have failed.
+
+- **Browser coverage for the assistant panel, with every reply stubbed.** It had
+  none, because driving it for real costs money on a personal key and a suite
+  nobody can afford to run is a suite nobody runs. What the panel does with an
+  answer is a different question from whether the answer is right — the second
+  is checked against the database by the evaluation harness — so these cover the
+  half evaluation cannot see: that the working-out is shown, that the record it
+  read is named so the answer can be checked by hand, and that each refusal
+  reads as an explanation. The refusal states are the ones a visitor is most
+  likely to meet and the ones nothing else touched, because seeing them for real
+  means exhausting a budget first.
+
+- **Tests for the four ways the assistant declines before spending anything.**
+  They are four rather than one on purpose: "come back tomorrow", "you have
+  asked a lot", "this was never switched on" and "you did not type anything"
+  want four different replies, and collapsing them leaves somebody waiting for a
+  limit that will never lift. Both sides of the allowance boundary are pinned,
+  since an off-by-one there takes a question away from every visitor silently.
+
+- **The two lists of tools now have to agree.** The definitions handed to the
+  assistant and the switch that runs a call by name are separate, and nothing
+  made them match. A tool declared and not dispatched is worse than a missing
+  feature: the model reads the description, decides it is the right tool, calls
+  it, and is told the call failed — then usually apologises and answers from
+  nothing. A tool dispatched and not declared is the quieter half, and is how
+  "it cannot look up pricing" happened on a deployment that could. Neither is a
+  compile error and neither shows up in a request that succeeds.
+
+- **Price comparison and the promised-stock examples have tests.** Both were at
+  zero. The comparison is the code behind "which customer gets the best price",
+  which had to be answered by class rather than by customer — naming one
+  customer would be true and useless, since the next account in the same class
+  pays the same. The examples panel makes a claim about honesty: it must offer
+  only parts genuinely holding committed stock, name the branch holding the
+  most of it, and offer nothing at all when nothing is committed anywhere,
+  rather than reaching for something to show.
+
+- **A fake ERP that stores records the way the real one does.** Records go into
+  it as marked strings, so a test using it exercises the parsing as well as the
+  logic above. A fake handing back ready-made objects would step over the part
+  most likely to be wrong — reading a MultiValue record is where a quantity
+  ends up against the wrong branch.
+
+- **Tests for the two guards that protect real things and had none.** The daily
+  spend ceiling, which is what stands between a loop and a personal API key,
+  and the write path's refusal of a value carrying a separator. Both were at
+  zero coverage. The ceiling now takes its clock as an argument, so the
+  roll-over can be exercised without waiting for midnight — it is the part most
+  worth testing and was the only part untestable: a roll-over that never fires
+  switches the assistant off for good after one busy day, which looks exactly
+  like the limit working.
+
+- **Tests for contract pricing's parallel fields.** A PRICING record holds the
+  multipliers, start dates and end dates as three lists read by position.
+  Pairing a multiplier with another agreement's dates would apply a discount
+  for a period nobody agreed to, and nothing about the resulting record is
+  malformed.
+
+- **Answer checks for pricing.** The assistant once said it could not look up
+  pricing while the screen beside it showed a contract price. Two cases now
+  check that it reaches for the tool and that the figure it quotes is the one
+  the part screen would show.
+
+- **An evaluation harness for the assistant's answers.** Every existing test
+  asks whether a request succeeded, and a wrong answer succeeds. Each case
+  checks what was said against what the API independently reports, so
+  "names a branch that really has committed stock" rather than "contains the
+  word committed". It found the arithmetic defect on its first run.
+
+- **Browser coverage for the write path.** It had none: the local stack ran
+  read-only, so the suite could not reach the editor, and the only write in
+  the application was exercised for the first time by a person clicking.
+  `run-dev-clean.ps1 -Writable` starts a stack that permits writing.
 
 - **A browser suite at phone size.** Four journeys at 390x844: nothing overflows
   on any screen, the tour docks rather than hanging off the edge, every control

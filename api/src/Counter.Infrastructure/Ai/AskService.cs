@@ -1,4 +1,4 @@
-namespace Counter.Infrastructure.Ai;
+﻿namespace Counter.Infrastructure.Ai;
 
 using System.Diagnostics;
 using System.Text;
@@ -84,6 +84,11 @@ public sealed class AskService(
         "A price belongs to a price class, not to a customer, and customers are " +
         "assigned to a class. So \"who gets the best price on this\" is one call to " +
         "compare_prices, not one call per account.\n\n" +
+        "Answer rather than ask. If a question covers several parts -- \"the most " +
+        "15A AFCI breakers\" may match eight of them -- check them and give the " +
+        "answer. You may make several calls at once. Ask which one was meant only " +
+        "when the question genuinely cannot be answered without knowing, not " +
+        "because answering would take a few more lookups.\n\n" +
         "Two or three sentences. Name the branch and the number. No preamble.";
 
     private readonly CatalogueProjection _catalogue = catalogue;
@@ -195,10 +200,60 @@ public sealed class AskService(
             // turns one question into an unbounded number of requests.
             if (round == _options.MaxToolRounds || callsMade + wanted.Length > _options.MaxToolCallsInTotal)
             {
-                answer = string.IsNullOrWhiteSpace(answer)
-                    ? "I could not answer that within the number of lookups allowed. " +
-                      "Try naming a specific part number."
-                    : answer;
+                // One last request, with no tools offered.
+                //
+                // Stopping here used to keep whatever text preceded the final
+                // tool call, which is a running commentary rather than an
+                // answer: "I can see there are records. Let me read one of
+                // these to see the structure better:" was presented to somebody
+                // as the reply to their question. It reads as broken software,
+                // and the model had in fact gathered enough to say something
+                // useful.
+                //
+                // The requested calls are answered with a note rather than run,
+                // because the protocol requires a result for every call made and
+                // the budget is precisely what has been spent.
+                conversation.Add(new MessageParam { Role = "assistant", Content = EchoOf(reply) });
+
+                conversation.Add(new MessageParam
+                {
+                    Role = "user",
+                    // The same conversion the loop below uses. A cast does not
+                    // work here: the SDK converts a result block implicitly
+                    // rather than deriving it, so Cast throws at run time and
+                    // the request became a 500 with nothing on screen.
+                    Content = wanted
+                        .Select(ContentBlockParam (call) => new ToolResultBlockParam
+                        {
+                            ToolUseID = call.ID,
+                            Content =
+                                "No further lookups are available for this question. "
+                                    + "Answer from what you have already read, and say "
+                                    + "plainly what you were not able to check.",
+                        })
+                        .ToList(),
+                });
+
+                Message closing = await client.Messages.Create(
+                    new MessageCreateParams
+                    {
+                        Model = AskOptions.Model,
+                        MaxTokens = _options.MaxTokens,
+                        System = Instructions + looking.ForModel(),
+                        Messages = conversation,
+                    },
+                    cancellationToken);
+
+                inputTokens += (int)closing.Usage.InputTokens;
+                outputTokens += (int)closing.Usage.OutputTokens;
+
+                string closed = TextOf(closing);
+
+                answer = string.IsNullOrWhiteSpace(closed)
+                    ? "I ran out of lookups before I could answer that. Naming a "
+                        + "specific part number would let me answer in one."
+                    : closed;
+
                 break;
             }
 
@@ -414,18 +469,22 @@ public sealed class AskService(
         IReadOnlyDictionary<string, string> records = await _erp.ReadRecordsAsync(
             fileName, [.. keys.Take(QueryRecords)], cancellationToken);
 
-        StringBuilder text = new();
-        text.AppendLine($"{keys.Count} key(s): {string.Join(", ", keys)}");
+        // Labelled by the file's own dictionary rather than handed over flat.
+        //
+        // This used to render each record as `a|b;c|d;e`, which asks the model to
+        // count positions across a run of marks -- the exact task this whole
+        // application exists to say is dangerous. It got it wrong in the obvious
+        // way: asked which parts had committed stock, it read field four,
+        // ON.ORDER, as field three, COMMITTED, and reported three branches with
+        // committed inventory that had none. The answer cited the record it had
+        // misread, which makes it worse than a refusal.
+        //
+        // Naming each field removes the counting. The dictionary is already how
+        // every other part of this reads an unfamiliar file.
+        IReadOnlyList<Domain.Catalogue.DictionaryField> labels =
+            await _erp.ListDictionaryAsync(fileName, cancellationToken);
 
-        foreach ((string key, string raw) in records)
-        {
-            // Marks turned into readable separators. The stored bytes are what
-            // read_record is for; here the model needs the values, not proof of
-            // what they were stored as.
-            text.AppendLine($"{key}: {raw.Replace('þ', '|').Replace('ý', ';')}");
-        }
-
-        string result = text.ToString();
+        string result = DescribeRecords(keys, records, labels);
 
         return (
             result,
@@ -497,12 +556,107 @@ public sealed class AskService(
             return Failed(call, arguments, timer, $"No part called {partNumber}.");
         }
 
+        string result = DescribeSpread(spread);
+
+        return (
+            result,
+            new AskStep(
+                call.Name,
+                arguments,
+                "PRICE",
+                spread.PartNumber,
+                string.Empty,
+                $"Compared {spread.Classes.Count} price class(es) across {spread.AccountsScanned} account(s)",
+                result,
+                (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>Put selected records into the words the model reads.</summary>
+    /// <param name="keys">The keys the selection returned.</param>
+    /// <param name="records">Those records, in their stored form.</param>
+    /// <param name="labels">The file's dictionary, for naming each field.</param>
+    /// <returns>The tool result.</returns>
+    /// <remarks>
+    /// The formatter with the worst record in this project. It used to render
+    /// each record as `a|b;c|d;e`, which asks the model to count positions
+    /// across a run of separators -- the exact task this whole application
+    /// exists to say is dangerous. It got it wrong in the obvious way: asked
+    /// which parts had committed stock, it read field four, ON.ORDER, as field
+    /// three, COMMITTED, and reported three branches holding committed stock
+    /// that had none. It cited the record it had misread, which makes it worse
+    /// than a refusal.
+    ///
+    /// Naming each field from the dictionary removes the counting. Its own
+    /// function so a test can read what the model is handed without paying for
+    /// an answer.
+    /// </remarks>
+    internal static string DescribeRecords(
+        IReadOnlyList<string> keys,
+        IReadOnlyDictionary<string, string> records,
+        IReadOnlyList<Domain.Catalogue.DictionaryField> labels)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(labels);
+
+        StringBuilder text = new();
+        text.AppendLine($"{keys.Count} key(s): {string.Join(", ", keys)}");
+
+        foreach ((string key, string raw) in records)
+        {
+            text.AppendLine();
+            text.AppendLine($"{key}:");
+
+            string[] fields = raw.Split('þ');
+
+            for (int position = 0; position < fields.Length; position++)
+            {
+                Domain.Catalogue.DictionaryField? label =
+                    labels.FirstOrDefault(field => field.Position == position + 1);
+
+                string name = label?.Name ?? $"field {position + 1}";
+                string[] values = fields[position].Split('ý');
+
+                text.AppendLine(
+                    values.Length > 1
+                        ? $"  {position + 1} {name}: {string.Join(", ", values)}"
+                        : $"  {position + 1} {name}: {fields[position]}");
+            }
+        }
+
+        text.AppendLine();
+        text.AppendLine(
+            "Values within a field are listed in position order, and position n of "
+                + "every multi-valued field describes the same thing. Read across "
+                + "fields at the same position; do not count separators.");
+
+        return text.ToString();
+    }
+
+    /// <summary>Put a price comparison into the words the model reads.</summary>
+    /// <param name="spread">Every class that buys the part, cheapest first.</param>
+    /// <returns>The tool result.</returns>
+    /// <remarks>
+    /// Its own function so a unit test can read it without spending money on
+    /// the model, the same reason as DescribeAvailability -- and for the same
+    /// class of defect. What a tool hands over is what the model believes, and
+    /// a result that is merely ordered rather than answered leaves the model to
+    /// do the comparison the tool already did.
+    ///
+    /// The line about a partial scan is the one that matters most: "cheapest"
+    /// over a subset of the account file is a different claim from "cheapest",
+    /// and the two read identically once the answer reaches a person.
+    /// </remarks>
+    internal static string DescribeSpread(PriceSpread spread)
+    {
+        ArgumentNullException.ThrowIfNull(spread);
+
         StringBuilder text = new();
         text.Append($"{spread.PartNumber} {spread.Description}, category {spread.CategoryCode}, ");
         text.AppendLine($"list {spread.ListPrice:F2}.");
 
-        // Said out loud when the scan did not cover everything, because "cheapest"
-        // over a subset is a different claim from "cheapest" and reads the same.
+        // Said out loud when the scan did not cover everything, because
+        // "cheapest" over a subset is a different claim and reads the same.
         if (spread.AccountsScanned < spread.AccountsTotal)
         {
             text.AppendLine(
@@ -512,11 +666,11 @@ public sealed class AskService(
 
         // The answer first, named as the answer.
         //
-        // This used to print seven classes in price order and leave the reader to
-        // work out that the first one was the point. Ordered is not the same as
-        // answered: a reader scanning a wall of near-identical lines has to do
-        // the comparison the tool already did. The model has the same problem,
-        // and the same fix helps both.
+        // This used to print seven classes in price order and leave the reader
+        // to work out that the first one was the point. Ordered is not the same
+        // as answered: a reader scanning a wall of near-identical lines has to
+        // do the comparison the tool already did. The model has the same
+        // problem, and the same fix helps both.
         ClassPrice? cheapest = spread.Classes.FirstOrDefault();
 
         if (cheapest is not null)
@@ -540,19 +694,7 @@ public sealed class AskService(
             }
         }
 
-        string result = text.ToString();
-
-        return (
-            result,
-            new AskStep(
-                call.Name,
-                arguments,
-                "PRICE",
-                spread.PartNumber,
-                string.Empty,
-                $"Compared {spread.Classes.Count} price class(es) across {spread.AccountsScanned} account(s)",
-                result,
-                (int)timer.ElapsedMilliseconds));
+        return text.ToString();
     }
 
     /// <summary>One price class, said the way a person would say it.</summary>
@@ -608,11 +750,7 @@ public sealed class AskService(
 
         timer.Stop();
 
-        string body = position.Positions.Count == 0
-            ? $"No inventory record exists for {partNumber}. That is not the same as none in stock."
-            : string.Join("\n", position.Positions.Select(branch =>
-                $"{branch.BranchCode} | on hand {branch.OnHand} | committed {branch.Committed} " +
-                $"| free to sell {branch.FreeToSell}"));
+        string body = DescribeAvailability(position, partNumber);
 
         return (body, new AskStep(
             call.Name,
@@ -623,6 +761,37 @@ public sealed class AskService(
             $"{position.Positions.Count} branch position(s) read live",
             body,
             (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>Put one part's stock into the words the model reads.</summary>
+    /// <param name="position">The branch positions, as read.</param>
+    /// <param name="partNumber">The part they belong to.</param>
+    /// <returns>The tool result, totals included.</returns>
+    /// <remarks>
+    /// Its own function so a unit test can read it without spending money on
+    /// the model. The totals are stated rather than left to be worked out:
+    /// asked for a total across every branch, the model added the lines up
+    /// itself and answered 393 where the figure was 373. Every branch figure
+    /// it quoted was right and only the sum was wrong, which is the hardest
+    /// kind of wrong answer to catch by reading it -- everything supporting it
+    /// checks out. The totals were already computed here, so handing over the
+    /// arithmetic was a choice, and this unmakes it.
+    /// </remarks>
+    internal static string DescribeAvailability(PartAvailability position, string partNumber)
+    {
+        if (position.Positions.Count == 0)
+        {
+            return $"No inventory record exists for {partNumber}. That is not the same as none in stock.";
+        }
+
+        string branches = string.Join("\n", position.Positions.Select(branch =>
+            $"{branch.BranchCode} | on hand {branch.OnHand} | committed {branch.Committed} " +
+            $"| free to sell {branch.FreeToSell}"));
+
+        return branches
+            + $"\n\nTotals across all {position.Positions.Count} branch(es): "
+            + $"on hand {position.TotalOnHand}, free to sell {position.TotalFreeToSell}. "
+            + "Use these figures for any total rather than adding the lines up.";
     }
 
     /// <summary>Read a record exactly as the database holds it.</summary>

@@ -1,4 +1,4 @@
-namespace Counter.Api.Controllers;
+﻿namespace Counter.Api.Controllers;
 
 using Counter.Api.Services;
 using Counter.Infrastructure.Ai;
@@ -55,12 +55,10 @@ public sealed class AskController(AskService ask, SessionStore sessions) : Contr
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        CounterSession session = _sessions.ForRequest(HttpContext);
-
         (AskResult? result, AskRefusal refusal) = await _ask.AnswerAsync(
             request.Question ?? string.Empty,
             request.Looking ?? ScreenContext.Empty,
-            _sessions.QuestionsAsked(session),
+            _sessions.QuestionsAsked(HttpContext),
             cancellationToken);
 
         if (refusal != AskRefusal.None)
@@ -68,7 +66,7 @@ public sealed class AskController(AskService ask, SessionStore sessions) : Contr
             return Refused(refusal);
         }
 
-        _sessions.RecordQuestion(session);
+        _sessions.RecordQuestion(HttpContext);
 
         return Ok(result);
     }

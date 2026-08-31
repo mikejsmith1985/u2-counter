@@ -42,7 +42,7 @@ from .driver import (  # noqa: F401
     connect,
 )
 from .driver import File as ReadOnlyFile
-from .store import VM, build_record, parse_record
+from .store import AM, SM, VM, build_record, parse_record
 
 
 def is_writable() -> bool:
@@ -170,7 +170,21 @@ class File(ReadOnlyFile):
                 "against the wrong branch."
             )
 
-        if VM in value or "\t" in value or "\n" in value or "\r" in value:
+        # Every separator, not only the value mark.
+        #
+        # This checked VM and not AM, which is the wrong one to miss: a value
+        # mark adds a value to a field, and an attribute mark splits the field
+        # into two. Writing one<AM>two into field one of a four-field record
+        # produced a five-field record -- every later read agreeing with it,
+        # and every field after the first describing something it is not.
+        #
+        # It was caught afterwards by the alignment check and reported as
+        # "written, but a field changed length", which is honest and far too
+        # late. A write that has to be explained is one that should have been
+        # refused.
+        if any(mark in value for mark in (AM, VM, SM)) or any(
+            character in value for character in ("\t", "\n", "\r")
+        ):
             raise UOError(
                 "A value cannot contain a separator or a line break: it would change "
                 "the record's shape rather than its contents."

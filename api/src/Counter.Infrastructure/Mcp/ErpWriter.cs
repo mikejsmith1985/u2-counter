@@ -1,4 +1,4 @@
-namespace Counter.Infrastructure.Mcp;
+﻿namespace Counter.Infrastructure.Mcp;
 
 using Counter.Infrastructure.MultiValue;
 using Microsoft.Extensions.Logging;
@@ -40,6 +40,16 @@ public sealed class ErpWriter(
     private readonly ILogger<ErpWriter> _logger = logger;
 
     /// <inheritdoc />
+
+    /// <summary>Separates fields. A value carrying one would split its field in two.</summary>
+    private const char AttributeMark = (char)254;
+
+    /// <summary>Separates values within a field.</summary>
+    private const char ValueMark = (char)253;
+
+    /// <summary>Separates sub-items within a value.</summary>
+    private const char SubvalueMark = (char)252;
+
     public async Task<RecordChange> UpdateValueAsync(
         string fileName,
         string recordId,
@@ -48,6 +58,23 @@ public sealed class ErpWriter(
         string value,
         CancellationToken cancellationToken)
     {
+        // Refused here as well as at the store, so the message is a sentence
+        // rather than a transport error.
+        //
+        // A value carrying a mark does not change the record's contents, it
+        // changes its shape: an attribute mark splits one field into two, and
+        // every field after it then describes something it is not. This was
+        // caught only afterwards, by comparing field lengths, and reported as
+        // "written, but a field changed length" -- honest, and far too late to
+        // help. The record was already wrong.
+        if (value.Any(character => character is AttributeMark or ValueMark or SubvalueMark))
+        {
+            throw new ErpWriteRefusedException(
+                "A value cannot contain an attribute, value or subvalue mark. It would "
+                    + "change the record's shape rather than its contents, and every "
+                    + "field after it would describe something it is not.");
+        }
+
         string before = await _reader.ReadRecordAsync(fileName, recordId, cancellationToken);
 
         await CallAsync(
@@ -138,11 +165,31 @@ public sealed class ErpWriter(
             arguments.ToDictionary(pair => pair.Key, pair => pair.Value),
             cancellationToken: budget.Token);
 
-        // The server reports a refusal in the payload rather than by failing, so
-        // a caller that only checked for an exception would treat "write
-        // operations disabled" as a completed write.
-        System.Text.Json.JsonElement payload = ErpResponse.PayloadFrom(result);
+        EnsureWritten(ErpResponse.PayloadFrom(result));
+    }
 
+    /// <summary>
+    /// Stop unless the payload actually says the change was made.
+    /// </summary>
+    /// <param name="payload">What the server answered with.</param>
+    /// <exception cref="ErpWriteRefusedException">If it refused, in either way.</exception>
+    /// <remarks>
+    /// The server reports a refusal inside the payload rather than by failing
+    /// the call, so a caller that only watched for an exception would read
+    /// "write operations disabled" as a completed write -- and then go on to
+    /// read the record back and report, correctly, that nothing had changed
+    /// shape. A refusal dressed as a successful no-op.
+    ///
+    /// The second case is subtler. This tool asks for confirmation unless it is
+    /// told the caller has already confirmed. Getting that answer means the
+    /// argument was not sent, so nothing was written and the call has to fail
+    /// rather than be retried blindly.
+    ///
+    /// Internal so the unit suite can reach it. Every other route to this line
+    /// runs through a live MCP server, which would be testing the server.
+    /// </remarks>
+    internal static void EnsureWritten(System.Text.Json.JsonElement payload)
+    {
         if (payload.TryGetProperty("error", out System.Text.Json.JsonElement error))
         {
             throw new ErpWriteRefusedException(
@@ -167,8 +214,12 @@ public sealed class ErpWriter(
     /// The shape that has to survive a write. Two records can both be well formed
     /// while one has quietly moved a quantity onto a different branch, and this is
     /// where the difference is visible.
+    ///
+    /// Internal rather than private so the unit suite can read it directly.
+    /// It is the check the whole write path exists to perform, and reaching it
+    /// through a running MCP server would test the server instead.
     /// </remarks>
-    private static IReadOnlyList<int> FieldLengths(string raw) =>
+    internal static IReadOnlyList<int> FieldLengths(string raw) =>
         raw.Length == 0
             ? []
             : [.. raw.Split(MultiValueRecord.AttributeMark)

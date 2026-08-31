@@ -18,7 +18,7 @@
  */
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { DictionaryField } from "../../api/types";
 import { UpdateValue } from "./UpdateValue";
@@ -30,9 +30,16 @@ export function SchemaExplorer(): React.JSX.Element {
   const [file, setFile] = useState<string>("");
   const [position, setPosition] = useState<number>(0);
   const [value, setValue] = useState<string>("");
-  const [applied, setApplied] = useState<{ position: number; value: string }>({
+  // Contains by default. Exact match is what a MultiValue SELECT does, and as
+  // the only option on a screen for exploring an unfamiliar account it reads as
+  // broken: "aurora" against a branch called "Aurora" returned nothing, with no
+  // hint that case was the reason.
+  const [isExact, setIsExact] = useState(false);
+
+  const [applied, setApplied] = useState<{ position: number; value: string; isExact: boolean }>({
     position: 0,
     value: "",
+    isExact: false,
   });
 
   // Which cell is being edited, if any. Held here rather than in the row so that
@@ -41,6 +48,20 @@ export function SchemaExplorer(): React.JSX.Element {
   const [editing, setEditing] = useState<
     { recordId: string; field: DictionaryField; index: number; current: string } | null
   >(null);
+
+  const queryClient = useQueryClient();
+
+  // Whether this deployment permits the editor at all. Asked rather than
+  // assumed: the cells were buttons on every deployment, including the ones
+  // with no write path, so clicking one opened an editor that could only fail.
+  const { data: writeStatus } = useQuery({
+    queryKey: ["records-status"],
+    queryFn: ({ signal }) => api.updateStatus(signal),
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  const canWrite = writeStatus?.canWrite === true;
 
   const { data: files } = useQuery({
     queryKey: ["schema", "files"],
@@ -54,9 +75,9 @@ export function SchemaExplorer(): React.JSX.Element {
   const chosen = file || files?.files?.[0] || "";
 
   const { data: records, isFetching } = useQuery({
-    queryKey: ["schema", "records", chosen, applied.position, applied.value],
+    queryKey: ["schema", "records", chosen, applied.position, applied.value, applied.isExact],
     queryFn: ({ signal }) =>
-      api.schemaRecords(chosen, applied.position, applied.value, signal),
+      api.schemaRecords(chosen, applied.position, applied.value, applied.isExact, signal),
     enabled: chosen.length > 0,
   });
 
@@ -86,7 +107,7 @@ export function SchemaExplorer(): React.JSX.Element {
               setFile(event.target.value);
               setPosition(0);
               setValue("");
-              setApplied({ position: 0, value: "" });
+              setApplied({ position: 0, value: "", isExact: false });
             }}
           >
             {(files?.files ?? []).map((name) => (
@@ -117,10 +138,18 @@ export function SchemaExplorer(): React.JSX.Element {
           className="explore__control explore__control--value"
           onSubmit={(event) => {
             event.preventDefault();
-            setApplied({ position, value });
+            setApplied({ position, value, isExact });
           }}
         >
-          <span>Equals</span>
+          <select
+            aria-label="How to match"
+            value={isExact ? "exact" : "contains"}
+            onChange={(event) => setIsExact(event.target.value === "exact")}
+            disabled={position === 0}
+          >
+            <option value="contains">Contains</option>
+            <option value="exact">Equals</option>
+          </select>
           <input
             type="text"
             value={value}
@@ -134,7 +163,47 @@ export function SchemaExplorer(): React.JSX.Element {
         </form>
       </div>
 
+      {/* Said where it bites. Case folding would make this screen behave unlike
+          the database it is demonstrating, so the honest answer is to warn
+          rather than to hide it. */}
+      <p className="explore__note">
+        Matching is case-sensitive, as the database does it. <code>Contains</code>{" "}
+        asks <code>LIKE &quot;...value...&quot;</code>; <code>Equals</code> asks{" "}
+        <code>= &quot;value&quot;</code>. The statement actually run is printed
+        under the results.
+      </p>
+
+      {/* Said out loud, because it was not discoverable.
+          
+          Every value in the table below is a button and always was, but it
+          looked exactly like text until somebody happened to hover over it. A
+          feature nobody can find is worse than one that does not exist: it costs
+          the same to build and earns nothing. */}
+      {canWrite && (
+        <p className="explore__editable">
+          <strong>Click any value to change it.</strong> One value of one field,
+          in place — it names the record and the position first, reads the record
+          back afterwards, and refuses to pad a field to reach a position it does
+          not have. This is the only write in the application.
+        </p>
+      )}
+
       {isFetching && <p className="explore__working">Reading the account…</p>}
+
+      {/* Nothing matched, and the reason is nearly always capitalisation.
+          Saying so where the zero appears beats a note further up the page that
+          somebody has already scrolled past. */}
+      {records && !isFetching && records.matchCount === 0 && applied.value && (
+        <p className="explore__nothing">
+          Nothing matched <code>{applied.value}</code>. Matching is case-sensitive,
+          so <code>{applied.value}</code> is not{" "}
+          <code>
+            {applied.value.charAt(0).toUpperCase() + applied.value.slice(1)}
+          </code>
+          . Clear the box to see every record and read the capitalisation off the
+          values themselves.
+        </p>
+      )}
 
       {records && !isFetching && (
         <>
@@ -164,25 +233,29 @@ export function SchemaExplorer(): React.JSX.Element {
                     </th>
                     {columns.map((field) => (
                       <td key={field.name} className="explore__value">
-                        <button
-                          type="button"
-                          className="explore__cell"
-                          title={`Change ${field.heading} for ${row.key}`}
-                          onClick={() =>
-                            setEditing({
-                              recordId: row.key,
-                              field,
-                              // The first value of the field. A multi-valued
-                              // field holds one per branch, and choosing which
-                              // is a decision the editor makes plain rather than
-                              // one this table guesses.
-                              index: 0,
-                              current: firstValue(row.fields[field.position - 1] ?? ""),
-                            })
-                          }
-                        >
-                          {trim(row.fields[field.position - 1] ?? "")}
-                        </button>
+                        {canWrite ? (
+                          <button
+                            type="button"
+                            className="explore__cell"
+                            title={`Change ${field.heading} for ${row.key}`}
+                            onClick={() =>
+                              setEditing({
+                                recordId: row.key,
+                                field,
+                                // The first value of the field. A multi-valued
+                                // field holds one per branch, and choosing which
+                                // is a decision the editor makes plain rather
+                                // than one this table guesses.
+                                index: 0,
+                                current: firstValue(row.fields[field.position - 1] ?? ""),
+                              })
+                            }
+                          >
+                            {trim(row.fields[field.position - 1] ?? "")}
+                          </button>
+                        ) : (
+                          trim(row.fields[field.position - 1] ?? "")
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -198,8 +271,18 @@ export function SchemaExplorer(): React.JSX.Element {
               field={editing.field}
               index={editing.index}
               current={editing.current}
-              onClose={() => setEditing(null)}
-              onChanged={() => setApplied({ ...applied })}
+              onClose={() => {
+                // The rows refresh when the editor closes, not the moment the
+                // write returns.
+                //
+                // Invalidating on success re-rendered the editor while its
+                // report was on screen, so the proof that the write had not
+                // moved a parallel field appeared and vanished. That report is
+                // the only reason this screen is interesting; refreshing the
+                // table underneath it costs nothing and can wait for Done.
+                setEditing(null);
+                void queryClient.invalidateQueries({ queryKey: ["schema", "records"] });
+              }}
             />
           )}
 

@@ -1,4 +1,4 @@
-namespace Counter.Api.Services;
+﻿namespace Counter.Api.Services;
 
 using System.Collections.Concurrent;
 using Counter.Infrastructure.Data;
@@ -55,26 +55,37 @@ public sealed class SessionStore(
 
 
     /// <summary>
-    /// How many questions this session has asked the assistant.
+    /// How many questions this visitor has put to the assistant.
     /// </summary>
-    /// <param name="session">Whose count to read.</param>
-    /// <returns>The number asked so far.</returns>
-    public int QuestionsAsked(CounterSession session)
+    /// <param name="context">The request, which carries the session cookie.</param>
+    /// <returns>The number asked so far in this session.</returns>
+    /// <remarks>
+    /// Counted against the session key, which is what "per session" has always
+    /// meant here. It was counted against the persona instead, and every visitor
+    /// who has not chosen one is the same persona -- so the allowance was a
+    /// single bucket shared by everybody at once, and clearing cookies did not
+    /// reset it the way the comment beside it promised.
+    ///
+    /// Two people trying the demonstration together would have spent each
+    /// other's questions, and whoever asked the twelfth would have shut the
+    /// assistant off for the other with no way to get it back.
+    /// </remarks>
+    public int QuestionsAsked(HttpContext context)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(context);
 
-        return _questionsAsked.TryGetValue(session.Persona.Subject, out int asked) ? asked : 0;
+        return _questionsAsked.TryGetValue(KeyFor(context), out int asked) ? asked : 0;
     }
 
     /// <summary>
-    /// Record that this session asked one.
+    /// Record that this visitor asked one.
     /// </summary>
-    /// <param name="session">Who asked.</param>
-    public void RecordQuestion(CounterSession session)
+    /// <param name="context">The request, which carries the session cookie.</param>
+    public void RecordQuestion(HttpContext context)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(context);
 
-        _questionsAsked.AddOrUpdate(session.Persona.Subject, 1, (_, asked) => asked + 1);
+        _questionsAsked.AddOrUpdate(KeyFor(context), 1, (_, asked) => asked + 1);
     }
 
     /// <summary>

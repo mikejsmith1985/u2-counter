@@ -1,4 +1,4 @@
-namespace Counter.Infrastructure.Ai;
+﻿namespace Counter.Infrastructure.Ai;
 
 /// <summary>
 /// What the assistant has spent today, and whether it may spend more.
@@ -17,13 +17,24 @@ namespace Counter.Infrastructure.Ai;
 /// the request path for a limit that exists to prevent a bill of a few dollars.
 ///
 /// Written down because the reasoning is the sort that looks like an oversight.
+///
+/// The clock arrives rather than being read from the ambient one, so the
+/// roll-over can be exercised without waiting for midnight. It is the part
+/// most worth testing and was the one part untestable: a roll-over that never
+/// fires leaves the assistant switched off after a single busy day, and one
+/// that fires constantly means no ceiling at all.
 /// </remarks>
-public sealed class SpendLedger
+/// <param name="clock">The clock, so a test need not wait for midnight.</param>
+public sealed class SpendLedger(TimeProvider clock)
 {
     private readonly object _gate = new();
+    private readonly TimeProvider _clock = clock;
 
-    private DateOnly _day = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly _day;
     private int _tokensToday;
+
+    /// <summary>The day the count belongs to, read on first use.</summary>
+    private bool _hasStarted;
 
     /// <summary>How many tokens have been spent today.</summary>
     public int TokensToday
@@ -73,7 +84,17 @@ public sealed class SpendLedger
     /// <summary>Start a fresh count when the date changes. Caller holds the lock.</summary>
     private void RollOverIfNewDay()
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+
+        if (!_hasStarted)
+        {
+            // The first read establishes the day rather than the constructor,
+            // because a singleton built at start-up and first used after
+            // midnight would otherwise begin one day behind.
+            _hasStarted = true;
+            _day = today;
+            return;
+        }
 
         if (today != _day)
         {

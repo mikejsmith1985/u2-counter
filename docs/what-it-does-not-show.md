@@ -25,6 +25,7 @@ explains itself while you wait. A tour opens on arrival.
 | **The assistant is only partly schema-agnostic** | Four of its eight tools are built for this counter and would fail elsewhere. The other four ask the database what it holds and work anywhere. | Pointing it at an unfamiliar account and asking about a file nobody wrote code for. |
 | **One shared database login** | The database sees a single account however many people use it. | Per-caller credentials. The fork adds the identity plumbing; this deployment does not use it. |
 | **Built for a counter workstation** | It works on a phone and is not good on one. | Nothing, deliberately. The job is done standing at a counter. |
+| **The assistant answers twelve questions per visit** | It runs on a personal API key, and a demonstration with no ceiling is a demonstration somebody else can run up a bill on. The thirteenth is refused, in words, and every other screen keeps working. | A key of your own. The setup panel hands you the four variables. |
 
 ---
 
@@ -112,8 +113,28 @@ In four minutes it will show you, without being asked twice:
 
 ---
 
-Built over one weekend, starting from no prior knowledge of MultiValue. 68
-browser journeys, 71 front-end unit tests, 99 unit and 95 integration tests on
-the API, 503 on the MCP server. The interesting number is none of those — it is
-the ten defects, most of which were found by using the thing rather than by
-reading it.
+Built over one weekend, starting from no prior knowledge of MultiValue, and
+worked on since. 84 browser journeys, 78 front-end unit tests, 273 unit and 117
+integration tests on the API, 301 on the MultiValue store, 503 on the MCP
+server.
+
+Those came from running the suites rather than from memory, and they go out of
+date every time one grows — so the way to trust them is not to: `dotnet test`,
+`pytest`, `npx vitest run`, `npx cypress run`, each in its own directory. A
+number you can regenerate is worth more than one you have to believe.
+
+The interesting number is none of those. It is the ten defects in the MCP
+server, most of which were found by using the thing rather than by reading it —
+and the three found in this application afterwards, by the same habit.
+
+Those three are the ones worth knowing about, because every suite above was
+green while all of them were true. The assistant answered a question with a
+total twenty units too high, having quoted every individual branch correctly.
+Its allowance of questions was counted against the wrong thing, so two people
+trying it at once would have spent each other's. And a successful write erased
+the report that proved it had not disturbed anything — on the one screen whose
+entire subject is whether a write is safe.
+
+Each was found by exercising the application and checking its answer against
+the database, which is the only method that has ever worked here. The suites
+that now cover them exist because of them, not the other way round.
