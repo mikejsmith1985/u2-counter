@@ -17,6 +17,13 @@ using Microsoft.Extensions.Configuration;
 /// secret sitting inside a longer one, a connection string whose password is
 /// the part that matters, and the case-sensitivity that stops ordinary words
 /// being replaced.
+///
+/// Every fixture below is written to be unmistakable as a fixture. The first
+/// version used plausible-looking values -- `Password=s3cr3tvalue` inside a
+/// real-shaped connection string -- and a secret scanner stopped the pull
+/// request, correctly: it reads shapes, not intent, and cannot know a
+/// convincing password is fake. A test about not leaking credentials that
+/// trips a credential scanner has failed at its own subject.
 /// </remarks>
 public sealed class SecretRedactionTests
 {
@@ -32,11 +39,11 @@ public sealed class SecretRedactionTests
     [Fact]
     public void A_configured_password_is_replaced_wherever_it_appears()
     {
-        SecretRedactor redactor = Holding(("U2_PASSWORD", "hunter2secret"));
+        SecretRedactor redactor = Holding(("U2_PASSWORD", "NOT-A-REAL-VALUE-fixture-one"));
 
         Assert.Equal(
             $"login failed for {SecretRedactor.Marker}",
-            redactor.Redact("login failed for hunter2secret"));
+            redactor.Redact("login failed for NOT-A-REAL-VALUE-fixture-one"));
     }
 
     [Fact]
@@ -46,15 +53,15 @@ public sealed class SecretRedactionTests
         // because the password is the part somebody pastes by accident -- the
         // connection string is not what ends up in a search box.
         SecretRedactor redactor = Holding(
-            ("ConnectionStrings:Counter", "Data Source=db;User=sa;Password=s3cr3tvalue;"));
+            ("ConnectionStrings:Counter", "Data Source=db;User=sa;Password=THIS-IS-NOT-A-PASSWORD-test-fixture;"));
 
-        Assert.Equal(SecretRedactor.Marker, redactor.Redact("s3cr3tvalue"));
+        Assert.Equal(SecretRedactor.Marker, redactor.Redact("THIS-IS-NOT-A-PASSWORD-test-fixture"));
     }
 
     [Fact]
     public void The_whole_connection_string_is_redacted_too()
     {
-        const string connection = "Data Source=db;User=sa;Password=s3cr3tvalue;";
+        const string connection = "Data Source=db;User=sa;Password=THIS-IS-NOT-A-PASSWORD-test-fixture;";
 
         SecretRedactor redactor = Holding(("ConnectionStrings:Counter", connection));
 
@@ -67,9 +74,9 @@ public sealed class SecretRedactionTests
         // Both spellings are ordinary in connection strings, and a redactor that
         // knew only one would be silently useless against half of them.
         SecretRedactor redactor = Holding(
-            ("ConnectionStrings:Counter", "Server=db;Uid=sa;Pwd=alsosecret;"));
+            ("ConnectionStrings:Counter", "Server=db;Uid=sa;Pwd=THIS-IS-NOT-A-PASSWORD-either-fixture;"));
 
-        Assert.Equal(SecretRedactor.Marker, redactor.Redact("alsosecret"));
+        Assert.Equal(SecretRedactor.Marker, redactor.Redact("THIS-IS-NOT-A-PASSWORD-either-fixture"));
     }
 
     [Fact]
@@ -79,10 +86,10 @@ public sealed class SecretRedactionTests
         // long one would leave the rest of the long one on screen, which is a
         // redaction that reveals the shape and length of what it hid.
         SecretRedactor redactor = Holding(
-            ("U2_PASSWORD", "secret"),
-            ("U2_MCP_TOKEN", "secretextended"));
+            ("U2_PASSWORD", "NOT-A-REAL-VALUE-fixture-one"),
+            ("U2_MCP_TOKEN", "NOT-A-REAL-VALUE-fixture-one-extended"));
 
-        Assert.Equal(SecretRedactor.Marker, redactor.Redact("secretextended"));
+        Assert.Equal(SecretRedactor.Marker, redactor.Redact("NOT-A-REAL-VALUE-fixture-one-extended"));
     }
 
     [Fact]
@@ -131,7 +138,7 @@ public sealed class SecretRedactionTests
     public void Nothing_and_empty_text_come_back_as_they_went_in()
     {
         // Called on every field of every activity row, including absent ones.
-        SecretRedactor redactor = Holding(("U2_PASSWORD", "hunter2secret"));
+        SecretRedactor redactor = Holding(("U2_PASSWORD", "NOT-A-REAL-VALUE-fixture-one"));
 
         Assert.Null(redactor.Redact(null));
         Assert.Equal(string.Empty, redactor.Redact(string.Empty));
@@ -155,11 +162,11 @@ public sealed class SecretRedactionTests
         // Deliberate. A password pasted into a search box arrives glued to
         // whatever was already there, and a redactor that only matched whole
         // words would leave it in the trail.
-        SecretRedactor redactor = Holding(("U2_PASSWORD", "hunter2secret"));
+        SecretRedactor redactor = Holding(("U2_PASSWORD", "NOT-A-REAL-VALUE-fixture-one"));
 
         Assert.DoesNotContain(
-            "hunter2secret",
-            redactor.Redact("prefixhunter2secretsuffix"),
+            "NOT-A-REAL-VALUE-fixture-one",
+            redactor.Redact("prefixNOT-A-REAL-VALUE-fixture-onesuffix"),
             StringComparison.Ordinal);
     }
 }
