@@ -84,6 +84,14 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for which orders are counted as holding stock, and which quietly are
+  not.** Every untested path here was one that excludes something, and each
+  changes the figure a representative acts on: committed stock that no listed
+  order explains. A shipped order no longer holds anything, a quote is not a
+  commitment, and an order in a state nobody recognises is excluded rather than
+  counted — the safe direction, and the silent one, because an account whose
+  states have drifted looks exactly like an account that is fine.
+
 - **Tests for telling an answer from a refusal, and a whole one from part of**
   **one.** The server reports most failures inside the payload rather than by
   failing the call, so a caller watching only for an exception reads "record not
