@@ -98,6 +98,27 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for keeping a secret out of the one place that keeps things forever.**
+  The audit trail records what a person typed, and a person can type anything —
+  including a password pasted into the wrong window. Once it lands there it is
+  in a durable store, in a backup, and in front of whoever reviews the trail.
+  What existed ran through a live server, covering the happy path and not the
+  shapes that make redaction hard: a secret sitting inside a longer one, the
+  password inside a connection string, and the case-sensitivity that stops
+  ordinary words being replaced.
+
+- **Tests for a refusal that arrives inside a successful call.** The MCP server
+  reports "write operations are disabled" in the body rather than by failing,
+  so a caller watching only for an exception would read it as a completed
+  write — then read the record back, find its shape unchanged, and report a
+  successful no-op.
+
+- **Tests for making room for the audit trail.** It runs before anything is
+  serving, and the rule is that it must never throw: the trail is the one part
+  of the deployment that is explicitly optional, and refusing to start because
+  it could not be created would take the whole thing down for the piece that
+  was allowed to be missing.
+
 - **Tests for the copy button, whose failure path had none.** It is the escape
   hatch on the setup panel — the panel exists because four variables and one
   command are where most people stop, and copying them out is its whole point.

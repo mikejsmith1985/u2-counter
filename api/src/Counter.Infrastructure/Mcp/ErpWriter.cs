@@ -165,11 +165,31 @@ public sealed class ErpWriter(
             arguments.ToDictionary(pair => pair.Key, pair => pair.Value),
             cancellationToken: budget.Token);
 
-        // The server reports a refusal in the payload rather than by failing, so
-        // a caller that only checked for an exception would treat "write
-        // operations disabled" as a completed write.
-        System.Text.Json.JsonElement payload = ErpResponse.PayloadFrom(result);
+        EnsureWritten(ErpResponse.PayloadFrom(result));
+    }
 
+    /// <summary>
+    /// Stop unless the payload actually says the change was made.
+    /// </summary>
+    /// <param name="payload">What the server answered with.</param>
+    /// <exception cref="ErpWriteRefusedException">If it refused, in either way.</exception>
+    /// <remarks>
+    /// The server reports a refusal inside the payload rather than by failing
+    /// the call, so a caller that only watched for an exception would read
+    /// "write operations disabled" as a completed write -- and then go on to
+    /// read the record back and report, correctly, that nothing had changed
+    /// shape. A refusal dressed as a successful no-op.
+    ///
+    /// The second case is subtler. This tool asks for confirmation unless it is
+    /// told the caller has already confirmed. Getting that answer means the
+    /// argument was not sent, so nothing was written and the call has to fail
+    /// rather than be retried blindly.
+    ///
+    /// Internal so the unit suite can reach it. Every other route to this line
+    /// runs through a live MCP server, which would be testing the server.
+    /// </remarks>
+    internal static void EnsureWritten(System.Text.Json.JsonElement payload)
+    {
         if (payload.TryGetProperty("error", out System.Text.Json.JsonElement error))
         {
             throw new ErpWriteRefusedException(

@@ -1,5 +1,6 @@
 namespace Counter.UnitTests.Mcp;
 
+using System.Text.Json;
 using Counter.Infrastructure.Mcp;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -215,5 +216,61 @@ public sealed class WriteRefusalTests
         string record = "LKW" + ValueMark + "GRE" + AttributeMark + "16" + ValueMark + "16";
 
         Assert.True(Changed(record, record).IsAlignmentPreserved);
+    }
+
+    /// <summary>Parse a JSON literal into a server answer.</summary>
+    /// <param name="json">What the server said.</param>
+    /// <returns>The parsed payload.</returns>
+    private static JsonElement Answer(string json) => JsonDocument.Parse(json).RootElement;
+
+    [Fact]
+    public void A_refusal_inside_a_successful_call_is_still_a_refusal()
+    {
+        // The call succeeded. Only the body says the write did not happen, and a
+        // caller watching for an exception would go on to read the record back,
+        // find it unchanged in shape, and report a successful no-op.
+        ErpWriteRefusedException refused = Assert.Throws<ErpWriteRefusedException>(() =>
+            ErpWriter.EnsureWritten(Answer("""{"error":"Write operations are disabled."}""")));
+
+        Assert.Contains("disabled", refused.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void A_refusal_with_no_message_still_fails_rather_than_passing()
+    {
+        // A malformed refusal is still a refusal. Reading the missing message as
+        // "no error" would turn the least informative failure into a success.
+        ErpWriteRefusedException refused = Assert.Throws<ErpWriteRefusedException>(() =>
+            ErpWriter.EnsureWritten(Answer("""{"error":null}""")));
+
+        Assert.False(string.IsNullOrWhiteSpace(refused.Message));
+    }
+
+    [Fact]
+    public void Being_asked_to_confirm_means_nothing_was_written()
+    {
+        // The subtle one. This tool sends its confirmation with the call, so
+        // being asked for it means the argument did not arrive -- the write did
+        // not happen, and retrying blindly would not fix why.
+        ErpWriteRefusedException refused = Assert.Throws<ErpWriteRefusedException>(() =>
+            ErpWriter.EnsureWritten(Answer("""{"status":"confirmation_required"}""")));
+
+        Assert.Contains("Nothing was written", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_status_that_is_not_a_request_to_confirm_is_allowed_through()
+    {
+        // Only that one status means the write did not happen. Treating every
+        // status as a refusal would fail writes that succeeded.
+        ErpWriter.EnsureWritten(Answer("""{"status":"ok"}"""));
+    }
+
+    [Fact]
+    public void A_payload_saying_nothing_about_failure_is_a_write_that_happened()
+    {
+        // The ordinary case. The alignment check that follows is what actually
+        // proves the record is right; this only proves it was written at all.
+        ErpWriter.EnsureWritten(Answer("""{"id":"AUR","fields":{"1":"AURORA"}}"""));
     }
 }
