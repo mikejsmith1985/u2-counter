@@ -84,6 +84,15 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for telling an answer from a refusal, and a whole one from part of**
+  **one.** The server reports most failures inside the payload rather than by
+  failing the call, so a caller watching only for an exception reads "record not
+  found" as a record. The completeness flag matters more: absent means complete,
+  and only because the server states incompleteness explicitly when it applies.
+  Reading that backwards in one direction marks every answer partial, which is
+  annoying. In the other direction a truncated read of which branches hold a
+  part becomes "no other branch has it", and somebody is sent to the wrong one.
+
 - **Tests for rebuilding a record from what the server returns.** The MCP server
   hands back fields as JSON and this puts the separators back, which makes it a
   boundary where structure is reconstructed and therefore one where structure
