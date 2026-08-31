@@ -92,6 +92,46 @@ async function availability(partNumber) {
   return response.json();
 }
 
+/**
+ * What the application itself quotes one customer for one part.
+ *
+ * The customer travels as a query parameter, which is how the part screen
+ * asks. Selecting one on the session is a separate thing and does not change
+ * this answer -- a mistake worth writing down, because reading list price back
+ * and concluding contract pricing was broken cost twenty minutes.
+ *
+ * The assistant reaches the same figures through its own tools, so agreeing
+ * with this is evidence rather than two copies of one mistake.
+ *
+ * @param {string} partNumber The part.
+ * @param {string} account The customer account.
+ * @returns {Promise<object>} The pricing the screen would show.
+ */
+async function priceFor(partNumber, account) {
+  const response = await fetch(
+    `${API}/parts/${encodeURIComponent(partNumber)}/availability` +
+      `?customerAccount=${encodeURIComponent(account)}`,
+    { signal: AbortSignal.timeout(60_000) },
+  );
+
+  if (!response.ok) {
+    throw new Error(`availability for ${account} returned ${response.status}`);
+  }
+
+  return (await response.json()).pricing;
+}
+
+/** Every customer account the answer mentions. */
+function accountsNamed(text) {
+  return [...new Set(text.match(/\bC-\d{5}\b/g) ?? [])];
+}
+
+/** Every money figure the answer states. */
+function moneyIn(text) {
+  return (text.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) ?? [])
+    .map((amount) => Number(amount.slice(1).replace(/,/g, "")));
+}
+
 /** Every part number the answer mentions. */
 function partsNamed(text) {
   return [...new Set(text.match(/\b[A-Z]-[A-Z]{2,4}\d{4,5}\b/g) ?? [])];
@@ -283,6 +323,80 @@ const CASES = [
 
       if (!/LINE\.|multi|many values/i.test(result.answer)) {
         problems.push("did not describe the multi-valued line fields");
+      }
+
+      return problems;
+    },
+  },
+  {
+    name: "a price it quotes is the price the screen would show",
+    question:
+      "What does account C-10002 pay for E-BRK00008, and how does that compare to list?",
+    async check(result) {
+      const problems = [];
+      const stated = moneyIn(result.answer);
+
+      if (stated.length === 0) {
+        problems.push("quoted no price at all");
+        return problems;
+      }
+
+      let quoted;
+      try {
+        quoted = await priceFor("E-BRK00008", "C-10002");
+      } catch (error) {
+        return [`could not read the price to check against: ${error.message}`];
+      }
+
+      // The net price is the number that matters -- it is what somebody
+      // repeats to a customer on the phone.
+      if (!stated.includes(quoted.netPrice)) {
+        problems.push(
+          `quoted ${stated.join(", ")} but the screen shows a net price of ${quoted.netPrice}`,
+        );
+      }
+
+      // Every other figure should be one the screen also holds. This is what
+      // catches a plausible discount worked out rather than read.
+      const real = new Set([quoted.netPrice, quoted.listPrice]);
+
+      for (const amount of stated) {
+        if (!real.has(amount)) {
+          problems.push(`stated $${amount}, which is neither the net nor the list price`);
+        }
+      }
+
+      return problems;
+    },
+  },
+  {
+    name: "cheapest across customers is answered, not deflected",
+    question: "Which customers get the best price on E-BRK00008?",
+    async check(result) {
+      const problems = [];
+
+      // The failure this pins was found by hand: asked exactly this, the
+      // assistant said it could not look pricing up, on a deployment whose
+      // part screen was showing a contract price at that moment. A tool it
+      // has and does not reach for is indistinguishable, to the person
+      // asking, from a feature that does not exist.
+      if (!result.steps.some((step) => /price/i.test(step.tool))) {
+        problems.push(
+          `read no pricing tool; called ${result.steps.map((s) => s.tool).join(", ") || "nothing"}`,
+        );
+      }
+
+      if (/cannot|can.t|unable|no (?:way|tool|access)/i.test(result.answer)) {
+        problems.push("said it could not answer a question it has a tool for");
+      }
+
+      // An answer naming an account should name a real one.
+      for (const account of accountsNamed(result.answer)) {
+        try {
+          await priceFor("E-BRK00008", account);
+        } catch {
+          problems.push(`named ${account}, which the customer file does not hold`);
+        }
       }
 
       return problems;

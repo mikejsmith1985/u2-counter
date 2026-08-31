@@ -84,6 +84,26 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for the two guards that protect real things and had none.** The daily
+  spend ceiling, which is what stands between a loop and a personal API key,
+  and the write path's refusal of a value carrying a separator. Both were at
+  zero coverage. The ceiling now takes its clock as an argument, so the
+  roll-over can be exercised without waiting for midnight — it is the part most
+  worth testing and was the only part untestable: a roll-over that never fires
+  switches the assistant off for good after one busy day, which looks exactly
+  like the limit working.
+
+- **Tests for contract pricing's parallel fields.** A PRICING record holds the
+  multipliers, start dates and end dates as three lists read by position.
+  Pairing a multiplier with another agreement's dates would apply a discount
+  for a period nobody agreed to, and nothing about the resulting record is
+  malformed.
+
+- **Answer checks for pricing.** The assistant once said it could not look up
+  pricing while the screen beside it showed a contract price. Two cases now
+  check that it reaches for the tool and that the figure it quotes is the one
+  the part screen would show.
+
 - **An evaluation harness for the assistant's answers.** Every existing test
   asks whether a request succeeded, and a wrong answer succeeds. Each case
   checks what was said against what the API independently reports, so

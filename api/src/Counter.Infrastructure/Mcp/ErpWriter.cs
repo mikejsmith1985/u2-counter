@@ -1,4 +1,4 @@
-namespace Counter.Infrastructure.Mcp;
+﻿namespace Counter.Infrastructure.Mcp;
 
 using Counter.Infrastructure.MultiValue;
 using Microsoft.Extensions.Logging;
@@ -194,8 +194,12 @@ public sealed class ErpWriter(
     /// The shape that has to survive a write. Two records can both be well formed
     /// while one has quietly moved a quantity onto a different branch, and this is
     /// where the difference is visible.
+    ///
+    /// Internal rather than private so the unit suite can read it directly.
+    /// It is the check the whole write path exists to perform, and reaching it
+    /// through a running MCP server would test the server instead.
     /// </remarks>
-    private static IReadOnlyList<int> FieldLengths(string raw) =>
+    internal static IReadOnlyList<int> FieldLengths(string raw) =>
         raw.Length == 0
             ? []
             : [.. raw.Split(MultiValueRecord.AttributeMark)
