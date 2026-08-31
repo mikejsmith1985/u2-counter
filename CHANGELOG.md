@@ -84,6 +84,24 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Browser coverage for the assistant panel, with every reply stubbed.** It had
+  none, because driving it for real costs money on a personal key and a suite
+  nobody can afford to run is a suite nobody runs. What the panel does with an
+  answer is a different question from whether the answer is right — the second
+  is checked against the database by the evaluation harness — so these cover the
+  half evaluation cannot see: that the working-out is shown, that the record it
+  read is named so the answer can be checked by hand, and that each refusal
+  reads as an explanation. The refusal states are the ones a visitor is most
+  likely to meet and the ones nothing else touched, because seeing them for real
+  means exhausting a budget first.
+
+- **Tests for the four ways the assistant declines before spending anything.**
+  They are four rather than one on purpose: "come back tomorrow", "you have
+  asked a lot", "this was never switched on" and "you did not type anything"
+  want four different replies, and collapsing them leaves somebody waiting for a
+  limit that will never lift. Both sides of the allowance boundary are pinned,
+  since an off-by-one there takes a question away from every visitor silently.
+
 - **The two lists of tools now have to agree.** The definitions handed to the
   assistant and the switch that runs a call by name are separate, and nothing
   made them match. A tool declared and not dispatched is worse than a missing
