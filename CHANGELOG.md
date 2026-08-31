@@ -8,6 +8,20 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **A test that passed alone and failed in company.** The activity attribution
+  test signs in as two personas and asserts a row was recorded for each, but
+  the helper it used returned as soon as *any* row appeared. Recording is
+  durable and happens after the response, so under the load of a full suite the
+  second write was still in flight and the assertion failed. A test that fails
+  only in company is worse than one that fails always: it teaches whoever sees
+  the red to run it again rather than to read it. The wait now matches what is
+  being asserted.
+
+- **An assertion that could not see what it was looking for.** "One request
+  produces exactly one row" read as soon as the first row landed, so a
+  duplicate still in flight would have passed the test that exists to catch
+  double-counting. It now waits for the count to stop moving.
+
 - **The assistant did arithmetic, and got it wrong.** Asked how many units of
   a part were free to sell in total, it listed six branches with the right
   figure against each and gave a total twenty units too high. The tool handed
@@ -83,6 +97,19 @@ source of truth for what changed (Article VI). Format follows
   paragraph, and a reference in running text is read rather than tapped.
 
 ### Added
+
+- **Tests for deleting a record, which had none.** The only destructive
+  operation in the store, and the one where being wrong cannot be undone by
+  writing the right value afterwards. The refusals matter more than the
+  deletion: a delete that runs when writes were never permitted is the failure
+  the two-switch design exists to prevent, and a dictionary deleted by accident
+  takes with it the description of what every field in that file means.
+
+- **Tests for LISTFILES**, which is step one of the only path open to somebody
+  pointing this at an account they have never seen — and so the command most
+  likely to be the first impression the whole thing makes. It lists data files
+  and not their dictionaries, and reads no records, which is what stopped a
+  stranger's first command failing on an error about an empty file name.
 
 - **The two remaining tool results the model reads now have tests.** What a
   tool hands over is what the model believes, and the one wrong answer this

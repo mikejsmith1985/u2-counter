@@ -230,3 +230,54 @@ class TestLikePatterns:
             "IDL-4SQBOX"
         ]
         assert run_query(store, 'SELECT PRODUCT WITH F2 = "Idea"').record_ids == []
+
+class TestFindingOutWhatIsHere:
+    """LISTFILES, which is the first thing a stranger runs.
+
+    Someone pointing this server at an account they have never seen has no
+    file names to ask about yet, so this is step one of the only path they
+    can take. It had no test, and it is the command most likely to be the
+    first impression the whole thing makes.
+    """
+
+    def test_it_names_the_data_files(self, store: MultiValueStore) -> None:
+        """The answer to "what is in this account?"."""
+        result = run_query(store, "LISTFILES")
+
+        assert sorted(result.record_ids) == ["INVENTORY", "PRODUCT"]
+
+    def test_dictionaries_are_not_listed_as_files_of_their_own(
+        self, store: MultiValueStore
+    ) -> None:
+        """A dictionary is the other half of the file it describes.
+
+        Universe lists them the same way. Showing DICT.PRODUCT beside PRODUCT
+        doubles the apparent size of the account and invites somebody to read
+        a dictionary expecting data.
+        """
+        store.write("DICT.PRODUCT", "DESCRIPTION", ["D", "1", "Description", "20T", "S"])
+
+        result = run_query(store, "LISTFILES")
+
+        assert "DICT.PRODUCT" not in result.record_ids
+        assert "PRODUCT" in result.record_ids
+
+    def test_it_reads_no_records(self, store: MultiValueStore) -> None:
+        """Names, not records.
+
+        Without this the formatter tried to read each file name as a record
+        key out of a file called "" -- a stranger's first command failing on
+        an error about an empty file name.
+        """
+        result = run_query(store, "LISTFILES")
+
+        assert result.file_name == ""
+
+    def test_the_names_are_sorted_so_the_listing_reads_the_same_twice(
+        self, store: MultiValueStore
+    ) -> None:
+        """An account listing that reorders itself is hard to trust."""
+        assert run_query(store, "LISTFILES").record_ids == sorted(
+            run_query(store, "LISTFILES").record_ids
+        )
+

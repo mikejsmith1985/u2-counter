@@ -267,3 +267,75 @@ class TestSeparatorsInAValue:
         handle.update_value(part, position=2, index=0, value="777")
 
         assert parse_record(handle.read(part))[1][0] == "777"
+
+class TestDeletingARecord:
+    """Removing a record, which nothing had ever exercised.
+
+    The only destructive operation on the driver, and the one where being
+    wrong is not recoverable by writing the right value afterwards. It was
+    the single path here with no test at all.
+
+    The refusals matter more than the deletion. A delete that runs when
+    writes were never permitted is the failure this module's two-switch
+    design exists to prevent, and a dictionary deleted by accident takes the
+    description of a file with it -- every later read of that file then has
+    no idea what its fields mean.
+    """
+
+    def test_a_delete_is_refused_when_writes_are_not_permitted(self, refusing):
+        """Selecting the driver is not permission to destroy anything."""
+        record_file = writable_driver.File("BRANCH", session=refusing)
+
+        with pytest.raises(UOError, match="read-only"):
+            record_file.delete("AUR")
+
+    def test_the_record_survives_a_refused_delete(self, refusing):
+        """The refusal has to happen before the store is touched."""
+        record_file = writable_driver.File("BRANCH", session=refusing)
+        key = sorted(refusing.store.keys("BRANCH"))[0]
+
+        with pytest.raises(UOError):
+            record_file.delete(key)
+
+        assert record_file.read(key), "the record was removed by a refused delete"
+
+    def test_a_dictionary_cannot_be_deleted(self, writable):
+        """A dictionary describes a file's shape; removing it is a schema change."""
+        dictionary = writable_driver.File("DICT.BRANCH", session=writable)
+
+        with pytest.raises(UOError, match="dictionary"):
+            dictionary.delete("NAME")
+
+    def test_a_permitted_delete_removes_the_record(self, writable):
+        """The operation itself, so the refusals above mean something."""
+        record_file = writable_driver.File("BRANCH", session=writable)
+        key = sorted(writable.store.keys("BRANCH"))[0]
+
+        record_file.delete(key)
+
+        with pytest.raises(Exception):
+            record_file.read(key)
+
+    def test_deleting_a_record_that_is_not_there_is_reported_as_a_driver_error(
+        self, writable
+    ):
+        """Not as whatever the store happened to raise.
+
+        A caller handles UOError. A store-level exception reaching it would
+        pass straight through the code that means to report the failure.
+        """
+        record_file = writable_driver.File("BRANCH", session=writable)
+
+        with pytest.raises(UOError):
+            record_file.delete("NO-SUCH-BRANCH")
+
+    def test_deleting_one_record_leaves_its_neighbours_alone(self, writable):
+        """The file is a set of records, not a list with positions."""
+        record_file = writable_driver.File("BRANCH", session=writable)
+        keys = sorted(writable.store.keys("BRANCH"))
+
+        record_file.delete(keys[0])
+
+        for surviving in keys[1:]:
+            assert record_file.read(surviving), f"{surviving} went with {keys[0]}"
+

@@ -1,4 +1,4 @@
-namespace Counter.IntegrationTests;
+﻿namespace Counter.IntegrationTests;
 
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -54,7 +54,7 @@ public sealed class ActivityAttributionTests(CounterFixture fixture)
             await browser.GetAsync($"/api/v1/parts?q={marker}-{subject}");
         }
 
-        IReadOnlyList<ActivityRow> rows = await ReadRowsAsync(marker);
+        IReadOnlyList<ActivityRow> rows = await ReadRowsAsync(marker, subjects.Length);
 
         foreach (string subject in subjects)
         {
@@ -107,7 +107,7 @@ public sealed class ActivityAttributionTests(CounterFixture fixture)
         using HttpClient browser = NewBrowser();
         await browser.GetAsync($"/api/v1/parts?q={marker}");
 
-        IReadOnlyList<ActivityRow> rows = await ReadRowsAsync(marker);
+        IReadOnlyList<ActivityRow> rows = await SettledRowsAsync(marker);
 
         // Two rows would double-count in any report built on this table; none
         // would mean the request left no trace at all.
@@ -155,14 +155,55 @@ public sealed class ActivityAttributionTests(CounterFixture fixture)
         });
 
     /// <summary>
-    /// Read the durable rows whose target carries a marker.
+    /// Wait for the rows an action produced, then for the count to stop moving.
     /// </summary>
+    /// <param name="marker">The term unique to this run.</param>
+    /// <returns>The rows, once two reads in a row agree on how many there are.</returns>
     /// <remarks>
-    /// The audit write does not block the response, so a read immediately after
-    /// one can legitimately find nothing yet. Polling to a deadline distinguishes
-    /// "not written yet" from "not written", which a single read cannot.
+    /// For asserting that exactly one row was written. Reading as soon as the
+    /// first row lands cannot see a second one still in flight, so the
+    /// assertion that a request is not double-counted would pass in precisely
+    /// the case it exists to catch.
     /// </remarks>
-    private async Task<IReadOnlyList<ActivityRow>> ReadRowsAsync(string marker)
+    private async Task<IReadOnlyList<ActivityRow>> SettledRowsAsync(string marker)
+    {
+        IReadOnlyList<ActivityRow> rows = await ReadRowsAsync(marker);
+
+        while (true)
+        {
+            await Task.Delay(250);
+
+            IReadOnlyList<ActivityRow> again = await ReadRowsAsync(marker);
+
+            if (again.Count == rows.Count)
+            {
+                return again;
+            }
+
+            rows = again;
+        }
+    }
+
+    /// <summary>
+    /// Wait for the rows one action produced, and for all of them.
+    /// </summary>
+    /// <param name="marker">The term unique to this run.</param>
+    /// <param name="atLeast">How many rows the caller is going to assert about.</param>
+    /// <returns>The rows, or whatever had arrived by the deadline.</returns>
+    /// <remarks>
+    /// The recording is durable and happens after the response, so a row
+    /// arrives shortly after the request that caused it. This waited for the
+    /// first row and returned.
+    ///
+    /// That is enough when one action is being checked and wrong when two are.
+    /// The persona test signs in twice and then asserts a row exists for each,
+    /// so returning as soon as either had landed made it fail whenever the
+    /// second write was still in flight -- which is under load, which is in the
+    /// full suite and never on its own. A test that passes alone and fails in
+    /// company is worse than one that fails always: it teaches whoever sees the
+    /// red to run it again rather than to read it.
+    /// </remarks>
+    private async Task<IReadOnlyList<ActivityRow>> ReadRowsAsync(string marker, int atLeast = 1)
     {
         IDbContextFactory<CounterContext> contexts = _fixture.Application.Services
             .GetRequiredService<IDbContextFactory<CounterContext>>();
@@ -177,7 +218,9 @@ public sealed class ActivityAttributionTests(CounterFixture fixture)
                 .Where(row => row.TargetKey.Contains(marker))
                 .ToListAsync();
 
-            if (rows.Count > 0 || DateTime.UtcNow > deadline)
+            // Returned short only at the deadline, so a genuine absence still
+            // fails the assertion that wanted the row rather than hanging.
+            if (rows.Count >= atLeast || DateTime.UtcNow > deadline)
             {
                 return rows;
             }
