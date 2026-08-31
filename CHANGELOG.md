@@ -98,6 +98,22 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for reading an unfamiliar account, which had none in the .NET suite.**
+  These routes are the backend of the claim that most distinguishes this from a
+  hardcoded screen: the files, the fields and the records come from the
+  account's own dictionary rather than from anything written here. The browser
+  suite drives them end to end, which is worth more for the screen and less for
+  what a filter turns into — and for what happens to a value carrying the one
+  character that could end a quoted string early. The selection is built by
+  joining strings, which is the shape that becomes an injection everywhere else.
+
+- **Tests for telling a failure apart from an answer.** The exception filter
+  carries the single most important distinction in the application: a failure to
+  reach the data must never arrive as an empty success, because an empty success
+  is indistinguishable from "there is no stock". Every wrong answer it could
+  give looks fine — a timeout reported as 404 reads as "no such part", and a 404
+  reported as 502 sends somebody to check a database that is working perfectly.
+
 - **Tests for keeping a secret out of the one place that keeps things forever.**
   The audit trail records what a person typed, and a person can type anything —
   including a password pasted into the wrong window. Once it lands there it is
