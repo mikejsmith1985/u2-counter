@@ -84,6 +84,30 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **The two lists of tools now have to agree.** The definitions handed to the
+  assistant and the switch that runs a call by name are separate, and nothing
+  made them match. A tool declared and not dispatched is worse than a missing
+  feature: the model reads the description, decides it is the right tool, calls
+  it, and is told the call failed — then usually apologises and answers from
+  nothing. A tool dispatched and not declared is the quieter half, and is how
+  "it cannot look up pricing" happened on a deployment that could. Neither is a
+  compile error and neither shows up in a request that succeeds.
+
+- **Price comparison and the promised-stock examples have tests.** Both were at
+  zero. The comparison is the code behind "which customer gets the best price",
+  which had to be answered by class rather than by customer — naming one
+  customer would be true and useless, since the next account in the same class
+  pays the same. The examples panel makes a claim about honesty: it must offer
+  only parts genuinely holding committed stock, name the branch holding the
+  most of it, and offer nothing at all when nothing is committed anywhere,
+  rather than reaching for something to show.
+
+- **A fake ERP that stores records the way the real one does.** Records go into
+  it as marked strings, so a test using it exercises the parsing as well as the
+  logic above. A fake handing back ready-made objects would step over the part
+  most likely to be wrong — reading a MultiValue record is where a quantity
+  ends up against the wrong branch.
+
 - **Tests for the two guards that protect real things and had none.** The daily
   spend ceiling, which is what stands between a loop and a personal API key,
   and the write path's refusal of a value carrying a separator. Both were at
