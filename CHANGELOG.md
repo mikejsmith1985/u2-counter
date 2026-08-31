@@ -84,6 +84,21 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **The two remaining tool results the model reads now have tests.** What a
+  tool hands over is what the model believes, and the one wrong answer this
+  project has shipped came from exactly there. The price comparison is checked
+  for naming the cheapest class as the answer rather than merely listing it
+  first, for stating each difference so the model is not left to subtract, and
+  for saying out loud when the scan covered only part of the account file —
+  "cheapest" over a subset is a different claim and reads the same. The query
+  result is checked for labelling every field from the dictionary, which is
+  what stopped the model counting positions across separators and reading
+  ON.ORDER as COMMITTED.
+
+- **Tests for reading a file's dictionary.** Fields come back in position order
+  rather than the order the server happened to send them, because a screen
+  listing a record's fields out of order is describing a different record.
+
 - **Tests for which orders are counted as holding stock, and which quietly are
   not.** Every untested path here was one that excludes something, and each
   changes the figure a representative acts on: committed stock that no listed

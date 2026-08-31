@@ -158,4 +158,112 @@ public sealed class RecordRebuildingTests
         Assert.Empty(ErpRecords.RecordIdsFrom(Fields("""{"count":0}""")));
         Assert.Empty(ErpRecords.RecordIdsFrom(Fields("""{"record_ids":"AUR"}""")));
     }
+
+    [Fact]
+    public void Dictionary_fields_come_back_in_position_order()
+    {
+        // The order the server happened to return them is not the record's
+        // order, and a screen listing a record's fields out of order is
+        // describing a different record.
+        IReadOnlyList<Counter.Domain.Catalogue.DictionaryField> fields =
+            ErpRecords.DictionaryFieldsFrom(Fields("""
+            {"dictionary_items":[
+              {"name":"COMMITTED","field_number":"3","single_multi":"M"},
+              {"name":"BRANCH","field_number":"1","single_multi":"M"},
+              {"name":"ON.HAND","field_number":"2","single_multi":"M"}
+            ]}
+            """));
+
+        Assert.Equal(["BRANCH", "ON.HAND", "COMMITTED"], fields.Select(field => field.Name));
+    }
+
+    [Fact]
+    public void A_multivalued_field_is_marked_as_one()
+    {
+        // Whether a field holds many values is the difference between a branch
+        // and a list of branches, and it is what tells a reader that position
+        // matters at all.
+        IReadOnlyList<Counter.Domain.Catalogue.DictionaryField> fields =
+            ErpRecords.DictionaryFieldsFrom(Fields("""
+            {"dictionary_items":[
+              {"name":"BRANCH","field_number":"1","single_multi":"M"},
+              {"name":"DESCRIPTION","field_number":"2","single_multi":"S"}
+            ]}
+            """));
+
+        Assert.True(fields[0].IsMultiValued);
+        Assert.False(fields[1].IsMultiValued);
+    }
+
+    [Fact]
+    public void A_field_with_no_heading_is_headed_by_its_own_name()
+    {
+        // A blank column heading on a screen is worse than a technical one.
+        IReadOnlyList<Counter.Domain.Catalogue.DictionaryField> fields =
+            ErpRecords.DictionaryFieldsFrom(Fields("""
+            {"dictionary_items":[{"name":"ON.HAND","field_number":"2","heading":""}]}
+            """));
+
+        Assert.Equal("ON.HAND", fields[0].Heading);
+    }
+
+    [Fact]
+    public void A_dictionary_item_with_no_name_is_dropped()
+    {
+        // A field nobody can refer to cannot be used to read a record, and
+        // showing it as an empty row invites somebody to count past it.
+        IReadOnlyList<Counter.Domain.Catalogue.DictionaryField> fields =
+            ErpRecords.DictionaryFieldsFrom(Fields("""
+            {"dictionary_items":[
+              {"name":"","field_number":"1"},
+              {"name":"BRANCH","field_number":"2"}
+            ]}
+            """));
+
+        Assert.Single(fields);
+        Assert.Equal("BRANCH", fields[0].Name);
+    }
+
+    [Fact]
+    public void An_item_with_no_readable_position_sorts_ahead_rather_than_being_dropped()
+    {
+        // Real dictionaries carry items that are not fields at all -- the key
+        // definition among them. Keeping them visible is right; letting them
+        // claim a field position is not, so they take -1 and sort clear of the
+        // record's own fields.
+        IReadOnlyList<Counter.Domain.Catalogue.DictionaryField> fields =
+            ErpRecords.DictionaryFieldsFrom(Fields("""
+            {"dictionary_items":[
+              {"name":"BRANCH","field_number":"1"},
+              {"name":"@ID","field_number":""}
+            ]}
+            """));
+
+        Assert.Equal("@ID", fields[0].Name);
+        Assert.Equal(-1, fields[0].Position);
+    }
+
+    [Fact]
+    public void A_payload_with_no_dictionary_is_no_fields_rather_than_a_failure()
+    {
+        Assert.Empty(ErpRecords.DictionaryFieldsFrom(Fields("""{"error":"no such file"}""")));
+    }
+
+    [Fact]
+    public void File_names_come_back_sorted_so_a_listing_reads_the_same_twice()
+    {
+        IReadOnlyList<string> files = ErpRecords.FileNamesFrom(
+            Fields("""{"files":["PRODUCT","BRANCH","INVENTORY"]}"""));
+
+        Assert.Equal(["BRANCH", "INVENTORY", "PRODUCT"], files);
+    }
+
+    [Fact]
+    public void A_blank_file_name_is_not_offered_as_a_file()
+    {
+        IReadOnlyList<string> files = ErpRecords.FileNamesFrom(
+            Fields("""{"files":["BRANCH","","PRODUCT"]}"""));
+
+        Assert.Equal(["BRANCH", "PRODUCT"], files);
+    }
 }

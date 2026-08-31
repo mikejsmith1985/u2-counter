@@ -1,4 +1,4 @@
-namespace Counter.Infrastructure.Ai;
+﻿namespace Counter.Infrastructure.Ai;
 
 using System.Diagnostics;
 using System.Text;
@@ -484,38 +484,7 @@ public sealed class AskService(
         IReadOnlyList<Domain.Catalogue.DictionaryField> labels =
             await _erp.ListDictionaryAsync(fileName, cancellationToken);
 
-        StringBuilder text = new();
-        text.AppendLine($"{keys.Count} key(s): {string.Join(", ", keys)}");
-
-        foreach ((string key, string raw) in records)
-        {
-            text.AppendLine();
-            text.AppendLine($"{key}:");
-
-            string[] fields = raw.Split('þ');
-
-            for (int position = 0; position < fields.Length; position++)
-            {
-                Domain.Catalogue.DictionaryField? label =
-                    labels.FirstOrDefault(field => field.Position == position + 1);
-
-                string name = label?.Name ?? $"field {position + 1}";
-                string[] values = fields[position].Split('ý');
-
-                text.AppendLine(
-                    values.Length > 1
-                        ? $"  {position + 1} {name}: {string.Join(", ", values)}"
-                        : $"  {position + 1} {name}: {fields[position]}");
-            }
-        }
-
-        text.AppendLine();
-        text.AppendLine(
-            "Values within a field are listed in position order, and position n of "
-                + "every multi-valued field describes the same thing. Read across "
-                + "fields at the same position; do not count separators.");
-
-        string result = text.ToString();
+        string result = DescribeRecords(keys, records, labels);
 
         return (
             result,
@@ -587,12 +556,107 @@ public sealed class AskService(
             return Failed(call, arguments, timer, $"No part called {partNumber}.");
         }
 
+        string result = DescribeSpread(spread);
+
+        return (
+            result,
+            new AskStep(
+                call.Name,
+                arguments,
+                "PRICE",
+                spread.PartNumber,
+                string.Empty,
+                $"Compared {spread.Classes.Count} price class(es) across {spread.AccountsScanned} account(s)",
+                result,
+                (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>Put selected records into the words the model reads.</summary>
+    /// <param name="keys">The keys the selection returned.</param>
+    /// <param name="records">Those records, in their stored form.</param>
+    /// <param name="labels">The file's dictionary, for naming each field.</param>
+    /// <returns>The tool result.</returns>
+    /// <remarks>
+    /// The formatter with the worst record in this project. It used to render
+    /// each record as `a|b;c|d;e`, which asks the model to count positions
+    /// across a run of separators -- the exact task this whole application
+    /// exists to say is dangerous. It got it wrong in the obvious way: asked
+    /// which parts had committed stock, it read field four, ON.ORDER, as field
+    /// three, COMMITTED, and reported three branches holding committed stock
+    /// that had none. It cited the record it had misread, which makes it worse
+    /// than a refusal.
+    ///
+    /// Naming each field from the dictionary removes the counting. Its own
+    /// function so a test can read what the model is handed without paying for
+    /// an answer.
+    /// </remarks>
+    internal static string DescribeRecords(
+        IReadOnlyList<string> keys,
+        IReadOnlyDictionary<string, string> records,
+        IReadOnlyList<Domain.Catalogue.DictionaryField> labels)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(labels);
+
+        StringBuilder text = new();
+        text.AppendLine($"{keys.Count} key(s): {string.Join(", ", keys)}");
+
+        foreach ((string key, string raw) in records)
+        {
+            text.AppendLine();
+            text.AppendLine($"{key}:");
+
+            string[] fields = raw.Split('þ');
+
+            for (int position = 0; position < fields.Length; position++)
+            {
+                Domain.Catalogue.DictionaryField? label =
+                    labels.FirstOrDefault(field => field.Position == position + 1);
+
+                string name = label?.Name ?? $"field {position + 1}";
+                string[] values = fields[position].Split('ý');
+
+                text.AppendLine(
+                    values.Length > 1
+                        ? $"  {position + 1} {name}: {string.Join(", ", values)}"
+                        : $"  {position + 1} {name}: {fields[position]}");
+            }
+        }
+
+        text.AppendLine();
+        text.AppendLine(
+            "Values within a field are listed in position order, and position n of "
+                + "every multi-valued field describes the same thing. Read across "
+                + "fields at the same position; do not count separators.");
+
+        return text.ToString();
+    }
+
+    /// <summary>Put a price comparison into the words the model reads.</summary>
+    /// <param name="spread">Every class that buys the part, cheapest first.</param>
+    /// <returns>The tool result.</returns>
+    /// <remarks>
+    /// Its own function so a unit test can read it without spending money on
+    /// the model, the same reason as DescribeAvailability -- and for the same
+    /// class of defect. What a tool hands over is what the model believes, and
+    /// a result that is merely ordered rather than answered leaves the model to
+    /// do the comparison the tool already did.
+    ///
+    /// The line about a partial scan is the one that matters most: "cheapest"
+    /// over a subset of the account file is a different claim from "cheapest",
+    /// and the two read identically once the answer reaches a person.
+    /// </remarks>
+    internal static string DescribeSpread(PriceSpread spread)
+    {
+        ArgumentNullException.ThrowIfNull(spread);
+
         StringBuilder text = new();
         text.Append($"{spread.PartNumber} {spread.Description}, category {spread.CategoryCode}, ");
         text.AppendLine($"list {spread.ListPrice:F2}.");
 
-        // Said out loud when the scan did not cover everything, because "cheapest"
-        // over a subset is a different claim from "cheapest" and reads the same.
+        // Said out loud when the scan did not cover everything, because
+        // "cheapest" over a subset is a different claim and reads the same.
         if (spread.AccountsScanned < spread.AccountsTotal)
         {
             text.AppendLine(
@@ -602,11 +666,11 @@ public sealed class AskService(
 
         // The answer first, named as the answer.
         //
-        // This used to print seven classes in price order and leave the reader to
-        // work out that the first one was the point. Ordered is not the same as
-        // answered: a reader scanning a wall of near-identical lines has to do
-        // the comparison the tool already did. The model has the same problem,
-        // and the same fix helps both.
+        // This used to print seven classes in price order and leave the reader
+        // to work out that the first one was the point. Ordered is not the same
+        // as answered: a reader scanning a wall of near-identical lines has to
+        // do the comparison the tool already did. The model has the same
+        // problem, and the same fix helps both.
         ClassPrice? cheapest = spread.Classes.FirstOrDefault();
 
         if (cheapest is not null)
@@ -630,19 +694,7 @@ public sealed class AskService(
             }
         }
 
-        string result = text.ToString();
-
-        return (
-            result,
-            new AskStep(
-                call.Name,
-                arguments,
-                "PRICE",
-                spread.PartNumber,
-                string.Empty,
-                $"Compared {spread.Classes.Count} price class(es) across {spread.AccountsScanned} account(s)",
-                result,
-                (int)timer.ElapsedMilliseconds));
+        return text.ToString();
     }
 
     /// <summary>One price class, said the way a person would say it.</summary>
