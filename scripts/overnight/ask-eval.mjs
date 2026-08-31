@@ -148,6 +148,18 @@ function numbersIn(text) {
  * A case checks the claim, not the wording. Anything that only inspects phrasing
  * would have passed the answer that read the wrong field.
  */
+/**
+ * A handful of accounts, enough to cover every price class in the data.
+ *
+ * Used to work out what figures an answer could legitimately contain. Read
+ * through the part screen, so the comparison is against what the application
+ * would show rather than against the assistant checking itself.
+ */
+const SAMPLE_ACCOUNTS = [
+  "C-10000", "C-10001", "C-10002", "C-10003", "C-10004",
+  "C-10005", "C-10006", "C-10007", "C-10008", "C-10009",
+];
+
 const CASES = [
   {
     name: "committed stock: every part and figure it names must be real",
@@ -348,21 +360,53 @@ const CASES = [
         return [`could not read the price to check against: ${error.message}`];
       }
 
-      // The net price is the number that matters -- it is what somebody
-      // repeats to a customer on the phone.
+      // The figure that matters, because it is the one somebody repeats to
+      // a customer on the phone.
       if (!stated.includes(quoted.netPrice)) {
         problems.push(
           `quoted ${stated.join(", ")} but the screen shows a net price of ${quoted.netPrice}`,
         );
       }
 
-      // Every other figure should be one the screen also holds. This is what
-      // catches a plausible discount worked out rather than read.
-      const real = new Set([quoted.netPrice, quoted.listPrice]);
+      // Everything else it says has to be derivable from the account too.
+      //
+      // This used to allow only the queried account's net and list, and
+      // failed a better answer than it asked for: told what one account
+      // pays, the assistant went on to say which class pays least and by
+      // how much. Every one of those figures was right. A check that fails
+      // correct work teaches you to stop reading the report, so it now
+      // builds what the data can support -- each class's price, read from
+      // the part screen rather than from the assistant -- and objects only
+      // to a figure that is in none of them.
+      const prices = new Set([quoted.listPrice, quoted.netPrice]);
+
+      for (const account of SAMPLE_ACCOUNTS) {
+        try {
+          prices.add((await priceFor("E-BRK00008", account)).netPrice);
+        } catch {
+          // An account that is not on file tells us nothing either way.
+        }
+      }
+
+      // A difference between two of them is a fair thing to state: "about
+      // forty-five dollars more than the cheapest" is the useful half of
+      // the answer.
+      const derivable = new Set(prices);
+      for (const one of prices) {
+        for (const other of prices) {
+          derivable.add(Math.round((one - other) * 100) / 100);
+        }
+      }
 
       for (const amount of stated) {
-        if (!real.has(amount)) {
-          problems.push(`stated $${amount}, which is neither the net nor the list price`);
+        const supported = [...derivable].some(
+          (real) => Math.abs(real - amount) < 1,
+        );
+
+        if (!supported) {
+          problems.push(
+            `stated $${amount}, which is no price on file and no difference between two`,
+          );
         }
       }
 

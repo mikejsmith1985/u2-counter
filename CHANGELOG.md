@@ -84,6 +84,15 @@ source of truth for what changed (Article VI). Format follows
 
 ### Added
 
+- **Tests for rebuilding a record from what the server returns.** The MCP server
+  hands back fields as JSON and this puts the separators back, which makes it a
+  boundary where structure is reconstructed and therefore one where structure
+  can quietly be lost. Two things depend on it being exact: the record view
+  shows the result to a person as the stored form, and the write path compares
+  field lengths before and after a change to prove nothing moved — so a rebuild
+  that dropped an empty field would compare against a record that never existed
+  and pass a write that should have failed.
+
 - **Browser coverage for the assistant panel, with every reply stubbed.** It had
   none, because driving it for real costs money on a personal key and a suite
   nobody can afford to run is a suite nobody runs. What the panel does with an
