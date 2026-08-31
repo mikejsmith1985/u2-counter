@@ -114,9 +114,14 @@ In four minutes it will show you, without being asked twice:
 ---
 
 Built over one weekend, starting from no prior knowledge of MultiValue, and
-worked on since. 84 browser journeys, 78 front-end unit tests, 273 unit and 111
+worked on since. 84 browser journeys, 78 front-end unit tests, 273 unit and 117
 integration tests on the API, 301 on the MultiValue store, 503 on the MCP
 server.
+
+Those came from running the suites rather than from memory, and they go out of
+date every time one grows — so the way to trust them is not to: `dotnet test`,
+`pytest`, `npx vitest run`, `npx cypress run`, each in its own directory. A
+number you can regenerate is worth more than one you have to believe.
 
 The interesting number is none of those. It is the ten defects in the MCP
 server, most of which were found by using the thing rather than by reading it —
