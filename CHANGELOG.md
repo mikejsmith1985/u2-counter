@@ -8,6 +8,31 @@ source of truth for what changed (Article VI). Format follows
 
 ### Fixed
 
+- **The assistant did arithmetic, and got it wrong.** Asked how many units of
+  a part were free to sell in total, it listed six branches with the right
+  figure against each and gave a total twenty units too high. The tool handed
+  it a list of branches and no total, so the only place the sum could be
+  worked out was in the model's head. The totals were already computed here —
+  the same ones the availability endpoint returns — so they are now stated.
+  An answer wrong only in its total is the hardest kind to catch by reading
+  it: everything supporting it checks out.
+
+- **One question allowance, shared by everybody.** The assistant permits twelve
+  questions per session because it runs on a personal API key. The count was
+  kept against the persona rather than the session, and every visitor who has
+  not chosen a persona is the same one — so it was a single bucket shared by
+  everyone using the deployment at once. Two people trying it together would
+  have spent each other's questions, and whoever asked the twelfth would have
+  switched the assistant off for the other with no way to get it back. It is
+  counted against the session key now, which is what the comment beside it
+  always claimed it did.
+
+- **A successful write erased its own proof.** Refreshing the table the moment
+  the write returned re-rendered the editor, so the report showing that every
+  parallel field still held the same number of values appeared and vanished.
+  That report is the entire reason the screen exists. The rows refresh when
+  the editor is closed instead.
+
 - **The explore panel rendered twice.** It was added as a drawer opened from the
   header and the original inline copy was never removed, so the empty screen
   carried both.
@@ -58,6 +83,17 @@ source of truth for what changed (Article VI). Format follows
   paragraph, and a reference in running text is read rather than tapped.
 
 ### Added
+
+- **An evaluation harness for the assistant's answers.** Every existing test
+  asks whether a request succeeded, and a wrong answer succeeds. Each case
+  checks what was said against what the API independently reports, so
+  "names a branch that really has committed stock" rather than "contains the
+  word committed". It found the arithmetic defect on its first run.
+
+- **Browser coverage for the write path.** It had none: the local stack ran
+  read-only, so the suite could not reach the editor, and the only write in
+  the application was exercised for the first time by a person clicking.
+  `run-dev-clean.ps1 -Writable` starts a stack that permits writing.
 
 - **A browser suite at phone size.** Four journeys at 390x844: nothing overflows
   on any screen, the tour docks rather than hanging off the edge, every control

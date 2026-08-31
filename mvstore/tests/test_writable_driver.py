@@ -20,7 +20,7 @@ import pytest
 from mvstore import writable_driver
 from mvstore.driver import UOError
 from mvstore.seed import generate
-from mvstore.store import AM, VM, MultiValueStore, parse_record
+from mvstore.store import AM, SM, VM, MultiValueStore, parse_record
 
 
 @pytest.fixture
@@ -195,3 +195,75 @@ class TestWritingAWholeRecord:
 
         with pytest.raises(UOError):
             handle.write("NEW-PART-2", ["a\nb"])
+
+
+class TestSeparatorsInAValue:
+    """A value may not carry a mark, and the attribute mark is the one that matters.
+
+    The guard checked the value mark and not the attribute mark, which is the
+    wrong one to miss. A value mark adds a value to a field; an attribute mark
+    splits the field in two. Writing one<AM>two into the first field of a
+    four-field record produced a five-field record, and every field after the
+    first then described something it was not.
+
+    It was not silent -- the alignment check noticed afterwards and the screen
+    said "written, but a field changed length". That is honest and far too late.
+    The record was already wrong, and every later read agreed with it.
+    """
+
+    def test_an_attribute_mark_is_refused(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        with pytest.raises(UOError, match="separator"):
+            handle.update_value(part, position=2, index=0, value="one" + AM + "two")
+
+    def test_a_value_mark_is_refused(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        with pytest.raises(UOError, match="separator"):
+            handle.update_value(part, position=2, index=0, value="one" + VM + "two")
+
+    def test_a_subvalue_mark_is_refused(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        with pytest.raises(UOError, match="separator"):
+            handle.update_value(part, position=2, index=0, value="one" + SM + "two")
+
+    def test_a_refusal_leaves_the_record_alone(self, writable):
+        # A refusal that had already written would be worse than no refusal at
+        # all: the caller is told it failed and the record says otherwise.
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        before = handle.read(part)
+
+        with pytest.raises(UOError):
+            handle.update_value(part, position=2, index=0, value="one" + AM + "two")
+
+        assert handle.read(part) == before
+
+    def test_the_field_count_cannot_change(self, writable):
+        # Stated as the property rather than the mechanism, because the
+        # mechanism is what was wrong: the check listed the marks it knew about
+        # and one was missing from the list.
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        before = len(parse_record(handle.read(part)))
+
+        for mark in (AM, VM, SM):
+            with pytest.raises(UOError):
+                handle.update_value(part, position=2, index=0, value="x" + mark + "y")
+
+        assert len(parse_record(handle.read(part))) == before
+
+    def test_an_ordinary_value_is_still_written(self, writable):
+        part = a_part(writable)
+        handle = writable_driver.File("INVENTORY", session=writable)
+
+        handle.update_value(part, position=2, index=0, value="777")
+
+        assert parse_record(handle.read(part))[1][0] == "777"

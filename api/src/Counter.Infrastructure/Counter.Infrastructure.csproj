@@ -17,6 +17,13 @@
     <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The unit suite reads the tool-result formatters directly. Cheaper
+         and far faster than asking the model, and it pins the wording that
+         a wrong answer turned on. -->
+    <InternalsVisibleTo Include="Counter.UnitTests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

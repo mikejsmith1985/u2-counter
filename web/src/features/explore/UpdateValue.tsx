@@ -30,10 +30,16 @@ interface Props {
   index: number;
   /** What is there now. */
   current: string;
-  /** Leave the editor. */
+  /**
+   * Leave the editor, and refresh the rows behind it.
+   *
+   * There was a second callback for the moment a write succeeded. Nothing
+   * could usefully be done with it: refreshing there re-rendered this
+   * component while its report was on screen, so the proof that no parallel
+   * field had moved appeared and vanished. The report is the whole point of
+   * the screen, and the table underneath can wait until it has been read.
+   */
   onClose: () => void;
-  /** Called after a change lands, so the table can re-read. */
-  onChanged: () => void;
 }
 
 export function UpdateValue({
@@ -43,7 +49,6 @@ export function UpdateValue({
   index,
   current,
   onClose,
-  onChanged,
 }: Props): React.JSX.Element | null {
   const [value, setValue] = useState(current);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -60,7 +65,6 @@ export function UpdateValue({
   const change = useMutation<RecordChange, Error, string>({
     mutationFn: (wanted: string) =>
       api.updateValue(file, recordId, field.position, index, wanted),
-    onSuccess: onChanged,
   });
 
   if (!status?.canWrite) {

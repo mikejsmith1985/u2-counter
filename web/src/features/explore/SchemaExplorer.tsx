@@ -271,17 +271,16 @@ export function SchemaExplorer(): React.JSX.Element {
               field={editing.field}
               index={editing.index}
               current={editing.current}
-              onClose={() => setEditing(null)}
-              onChanged={() => {
-                // Thrown away rather than re-set.
+              onClose={() => {
+                // The rows refresh when the editor closes, not the moment the
+                // write returns.
                 //
-                // This used to spread `applied` into a new object, which changes
-                // the object's identity and nothing else: the query key is built
-                // from its primitive fields, so the key was identical and React
-                // Query served the cached rows. A value could be changed
-                // successfully and the table would keep showing the old one --
-                // the worst possible outcome for a screen whose subject is
-                // whether a write actually happened.
+                // Invalidating on success re-rendered the editor while its
+                // report was on screen, so the proof that the write had not
+                // moved a parallel field appeared and vanished. That report is
+                // the only reason this screen is interesting; refreshing the
+                // table underneath it costs nothing and can wait for Done.
+                setEditing(null);
                 void queryClient.invalidateQueries({ queryKey: ["schema", "records"] });
               }}
             />

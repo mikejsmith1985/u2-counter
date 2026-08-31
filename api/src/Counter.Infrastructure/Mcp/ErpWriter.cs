@@ -40,6 +40,16 @@ public sealed class ErpWriter(
     private readonly ILogger<ErpWriter> _logger = logger;
 
     /// <inheritdoc />
+
+    /// <summary>Separates fields. A value carrying one would split its field in two.</summary>
+    private const char AttributeMark = (char)254;
+
+    /// <summary>Separates values within a field.</summary>
+    private const char ValueMark = (char)253;
+
+    /// <summary>Separates sub-items within a value.</summary>
+    private const char SubvalueMark = (char)252;
+
     public async Task<RecordChange> UpdateValueAsync(
         string fileName,
         string recordId,
@@ -48,6 +58,23 @@ public sealed class ErpWriter(
         string value,
         CancellationToken cancellationToken)
     {
+        // Refused here as well as at the store, so the message is a sentence
+        // rather than a transport error.
+        //
+        // A value carrying a mark does not change the record's contents, it
+        // changes its shape: an attribute mark splits one field into two, and
+        // every field after it then describes something it is not. This was
+        // caught only afterwards, by comparing field lengths, and reported as
+        // "written, but a field changed length" -- honest, and far too late to
+        // help. The record was already wrong.
+        if (value.Any(character => character is AttributeMark or ValueMark or SubvalueMark))
+        {
+            throw new ErpWriteRefusedException(
+                "A value cannot contain an attribute, value or subvalue mark. It would "
+                    + "change the record's shape rather than its contents, and every "
+                    + "field after it would describe something it is not.");
+        }
+
         string before = await _reader.ReadRecordAsync(fileName, recordId, cancellationToken);
 
         await CallAsync(

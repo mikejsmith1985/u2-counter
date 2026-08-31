@@ -698,11 +698,7 @@ public sealed class AskService(
 
         timer.Stop();
 
-        string body = position.Positions.Count == 0
-            ? $"No inventory record exists for {partNumber}. That is not the same as none in stock."
-            : string.Join("\n", position.Positions.Select(branch =>
-                $"{branch.BranchCode} | on hand {branch.OnHand} | committed {branch.Committed} " +
-                $"| free to sell {branch.FreeToSell}"));
+        string body = DescribeAvailability(position, partNumber);
 
         return (body, new AskStep(
             call.Name,
@@ -713,6 +709,37 @@ public sealed class AskService(
             $"{position.Positions.Count} branch position(s) read live",
             body,
             (int)timer.ElapsedMilliseconds));
+    }
+
+    /// <summary>Put one part's stock into the words the model reads.</summary>
+    /// <param name="position">The branch positions, as read.</param>
+    /// <param name="partNumber">The part they belong to.</param>
+    /// <returns>The tool result, totals included.</returns>
+    /// <remarks>
+    /// Its own function so a unit test can read it without spending money on
+    /// the model. The totals are stated rather than left to be worked out:
+    /// asked for a total across every branch, the model added the lines up
+    /// itself and answered 393 where the figure was 373. Every branch figure
+    /// it quoted was right and only the sum was wrong, which is the hardest
+    /// kind of wrong answer to catch by reading it -- everything supporting it
+    /// checks out. The totals were already computed here, so handing over the
+    /// arithmetic was a choice, and this unmakes it.
+    /// </remarks>
+    internal static string DescribeAvailability(PartAvailability position, string partNumber)
+    {
+        if (position.Positions.Count == 0)
+        {
+            return $"No inventory record exists for {partNumber}. That is not the same as none in stock.";
+        }
+
+        string branches = string.Join("\n", position.Positions.Select(branch =>
+            $"{branch.BranchCode} | on hand {branch.OnHand} | committed {branch.Committed} " +
+            $"| free to sell {branch.FreeToSell}"));
+
+        return branches
+            + $"\n\nTotals across all {position.Positions.Count} branch(es): "
+            + $"on hand {position.TotalOnHand}, free to sell {position.TotalFreeToSell}. "
+            + "Use these figures for any total rather than adding the lines up.";
     }
 
     /// <summary>Read a record exactly as the database holds it.</summary>
